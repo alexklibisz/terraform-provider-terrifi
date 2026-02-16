@@ -11,13 +11,19 @@ jobs:
     name: Lint, Unit, and Acceptance Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - uses: arduino/setup-task@v2
+      - name: Install Taskfile
+        uses: arduino/setup-task@v2
         with:
           version: 3.x
-      - run: task lint
-      - run: task test:unit
-      - run: task test:acc
+      - name: Lint
+        run: task lint
+      - name: Unit tests
+        run: task test:unit
+      - name: Acceptance tests (Docker)
+        run: task test:acc
