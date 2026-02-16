@@ -25,11 +25,13 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           version: 3.x
-      - name: Download dependencies
+      - name: Download Go dependencies
         run: task deps
       - name: Lint
         run: task lint
       - name: Unit tests
         run: task test:unit
+      - name: Pull Docker images
+        run: docker compose -f docker-compose.yaml pull --quiet
       - name: Acceptance tests (Docker)
         run: task test:acc
