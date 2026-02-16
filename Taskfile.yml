@@ -1,0 +1,59 @@
+version: '3'
+
+vars:
+  # GOBIN is where `go install` puts binaries. We need this for dev_overrides
+  # to point Terraform at the built provider binary.
+  GOBIN:
+    sh: 'GOBIN=$(go env GOBIN); echo "${GOBIN:-$(go env GOPATH)/bin}"'
+
+tasks:
+  default:
+    desc: Build and install the provider
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the provider binary and generate .terraformrc for local dev
+    cmds:
+      # Terraform discovers providers by binary name: terraform-provider-<type>.
+      # Since our Go module is "terrifi" (not "terraform-provider-terrifi"),
+      # `go install` would produce a binary called "terrifi". We use -o to give
+      # it the name Terraform expects.
+      - go build -o {{.GOBIN}}/terraform-provider-terrifi
+      # Generate .terraformrc pointing Terraform at the locally-built binary.
+      # .envrc sets TF_CLI_CONFIG_FILE to point here.
+      - |
+        cat > .terraformrc <<EOF
+        provider_installation {
+          dev_overrides {
+            "alexklibisz/terrifi" = "{{.GOBIN}}"
+          }
+          direct {}
+        }
+        EOF
+
+  test:
+    desc: Run acceptance tests against real hardware
+    env:
+      # TF_ACC=1 enables acceptance tests. Without this, tests that call
+      # resource.Test() are skipped. This is a safety guard since acceptance
+      # tests make real API calls.
+      TF_ACC: "1"
+    cmds:
+      - go test ./... -v -count 1 -timeout 10m {{.CLI_ARGS}}
+
+  fmt:
+    desc: Format Go source files
+    cmds:
+      - go fmt ./...
+
+  vet:
+    desc: Run static analysis
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run fmt and vet
+    cmds:
+      - task: fmt
+      - task: vet
