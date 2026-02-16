@@ -429,3 +429,174 @@ resource "terrifi_dns_record" "test" {
 		},
 	})
 }
+
+// TestAccDNSRecord_updateAddTTL tests adding a TTL to a record that was created without one.
+func TestAccDNSRecord_updateAddTTL(t *testing.T) {
+	name := fmt.Sprintf("tfacc-addttl-%s.home", randomSuffix())
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "192.168.1.207"
+  record_type = "A"
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "name", name),
+					resource.TestCheckNoResourceAttr("terrifi_dns_record.test", "ttl"),
+				),
+			},
+			{
+				// Add TTL where there wasn't one before.
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "192.168.1.207"
+  record_type = "A"
+  ttl         = 900
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "ttl", "900"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccDNSRecord_updateReEnable tests toggling a record from disabled back to enabled.
+func TestAccDNSRecord_updateReEnable(t *testing.T) {
+	name := fmt.Sprintf("tfacc-reenable-%s.home", randomSuffix())
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "192.168.1.208"
+  record_type = "A"
+  enabled     = false
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "enabled", "false"),
+				),
+			},
+			{
+				// Re-enable the record.
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "192.168.1.208"
+  record_type = "A"
+  enabled     = true
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "enabled", "true"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccDNSRecord_updateSRVFields tests updating port, priority, and weight on an SRV record.
+func TestAccDNSRecord_updateSRVFields(t *testing.T) {
+	name := fmt.Sprintf("_tfacc._tcp.updsrv-%s.home", randomSuffix())
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "srv1.example.com"
+  record_type = "SRV"
+  port        = 8080
+  priority    = 10
+  weight      = 50
+  ttl         = 3600
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "port", "8080"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "priority", "10"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "weight", "50"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "ttl", "3600"),
+				),
+			},
+			{
+				// Update all SRV-specific fields and the target value.
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "srv2.example.com"
+  record_type = "SRV"
+  port        = 9090
+  priority    = 20
+  weight      = 100
+  ttl         = 7200
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "value", "srv2.example.com"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "port", "9090"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "priority", "20"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "weight", "100"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "ttl", "7200"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccDNSRecord_updateMultipleFields tests changing value, TTL, and enabled in one step.
+func TestAccDNSRecord_updateMultipleFields(t *testing.T) {
+	name := fmt.Sprintf("tfacc-updmulti-%s.home", randomSuffix())
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "192.168.1.210"
+  record_type = "A"
+  ttl         = 300
+  enabled     = true
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "value", "192.168.1.210"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "ttl", "300"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "enabled", "true"),
+				),
+			},
+			{
+				// Change value, TTL, and enabled all at once.
+				Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+  name        = %q
+  value       = "10.0.0.50"
+  record_type = "A"
+  ttl         = 1800
+  enabled     = false
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "value", "10.0.0.50"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "ttl", "1800"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "enabled", "false"),
+				),
+			},
+		},
+	})
+}

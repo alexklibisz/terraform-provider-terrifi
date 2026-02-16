@@ -20,7 +20,7 @@ provider "terrifi" {}
 Set the following environment variables:
 
 - `UNIFI_API` — Controller URL
-- `UNIFI_API_KEY` — API key (or use `UNIFI_USERNAME` + `UNIFI_PASSWORD`)
+- `UNIFI_API_KEY` — API key.
 
 ### Explicit configuration
 
