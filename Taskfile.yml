@@ -45,6 +45,7 @@ tasks:
       TF_ACC: "1"
       TERRIFI_ACC_TARGET: docker
     cmds:
+      - docker compose -f docker-compose.yaml pull
       - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
   test:acc:hardware:
