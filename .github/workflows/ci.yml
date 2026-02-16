@@ -1,0 +1,37 @@
+name: CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Basic CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install Taskfile
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+      - name: Download Go dependencies
+        run: task deps
+      - name: Lint
+        run: task lint
+      - name: Unit tests
+        run: task test:unit
+      - name: Pull Docker images
+        run: docker compose -f docker-compose.yaml pull --quiet
+      - name: Acceptance tests (Docker)
+        run: task test:acc

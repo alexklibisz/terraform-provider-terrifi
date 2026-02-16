@@ -1,0 +1,77 @@
+version: '3'
+
+vars:
+  # GOBIN is where `go install` puts binaries. We need this for dev_overrides
+  # to point Terraform at the built provider binary.
+  GOBIN:
+    sh: 'GOBIN=$(go env GOBIN); echo "${GOBIN:-$(go env GOPATH)/bin}"'
+
+tasks:
+  default:
+    desc: Build and install the provider
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the provider binary and generate .terraformrc for local dev
+    cmds:
+      # Terraform discovers providers by binary name: terraform-provider-<type>.
+      # Since our Go module is "terrifi" (not "terraform-provider-terrifi"),
+      # `go install` would produce a binary called "terrifi". We use -o to give
+      # it the name Terraform expects.
+      - go build -o {{.GOBIN}}/terraform-provider-terrifi
+      # Generate .terraformrc pointing Terraform at the locally-built binary.
+      # .envrc sets TF_CLI_CONFIG_FILE to point here.
+      - |
+        cat > .terraformrc <<EOF
+        provider_installation {
+          dev_overrides {
+            "alexklibisz/terrifi" = "{{.GOBIN}}"
+          }
+          direct {}
+        }
+        EOF
+
+  test:unit:
+    desc: Run unit tests (fast, no network needed)
+    env:
+      TF_ACC: "" # Set to empty value to prevent running acceptance tests.
+    cmds:
+      - go test ./internal/provider/ -v -count 1 {{.CLI_ARGS}}
+
+  test:acc:
+    desc: Run acceptance tests against Docker simulation (default)
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: docker
+    cmds:
+      - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+
+  test:acc:hardware:
+    desc: Run acceptance tests against real hardware (uses env vars from .envrc.local)
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: hardware
+    cmds:
+      - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+
+  deps:
+    desc: Download Go module dependencies
+    cmds:
+      - go mod download
+
+  fmt:
+    desc: Format Go source files
+    cmds:
+      - go fmt ./...
+
+  vet:
+    desc: Run static analysis
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run fmt and vet
+    cmds:
+      - task: fmt
+      - task: vet

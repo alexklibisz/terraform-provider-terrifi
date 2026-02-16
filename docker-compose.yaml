@@ -1,0 +1,47 @@
+# UniFi controller in simulation mode for acceptance testing.
+#
+# This runs a real UniFi controller with simulated devices, so API validation
+# is identical to real hardware. Limitations: no real WAN, WireGuard, or RADIUS.
+#
+# Used automatically by `task test:acc` (Docker mode). The test harness in
+# provider_test.go starts/stops this via testcontainers-go.
+services:
+  unifi:
+    image: jacobalberty/unifi:v10.0.162  # pinned; dependabot updates this
+    init: true
+    environment:
+      PKGURL: ""
+      UNIFI_STDOUT: "true"
+      TZ: Etc/UTC
+    user: unifi
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/manage/account/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    configs:
+      - source: unifi-init
+        target: /unifi/init.d/demo-mode
+        mode: 0757
+        uid: "1000"
+        gid: "1000"
+    ports:
+      - 8443:8443
+      - 8080:8080
+    restart: unless-stopped
+
+configs:
+  unifi-init:
+    content: |
+      #!/bin/sh
+
+      write_config() {
+        echo "$${1}=$${2}" >> /usr/lib/unifi/data/system.properties
+      }
+
+      # Simulation mode creates virtual devices so tests can run without hardware.
+      write_config is_simulation true
+      write_config demo.num_uap 1
+      write_config demo.num_ugw 1
+      write_config demo.num_usw 5
