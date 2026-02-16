@@ -205,14 +205,6 @@ func TestAccDNSRecord_basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: `
-terraform {
-  required_providers {
-    terrifi = {
-      source = "alexklibisz/terrifi"
-    }
-  }
-}
-
 resource "terrifi_dns_record" "test" {
   name        = "tfacc-basic.home"
   value       = "192.168.1.200"
@@ -241,14 +233,6 @@ func TestAccDNSRecord_update(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: `
-terraform {
-  required_providers {
-    terrifi = {
-      source = "alexklibisz/terrifi"
-    }
-  }
-}
-
 resource "terrifi_dns_record" "test" {
   name        = "tfacc-update.home"
   value       = "192.168.1.201"
@@ -263,14 +247,6 @@ resource "terrifi_dns_record" "test" {
 			{
 				// Change the value — should update in place, not destroy+recreate.
 				Config: `
-terraform {
-  required_providers {
-    terrifi = {
-      source = "alexklibisz/terrifi"
-    }
-  }
-}
-
 resource "terrifi_dns_record" "test" {
   name        = "tfacc-update.home"
   value       = "192.168.1.202"
@@ -294,14 +270,6 @@ func TestAccDNSRecord_import(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: `
-terraform {
-  required_providers {
-    terrifi = {
-      source = "alexklibisz/terrifi"
-    }
-  }
-}
-
 resource "terrifi_dns_record" "test" {
   name        = "tfacc-import.home"
   value       = "192.168.1.203"
