@@ -183,10 +183,13 @@ func waitForAPI(ctx context.Context, endpoint, user, pass string) error {
 func preCheck(t *testing.T) {
 	t.Helper()
 
-	required := []string{"UNIFI_USERNAME", "UNIFI_PASSWORD", "UNIFI_API"}
-	for _, v := range required {
-		if os.Getenv(v) == "" {
-			t.Fatalf("%s must be set for acceptance tests", v)
-		}
+	if os.Getenv("UNIFI_API") == "" {
+		t.Fatal("UNIFI_API must be set for acceptance tests")
+	}
+
+	hasAPIKey := os.Getenv("UNIFI_API_KEY") != ""
+	hasCredentials := os.Getenv("UNIFI_USERNAME") != "" && os.Getenv("UNIFI_PASSWORD") != ""
+	if !hasAPIKey && !hasCredentials {
+		t.Fatal("either UNIFI_API_KEY or both UNIFI_USERNAME and UNIFI_PASSWORD must be set for acceptance tests")
 	}
 }

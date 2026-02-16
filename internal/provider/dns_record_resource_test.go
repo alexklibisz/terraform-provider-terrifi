@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -9,6 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
+
+// randomSuffix returns a short random string to make test record names unique,
+// avoiding 400 errors from leftover records when destroy fails.
+func randomSuffix() string {
+	return fmt.Sprintf("%06d", rand.Intn(1000000))
+}
 
 // ---------------------------------------------------------------------------
 // Unit tests — no TF_ACC, no network, no env vars needed
@@ -199,21 +207,22 @@ func TestDNSRecordApplyPlanToState(t *testing.T) {
 
 // TestAccDNSRecord_basic tests the full lifecycle: create, read-back, destroy.
 func TestAccDNSRecord_basic(t *testing.T) {
+	name := fmt.Sprintf("tfacc-basic-%s.home", randomSuffix())
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: `
+				Config: fmt.Sprintf(`
 resource "terrifi_dns_record" "test" {
-  name        = "tfacc-basic.home"
+  name        = %q
   value       = "192.168.1.200"
   record_type = "A"
   enabled     = true
 }
-`,
+`, name),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_dns_record.test", "name", "tfacc-basic.home"),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "name", name),
 					resource.TestCheckResourceAttr("terrifi_dns_record.test", "value", "192.168.1.200"),
 					resource.TestCheckResourceAttr("terrifi_dns_record.test", "record_type", "A"),
 					resource.TestCheckResourceAttr("terrifi_dns_record.test", "enabled", "true"),
@@ -227,33 +236,34 @@ resource "terrifi_dns_record" "test" {
 
 // TestAccDNSRecord_update tests that changing a field triggers an update (not recreate).
 func TestAccDNSRecord_update(t *testing.T) {
+	name := fmt.Sprintf("tfacc-update-%s.home", randomSuffix())
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: `
+				Config: fmt.Sprintf(`
 resource "terrifi_dns_record" "test" {
-  name        = "tfacc-update.home"
+  name        = %q
   value       = "192.168.1.201"
   record_type = "A"
   enabled     = true
 }
-`,
+`, name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_dns_record.test", "value", "192.168.1.201"),
 				),
 			},
 			{
 				// Change the value — should update in place, not destroy+recreate.
-				Config: `
+				Config: fmt.Sprintf(`
 resource "terrifi_dns_record" "test" {
-  name        = "tfacc-update.home"
+  name        = %q
   value       = "192.168.1.202"
   record_type = "A"
   enabled     = true
 }
-`,
+`, name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_dns_record.test", "value", "192.168.1.202"),
 				),
@@ -264,19 +274,20 @@ resource "terrifi_dns_record" "test" {
 
 // TestAccDNSRecord_import tests that an existing record can be imported by ID.
 func TestAccDNSRecord_import(t *testing.T) {
+	name := fmt.Sprintf("tfacc-import-%s.home", randomSuffix())
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: `
+				Config: fmt.Sprintf(`
 resource "terrifi_dns_record" "test" {
-  name        = "tfacc-import.home"
+  name        = %q
   value       = "192.168.1.203"
   record_type = "A"
   enabled     = true
 }
-`,
+`, name),
 			},
 			{
 				ResourceName:      "terrifi_dns_record.test",

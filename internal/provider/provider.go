@@ -267,14 +267,18 @@ func (p *terrifiProvider) Configure(
 	// username/password (creates a session via cookie).
 	if apiKey != "" {
 		client.SetAPIKey(apiKey)
-	} else {
-		if err := client.Login(ctx, username, password); err != nil {
-			resp.Diagnostics.AddError(
-				"Login Failed",
-				fmt.Sprintf("Could not log in to UniFi controller: %s", err.Error()),
-			)
-			return
-		}
+	}
+
+	// Login() serves double duty: it detects the API URL style (classic vs UniFi OS)
+	// and, when no API key is set, authenticates via username/password. When an API key
+	// IS set, Login() skips the POST but still probes the controller to set the correct
+	// API path prefix (e.g. /proxy/network for UniFi OS).
+	if err := client.Login(ctx, username, password); err != nil {
+		resp.Diagnostics.AddError(
+			"Login Failed",
+			fmt.Sprintf("Could not log in to UniFi controller: %s", err.Error()),
+		)
+		return
 	}
 
 	// Wrap the SDK client with our site default. This is what every resource receives
