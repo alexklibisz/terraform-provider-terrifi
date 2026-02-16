@@ -8,7 +8,7 @@ on:
 
 jobs:
   ci:
-    name: Lint, Unit, and Acceptance Tests
+    name: Basic CI
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,6 +21,8 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           version: 3.x
+      - name: Download dependencies
+        run: task deps
       - name: Lint
         run: task lint
       - name: Unit tests

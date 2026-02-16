@@ -55,6 +55,11 @@ tasks:
     cmds:
       - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
+  deps:
+    desc: Download Go module dependencies
+    cmds:
+      - go mod download
+
   fmt:
     desc: Format Go source files
     cmds:
