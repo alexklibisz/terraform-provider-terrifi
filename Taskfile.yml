@@ -32,15 +32,26 @@ tasks:
         }
         EOF
 
-  test:
-    desc: Run acceptance tests against real hardware
-    env:
-      # TF_ACC=1 enables acceptance tests. Without this, tests that call
-      # resource.Test() are skipped. This is a safety guard since acceptance
-      # tests make real API calls.
-      TF_ACC: "1"
+  test:unit:
+    desc: Run unit tests (fast, no network needed)
     cmds:
-      - go test ./... -v -count 1 -timeout 10m {{.CLI_ARGS}}
+      - go test ./internal/provider/ -v -count 1 -run "^Test[^A]" {{.CLI_ARGS}}
+
+  test:acc:
+    desc: Run acceptance tests against Docker simulation (default)
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: docker
+    cmds:
+      - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+
+  test:acc:hardware:
+    desc: Run acceptance tests against real hardware (uses env vars from .envrc.local)
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: hardware
+    cmds:
+      - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
   fmt:
     desc: Format Go source files
