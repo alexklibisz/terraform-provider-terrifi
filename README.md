@@ -2,13 +2,21 @@
 
 Yet another Terraform provider for UniFi
 
-## Overview
+## Introduction
 
 This is my attempt at making a working Terraform provider to manage my home UniFi network.
 
 Full disclosure, much of this code is written by and with help from various AI coding agents (Claude code in particular).
 
-**Why start from scratch?**
+Compared to existing UniFi providers ([paultyng](https://github.com/paultyng/terraform-provider-unifi), [filipowm](https://github.com/filipowm/terraform-provider-unifi), [ubiquiti-community](https://github.com/ubiquiti-community/terraform-provider-unifi)), Terrifi is a nearly-from-scratch implementation with a particular focus on extensive testing, including hardware-in-the-loop testing.
+
+## Docs
+
+- Usage docs: [docs/index.md](./docs/index.md)
+
+## Background
+
+### Starting from scratch
 
 There is some prior-art when it comes to unofficial Terraform providers for UniFi: [paultyng](https://github.com/paultyng/terraform-provider-unifi), [filipowm](https://github.com/filipowm/terraform-provider-unifi), [ubiquiti-community](https://github.com/ubiquiti-community/terraform-provider-unifi).
 Rather than forking and fixing one of the existing providers, I decided to start from scratch.
