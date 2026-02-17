@@ -70,11 +70,12 @@ tasks:
     cmds:
       - go vet ./...
 
-  checkAPIKey:
-    desc: Check the UniFi API key
-    cmds:
-      - |
-        curl --fail --insecure --silent --header "X-API-KEY: ${UNIFI_API_KEY}" "${UNIFI_API}/proxy/network/api/s/default/self" | jq '.data[0]'
+  # checkAPIKey:
+  #   desc: Check the UniFi API key
+  #   cmds:
+  #     - ping 
+  #     - |
+  #       curl --fail --insecure --silent --header "X-API-KEY: ${UNIFI_API_KEY}" "${UNIFI_API}/proxy/network/api/s/default/self" | jq '.data[0]'
 
   lint:
     desc: Run fmt and vet
