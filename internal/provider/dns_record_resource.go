@@ -24,8 +24,8 @@ import (
 // in Java. That's powerful but means you can silently miss a method. These var lines
 // ask the compiler to verify that *dnsRecordResource satisfies the interfaces:
 //
-//   resource.Resource — requires Metadata, Schema, Configure, Create, Read, Update, Delete
-//   resource.ResourceWithImportState — adds ImportState for `terraform import`
+//	resource.Resource — requires Metadata, Schema, Configure, Create, Read, Update, Delete
+//	resource.ResourceWithImportState — adds ImportState for `terraform import`
 //
 // The _ (blank identifier) discards the value; we only care about the type check.
 // If you forget to implement a method, you'll get a clear compile error here pointing

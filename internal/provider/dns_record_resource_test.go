@@ -316,9 +316,9 @@ resource "terrifi_dns_record" "test" {
 `, name),
 			},
 			{
-				ResourceName:            "terrifi_dns_record.test",
-				ImportState:             true,
-				ImportStateVerify:       true,
+				ResourceName:      "terrifi_dns_record.test",
+				ImportState:       true,
+				ImportStateVerify: true,
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					rs := s.RootModule().Resources["terrifi_dns_record.test"]
 					if rs == nil {
