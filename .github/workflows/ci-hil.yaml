@@ -17,7 +17,7 @@ jobs:
       - self-hosted
       - terrifi-hardware-test
     env:
-      UNIFI_API: 192.168.1.3:11443
+      UNIFI_API: https://192.168.1.3:11443
       UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
     steps:
       - name: Checkout
@@ -32,7 +32,7 @@ jobs:
           version: 3.x
       - name: Check UniFi API key
         run: |
-          ping -c3 -w1 192.168.1.3
+          curl --fail --insecure ${UNIFI_API} -H "X-API-KEY: ${UNIFI_API_KEY}" --silent | jq '.data[0]'
       # - name: Download Go dependencies
       #   run: task deps
       # - name: Build
