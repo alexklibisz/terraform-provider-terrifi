@@ -34,7 +34,7 @@ resource "terrifi_network" "iot" {
 ### Required
 
 - `name` (String) — The name of the network.
-- `purpose` (String) — The purpose of the network. Must be `corporate`. Changing this forces a new resource.
+- `purpose` (String) — The purpose of the network. For now this must be `corporate`. We might support others in the future but it's more complicated to implement and test.
 
 ### Optional
 
