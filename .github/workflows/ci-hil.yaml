@@ -32,9 +32,9 @@ jobs:
           version: 3.x
       - name: Check UniFi API key
         run: task checkAPIKey
-      # - name: Download Go dependencies
-      #   run: task deps
-      # - name: Build
-      #   run: task build
+      - name: Download Go dependencies
+        run: task deps
+      - name: Build
+        run: task build
       # - name: Acceptance tests (HIL)
       #   run: task test:acc:hardware
