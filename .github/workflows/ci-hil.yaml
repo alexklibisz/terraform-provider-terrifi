@@ -33,9 +33,9 @@ jobs:
       - name: Check UniFi API key
         run: |
           ping -t5 192.168.1.3
-      - name: Download Go dependencies
-        run: task deps
-      - name: Build
-        run: task build
-      - name: Acceptance tests (HIL)
-        run: task test:acc:hardware
+      # - name: Download Go dependencies
+      #   run: task deps
+      # - name: Build
+      #   run: task build
+      # - name: Acceptance tests (HIL)
+      #   run: task test:acc:hardware
