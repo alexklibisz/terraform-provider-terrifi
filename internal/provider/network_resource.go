@@ -92,13 +92,13 @@ func (r *networkResource) Schema(
 			},
 
 			"purpose": schema.StringAttribute{
-				MarkdownDescription: "The purpose of the network. Must be either `corporate` or `guest`.",
+				MarkdownDescription: "The purpose of the network. Must be `corporate`.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("corporate", "guest"),
+					stringvalidator.OneOf("corporate"),
 				},
 			},
 

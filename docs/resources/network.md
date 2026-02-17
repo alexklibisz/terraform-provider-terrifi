@@ -7,7 +7,7 @@ description: |-
 
 # terrifi_network (Resource)
 
-Manages a network on the UniFi controller. Supports both corporate and guest network types with VLAN configuration and DHCP settings.
+Manages a network on the UniFi controller. Supports corporate network types with VLAN configuration and DHCP settings.
 
 ## Example Usage
 
@@ -29,27 +29,12 @@ resource "terrifi_network" "iot" {
 }
 ```
 
-### Guest network
-
-```terraform
-resource "terrifi_network" "guest" {
-  name                     = "Guest WiFi"
-  purpose                  = "guest"
-  vlan_id                  = 99
-  subnet                   = "10.99.0.0/24"
-  dhcp_enabled             = true
-  dhcp_start               = "10.99.0.10"
-  dhcp_stop                = "10.99.0.250"
-  internet_access_enabled  = true
-}
-```
-
 ## Schema
 
 ### Required
 
 - `name` (String) — The name of the network.
-- `purpose` (String) — The purpose of the network. Must be either `corporate` or `guest`. Changing this forces a new resource.
+- `purpose` (String) — The purpose of the network. Must be `corporate`. Changing this forces a new resource.
 
 ### Optional
 

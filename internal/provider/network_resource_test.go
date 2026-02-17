@@ -77,26 +77,6 @@ func TestNetworkModelToAPI(t *testing.T) {
 		assert.Equal(t, int64(86400), *net.DHCPDLeaseTime)
 	})
 
-	t.Run("guest network", func(t *testing.T) {
-		model := &networkResourceModel{
-			Name:                  types.StringValue("Guest"),
-			Purpose:               types.StringValue("guest"),
-			VLANId:                types.Int64Value(99),
-			Subnet:                types.StringValue("10.99.0.0/24"),
-			DHCPEnabled:           types.BoolValue(true),
-			DHCPStart:             types.StringValue("10.99.0.10"),
-			DHCPStop:              types.StringValue("10.99.0.250"),
-			InternetAccessEnabled: types.BoolValue(true),
-		}
-
-		net := r.modelToAPI(ctx, model)
-
-		assert.Equal(t, "guest", net.Purpose)
-		require.NotNil(t, net.VLAN)
-		assert.Equal(t, int64(99), *net.VLAN)
-		assert.True(t, net.VLANEnabled)
-	})
-
 	t.Run("dhcp dns list fans out to API fields", func(t *testing.T) {
 		model := &networkResourceModel{
 			Name:    types.StringValue("DNS Test"),
@@ -275,40 +255,6 @@ resource "terrifi_network" "test" {
 					resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "true"),
 					resource.TestCheckResourceAttr("terrifi_network.test", "site", "default"),
 					resource.TestCheckResourceAttrSet("terrifi_network.test", "id"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccNetwork_guest(t *testing.T) {
-	t.Skip("go-unifi v1.33.29 does not support marshaling purpose=guest")
-
-	name := fmt.Sprintf("tfacc-guest-%s", randomSuffix())
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(`
-resource "terrifi_network" "test" {
-  name                     = %q
-  purpose                  = "guest"
-  vlan_id                  = 99
-  subnet                   = "10.99.0.0/24"
-  dhcp_enabled             = true
-  dhcp_start               = "10.99.0.10"
-  dhcp_stop                = "10.99.0.250"
-  internet_access_enabled  = true
-}
-`, name),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_network.test", "name", name),
-					resource.TestCheckResourceAttr("terrifi_network.test", "purpose", "guest"),
-					resource.TestCheckResourceAttr("terrifi_network.test", "vlan_id", "99"),
-					resource.TestCheckResourceAttr("terrifi_network.test", "subnet", "10.99.0.0/24"),
-					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_enabled", "true"),
-					resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "true"),
 				),
 			},
 		},
