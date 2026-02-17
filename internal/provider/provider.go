@@ -5,9 +5,9 @@
 //
 // Terraform Plugin Framework is HashiCorp's modern SDK for building providers.
 // A provider has three responsibilities:
-//   1. Schema — declare what configuration the provider block accepts (URL, credentials, etc.)
-//   2. Configure — use that config to create an authenticated API client
-//   3. Resources/DataSources — return the list of resource types this provider manages
+//  1. Schema — declare what configuration the provider block accepts (URL, credentials, etc.)
+//  2. Configure — use that config to create an authenticated API client
+//  3. Resources/DataSources — return the list of resource types this provider manages
 //
 // The framework calls these methods in order: Schema → Configure → then CRUD methods
 // on individual resources as needed. The Configure method stores the authenticated client
@@ -300,6 +300,7 @@ func (p *terrifiProvider) Configure(
 func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewDNSRecordResource,
+		NewNetworkResource,
 	}
 }
 
