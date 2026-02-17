@@ -21,20 +21,27 @@ jobs:
       UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
     steps:
       - name: Checkout
+        timeout-minutes: 1
         uses: actions/checkout@v4
       - name: Set up Go
+        timeout-minutes: 1
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Install Taskfile
+        timeout-minutes: 1
         uses: arduino/setup-task@v2
         with:
           version: 3.x
       - name: Check UniFi API key
+        timeout-minutes: 1
         run: task checkAPIKey
       - name: Download Go dependencies
+        timeout-minutes: 10
         run: task deps
       - name: Build
+        timeout-minutes: 10
         run: task build
-      # - name: Acceptance tests (HIL)
-      #   run: task test:acc:hardware
+      - name: Acceptance tests (HIL)
+        timeout-minutes: 10
+        run: task test:acc:hardware

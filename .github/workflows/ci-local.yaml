@@ -16,24 +16,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        timeout-minutes: 1
         uses: actions/checkout@v4
       - name: Set up Go
+        timeout-minutes: 1
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Install Taskfile
+        timeout-minutes: 1
         uses: arduino/setup-task@v2
         with:
           version: 3.x
       - name: Download Go dependencies
+        timeout-minutes: 10
         run: task deps
       - name: Lint
+        timeout-minutes: 1
         run: task lint
       - name: Build
+        timeout-minutes: 10
         run: task build
       - name: Unit tests
+        timeout-minutes: 1
         run: task test:unit
       - name: Pull Docker images
+        timeout-minutes: 10
         run: docker compose -f docker-compose.yaml pull --quiet
       - name: Acceptance tests (Docker)
+        timeout-minutes: 10
         run: task test:acc
