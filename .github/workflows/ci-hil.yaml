@@ -32,7 +32,7 @@ jobs:
           version: 3.x
       - name: Check UniFi API key
         run: |
-          curl --fail --insecure ${UNIFI_API} -H "X-API-KEY: ${UNIFI_API_KEY}" --silent | jq '.data[0]'
+          curl --fail --insecure --silent --header "X-API-KEY: ${UNIFI_API_KEY}" "${UNIFI_API}/proxy/network/api/s/default/self" | jq '.data[0]'
       # - name: Download Go dependencies
       #   run: task deps
       # - name: Build
