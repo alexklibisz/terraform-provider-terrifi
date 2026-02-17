@@ -152,6 +152,7 @@ func (r *networkResource) Schema(
 				MarkdownDescription: "List of DNS servers for DHCP clients. Maximum 4 servers.",
 				ElementType:         types.StringType,
 				Optional:            true,
+				Computed:            true,
 				Validators: []validator.List{
 					listvalidator.SizeAtMost(4),
 				},

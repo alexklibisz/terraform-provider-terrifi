@@ -261,7 +261,7 @@ resource "terrifi_network" "test" {
 	})
 }
 
-func TestAccNetwork_update(t *testing.T) {
+func TestAccNetwork_updateLease(t *testing.T) {
 	name := fmt.Sprintf("tfacc-update-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
@@ -299,6 +299,79 @@ resource "terrifi_network" "test" {
 `, name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_lease", "43200"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccNetwork_updateDHCP(t *testing.T) {
+	name := fmt.Sprintf("tfacc-dhcp-%s", randomSuffix())
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name                     = %q
+  purpose                  = "corporate"
+  vlan_id                  = 40
+  subnet                   = "192.168.40.1/24"
+  dhcp_enabled             = true
+  dhcp_start               = "192.168.40.6"
+  dhcp_stop                = "192.168.40.254"
+  dhcp_lease               = 86400
+  dhcp_dns                 = ["8.8.8.8", "8.8.4.4"]
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_enabled", "true"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_start", "192.168.40.6"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_stop", "192.168.40.254"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_lease", "86400"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "2"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.0", "8.8.8.8"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.1", "8.8.4.4"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name                     = %q
+  purpose                  = "corporate"
+  vlan_id                  = 40
+  subnet                   = "192.168.40.1/24"
+  dhcp_enabled             = true
+  dhcp_start               = "192.168.40.100"
+  dhcp_stop                = "192.168.40.200"
+  dhcp_lease               = 3600
+  dhcp_dns                 = ["1.1.1.1", "9.9.9.9", "208.67.222.222"]
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_enabled", "true"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_start", "192.168.40.100"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_stop", "192.168.40.200"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_lease", "3600"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "3"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.0", "1.1.1.1"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.1", "9.9.9.9"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.2", "208.67.222.222"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name                     = %q
+  purpose                  = "corporate"
+  vlan_id                  = 40
+  subnet                   = "192.168.40.1/24"
+  dhcp_enabled             = false
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_enabled", "false"),
 				),
 			},
 		},
