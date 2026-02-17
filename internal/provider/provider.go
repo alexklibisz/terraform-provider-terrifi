@@ -300,6 +300,7 @@ func (p *terrifiProvider) Configure(
 func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewDNSRecordResource,
+		NewNetworkResource,
 	}
 }
 
