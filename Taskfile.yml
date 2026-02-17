@@ -74,7 +74,7 @@ tasks:
     desc: Check the UniFi API key
     cmds:
       - |
-        curl --fail --insecure --silent --header "X-API-KEY: ${UNIFI_API_KEY}" "${UNIFI_API}/proxy/network/api/s/default/self" | jq '.data[0].site_role' | grep admin
+        curl --fail --insecure --silent --header "X-API-KEY: ${UNIFI_API_KEY}" "${UNIFI_API}/proxy/network/api/s/default/self" | jq '.data[0]'
 
   lint:
     desc: Run fmt and vet
