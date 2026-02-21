@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(task:*)",
+      "Bash(ls:*)",
+      "Bash(curl:*)",
+      "Bash(source:*)",
+      "Bash(python3:*)",
+      "Bash(chmod:*)",
+      "Bash(go:*)",
+      "Bash(docker:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:registry.hub.docker.com)",
+      "WebFetch(domain:developer.hashicorp.com)",
+      "WebFetch(domain:deepwiki.com)"
+    ]
+  }
+}
