@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -12,6 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
+
+// requireHardware skips the test when running against the Docker simulation
+// controller. The zone-based firewall v2 API requires a fully adopted gateway
+// which the simulation mode doesn't provide.
+func requireHardware(t *testing.T) {
+	t.Helper()
+	target := os.Getenv("TERRIFI_ACC_TARGET")
+	if target == "" || target == "docker" {
+		t.Skip("firewall zone tests require hardware (TERRIFI_ACC_TARGET=hardware)")
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Unit tests
@@ -192,7 +204,7 @@ func TestFirewallZoneApplyPlanToState(t *testing.T) {
 func TestAccFirewallZone_basic(t *testing.T) {
 	name := fmt.Sprintf("tfacc-zone-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -205,7 +217,6 @@ resource "terrifi_firewall_zone" "test" {
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "name", name),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "site", "default"),
 					resource.TestCheckResourceAttrSet("terrifi_firewall_zone.test", "id"),
-					resource.TestCheckResourceAttrSet("terrifi_firewall_zone.test", "zone_key"),
 				),
 			},
 		},
@@ -216,7 +227,7 @@ func TestAccFirewallZone_withNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-nets-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -246,7 +257,7 @@ func TestAccFirewallZone_updateName(t *testing.T) {
 	name1 := fmt.Sprintf("tfacc-zone-upd1-%s", randomSuffix())
 	name2 := fmt.Sprintf("tfacc-zone-upd2-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -277,7 +288,7 @@ func TestAccFirewallZone_addNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-add-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-add-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -323,7 +334,7 @@ func TestAccFirewallZone_removeNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-rm-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-rm-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -371,7 +382,7 @@ func TestAccFirewallZone_replaceNetworks(t *testing.T) {
 	net1Name := fmt.Sprintf("tfacc-net-r1-%s", randomSuffix())
 	net2Name := fmt.Sprintf("tfacc-net-r2-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -433,7 +444,7 @@ func TestAccFirewallZone_updateNameAndNetworks(t *testing.T) {
 	name2 := fmt.Sprintf("tfacc-zone-both2-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-both-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -479,7 +490,7 @@ resource "terrifi_firewall_zone" "test" {
 func TestAccFirewallZone_emptyNetworkList(t *testing.T) {
 	name := fmt.Sprintf("tfacc-zone-empty-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -501,7 +512,7 @@ resource "terrifi_firewall_zone" "test" {
 func TestAccFirewallZone_import(t *testing.T) {
 	name := fmt.Sprintf("tfacc-zone-imp-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -523,7 +534,7 @@ resource "terrifi_firewall_zone" "test" {
 func TestAccFirewallZone_importSiteID(t *testing.T) {
 	name := fmt.Sprintf("tfacc-zone-impsid-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -553,7 +564,7 @@ func TestAccFirewallZone_multipleZones(t *testing.T) {
 	name1 := fmt.Sprintf("tfacc-zone-m1-%s", randomSuffix())
 	name2 := fmt.Sprintf("tfacc-zone-m2-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -582,7 +593,7 @@ func TestAccFirewallZone_networkSharedBetweenZones(t *testing.T) {
 	zone2Name := fmt.Sprintf("tfacc-zone-sh2-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-sh-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{

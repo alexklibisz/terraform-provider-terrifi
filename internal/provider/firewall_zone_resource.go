@@ -270,7 +270,7 @@ func (r *firewallZoneResource) apiToModel(zone *unifi.FirewallZone, m *firewallZ
 		m.ZoneKey = types.StringNull()
 	}
 
-	if len(zone.NetworkIDs) > 0 {
+	if zone.NetworkIDs != nil {
 		vals := make([]attr.Value, len(zone.NetworkIDs))
 		for i, id := range zone.NetworkIDs {
 			vals[i] = types.StringValue(id)

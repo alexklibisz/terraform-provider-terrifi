@@ -70,7 +70,11 @@ type terrifiProviderModel struct {
 // name alongside the API client so resources can fall back to it.
 type Client struct {
 	*ui.ApiClient
-	Site string
+	Site    string
+	BaseURL string
+	APIPath string // API path prefix, e.g. "/proxy/network" for UniFi OS, empty for legacy
+	APIKey  string // Stored separately because the SDK's apiKey field is private
+	HTTP    *retryablehttp.Client
 }
 
 // SiteOrDefault returns the given site if non-empty, otherwise falls back to the
@@ -281,11 +285,28 @@ func (p *terrifiProvider) Configure(
 		return
 	}
 
+	// Discover the API path prefix. The go-unifi SDK does this internally during
+	// Login() but stores it in a private field. We replicate the same probe: UniFi OS
+	// returns 200 on GET / (and uses /proxy/network prefix), while legacy controllers
+	// return 302 (and use no prefix).
+	apiPath, err := discoverAPIPath(ctx, c, apiUrl)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"API Path Discovery Failed",
+			fmt.Sprintf("Could not determine UniFi API path style: %s", err.Error()),
+		)
+		return
+	}
+
 	// Wrap the SDK client with our site default. This is what every resource receives
 	// in its Configure() method via req.ProviderData.
 	configuredClient := &Client{
 		ApiClient: client,
 		Site:      site,
+		BaseURL:   apiUrl,
+		APIPath:   apiPath,
+		APIKey:    apiKey,
+		HTTP:      c,
 	}
 
 	// ResourceData and DataSourceData are how the framework passes the client to
@@ -309,6 +330,35 @@ func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resourc
 // data sources (read-only lookups) as needed.
 func (p *terrifiProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{}
+}
+
+// discoverAPIPath probes the UniFi controller to determine the API path prefix.
+// UniFi OS controllers return HTTP 200 on GET / and use "/proxy/network" as the
+// API path prefix. Legacy controllers return HTTP 302 and use no prefix.
+// This replicates the logic in the go-unifi SDK's setAPIUrlStyle method.
+func discoverAPIPath(ctx context.Context, c *retryablehttp.Client, baseURL string) (string, error) {
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating probe request: %w", err)
+	}
+
+	// Disable redirects for this probe — we need to see the raw status code.
+	origCheckRedirect := c.HTTPClient.CheckRedirect
+	c.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	defer func() { c.HTTPClient.CheckRedirect = origCheckRedirect }()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("probing controller: %w", err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return "/proxy/network", nil
+	}
+	return "", nil
 }
 
 // stringValueOrEnv returns the Terraform attribute value if non-empty, otherwise

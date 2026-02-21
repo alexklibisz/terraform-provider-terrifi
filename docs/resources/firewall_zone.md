@@ -9,6 +9,8 @@ description: |-
 
 Manages a firewall zone on the UniFi controller. Firewall zones group networks together for firewall rule management.
 
+~> **Prerequisite:** Zone-based firewall must be enabled on your controller before using this resource. In the UniFi UI, navigate to **Settings > Security > Traffic & Firewall Rules** and click **Upgrade to the New Zone-Based Firewall**. This is a one-time operation that creates the default zones and enables the zone API.
+
 ## Example Usage
 
 ### Basic zone
