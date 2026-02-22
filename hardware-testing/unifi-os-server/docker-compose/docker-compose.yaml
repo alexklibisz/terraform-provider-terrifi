@@ -10,6 +10,16 @@
 #   3. Access the UI at https://<host-ip>:8443
 
 services:
+  # Stub for the ULP (Unified Logging Platform) API that the UniFi Network
+  # Application expects at 127.0.0.1:9080. On real UniFi OS hardware this is
+  # provided by UCore; in Docker it's absent, causing noisy log spam.
+  ulp-stub:
+    image: nginx:alpine
+    network_mode: host
+    volumes:
+      - ./nginx-ulp-stub.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+
   unifi:
     image: jacobalberty/unifi:v10.0.162  # pinned; bump as needed
     network_mode: host
