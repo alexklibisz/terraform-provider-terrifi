@@ -37,7 +37,7 @@ jobs:
           version: 3.x
       - name: Check UniFi API key
         timeout-minutes: 1
-        run: task checkAPIKey
+        run: task checkAPIConnection
       - name: Download Go dependencies
         timeout-minutes: 10
         run: task deps
