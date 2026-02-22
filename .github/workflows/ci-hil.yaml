@@ -17,7 +17,7 @@ jobs:
       - self-hosted
       - terrifi-hardware-test
     env:
-      UNIFI_API: https://192.168.1.3:11443
+      UNIFI_API: https://terrifi-unifi-os-server.lan:8443
       UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
       UNIFI_INSECURE: true
     steps:
