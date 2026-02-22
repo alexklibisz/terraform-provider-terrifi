@@ -18,7 +18,8 @@ jobs:
       - terrifi-hardware-test
     env:
       UNIFI_API: https://terrifi-unifi-os-server.lan:8443
-      UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
+      UNIFI_USERNAME: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_USERNAME }}
+      UNIFI_PASSWORD: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_PASSWORD }}
       UNIFI_INSECURE: true
     steps:
       - name: Checkout
