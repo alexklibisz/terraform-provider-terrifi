@@ -1,0 +1,48 @@
+# UniFi controller in host networking mode.
+#
+# Host networking lets UniFi devices on the local network discover and
+# communicate with the controller directly. Use Tailscale on the host
+# itself if you also need remote access to the management UI.
+#
+# Quick start:
+#   1. Copy .env.example to .env and set TZ
+#   2. docker compose up -d
+#   3. Access the UI at https://<host-ip>:8443
+
+services:
+  # Stub for the ULP (Unified Logging Platform) API that the UniFi Network
+  # Application expects at 127.0.0.1:9080. On real UniFi OS hardware this is
+  # provided by UCore; in Docker it's absent, causing noisy log spam.
+  ulp-stub:
+    image: nginx:alpine
+    network_mode: host
+    volumes:
+      - ./nginx-ulp-stub.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+
+  unifi:
+    image: jacobalberty/unifi:v10.0.162  # pinned; bump as needed
+    network_mode: host
+    init: true
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      UNIFI_STDOUT: "true"
+      JVM_MAX_HEAP_SIZE: ${JVM_MAX_HEAP_SIZE:-1024M}
+      LOTSOFDEVICES: "true"
+    user: unifi
+    volumes:
+      - unifi-data:/unifi/data
+      - unifi-log:/unifi/log
+      - unifi-cert:/unifi/cert
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/manage/account/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  unifi-data:
+  unifi-log:
+  unifi-cert:
