@@ -70,11 +70,10 @@ tasks:
     cmds:
       - go vet ./...
 
-  checkAPIKey:
-    desc: Check the UniFi API key
+  checkAPIConnection:
+    desc: Verify connectivity to the UniFi controller
     cmds:
-      - |
-        curl --fail --insecure --silent --header "X-API-KEY: ${UNIFI_API_KEY}" "${UNIFI_API}/proxy/network/api/s/default/self" | jq '.data[0].site_role' | grep admin
+      - ./hardware-testing/connection_check.sh
 
   lint:
     desc: Run fmt and vet
