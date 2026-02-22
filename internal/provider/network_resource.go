@@ -344,9 +344,13 @@ func (r *networkResource) applyPlanToState(plan, state *networkResourceModel) {
 }
 
 func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceModel) *unifi.Network {
+	// SettingPreference must be "manual" so the controller doesn't auto-override
+	// our explicit settings (e.g., setting_preference=auto auto-enables DHCP).
+	manual := "manual"
 	net := &unifi.Network{
-		Purpose: m.Purpose.ValueString(),
-		Enabled: true,
+		Purpose:           m.Purpose.ValueString(),
+		Enabled:           true,
+		SettingPreference: &manual,
 	}
 
 	if !m.Name.IsNull() {
@@ -376,22 +380,22 @@ func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceMode
 		net.DHCPDEnabled = m.DHCPEnabled.ValueBool()
 	}
 
-	if !m.DHCPStart.IsNull() {
+	if !m.DHCPStart.IsNull() && !m.DHCPStart.IsUnknown() {
 		start := m.DHCPStart.ValueString()
 		net.DHCPDStart = &start
 	}
 
-	if !m.DHCPStop.IsNull() {
+	if !m.DHCPStop.IsNull() && !m.DHCPStop.IsUnknown() {
 		stop := m.DHCPStop.ValueString()
 		net.DHCPDStop = &stop
 	}
 
-	if !m.DHCPLease.IsNull() {
+	if !m.DHCPLease.IsNull() && !m.DHCPLease.IsUnknown() {
 		lease := m.DHCPLease.ValueInt64()
 		net.DHCPDLeaseTime = &lease
 	}
 
-	if !m.DHCPDns.IsNull() {
+	if !m.DHCPDns.IsNull() && !m.DHCPDns.IsUnknown() {
 		var dnsServers []types.String
 		m.DHCPDns.ElementsAs(ctx, &dnsServers, false)
 

@@ -125,7 +125,7 @@ func TestFirewallZoneAPIToModel(t *testing.T) {
 		assert.Equal(t, 2, len(model.NetworkIDs.Elements()))
 	})
 
-	t.Run("empty network IDs returns null", func(t *testing.T) {
+	t.Run("empty network IDs returns empty list", func(t *testing.T) {
 		zone := &unifi.FirewallZone{
 			ID:         "zone-003",
 			Name:       "Empty Zone",
@@ -135,7 +135,8 @@ func TestFirewallZoneAPIToModel(t *testing.T) {
 		var model firewallZoneResourceModel
 		r.apiToModel(zone, &model, "default")
 
-		assert.True(t, model.NetworkIDs.IsNull())
+		assert.False(t, model.NetworkIDs.IsNull())
+		assert.Equal(t, 0, len(model.NetworkIDs.Elements()))
 	})
 
 	t.Run("nil network IDs returns null", func(t *testing.T) {
@@ -588,33 +589,41 @@ resource "terrifi_firewall_zone" "zone2" {
 	})
 }
 
-func TestAccFirewallZone_networkSharedBetweenZones(t *testing.T) {
-	zone1Name := fmt.Sprintf("tfacc-zone-sh1-%s", randomSuffix())
-	zone2Name := fmt.Sprintf("tfacc-zone-sh2-%s", randomSuffix())
-	netName := fmt.Sprintf("tfacc-net-sh-%s", randomSuffix())
+func TestAccFirewallZone_multipleZonesWithDistinctNetworks(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-zone-dn1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-zone-dn2-%s", randomSuffix())
+	net1Name := fmt.Sprintf("tfacc-net-dn1-%s", randomSuffix())
+	net2Name := fmt.Sprintf("tfacc-net-dn2-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
-resource "terrifi_network" "test" {
+resource "terrifi_network" "net1" {
   name    = %q
   purpose = "corporate"
   vlan_id = 106
   subnet  = "192.168.106.1/24"
 }
 
+resource "terrifi_network" "net2" {
+  name    = %q
+  purpose = "corporate"
+  vlan_id = 107
+  subnet  = "192.168.107.1/24"
+}
+
 resource "terrifi_firewall_zone" "zone1" {
   name        = %q
-  network_ids = [terrifi_network.test.id]
+  network_ids = [terrifi_network.net1.id]
 }
 
 resource "terrifi_firewall_zone" "zone2" {
   name        = %q
-  network_ids = [terrifi_network.test.id]
+  network_ids = [terrifi_network.net2.id]
 }
-`, netName, zone1Name, zone2Name),
+`, net1Name, net2Name, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone1", "network_ids.#", "1"),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone2", "network_ids.#", "1"),

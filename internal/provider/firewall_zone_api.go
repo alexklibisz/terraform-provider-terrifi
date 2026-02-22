@@ -12,11 +12,20 @@ import (
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
-// firewallZoneRequest is the payload for creating/updating firewall zones.
+// firewallZoneCreateRequest is the payload for creating firewall zones.
 // We define our own struct instead of using unifi.FirewallZone because the
 // SDK struct includes "default_zone" (without omitempty) which the UniFi v2
 // API rejects as an unrecognized field.
-type firewallZoneRequest struct {
+type firewallZoneCreateRequest struct {
+	Name       string   `json:"name,omitempty"`
+	NetworkIDs []string `json:"network_ids"`
+}
+
+// firewallZoneUpdateRequest is the payload for updating firewall zones.
+// The v2 API requires _id in the PUT body (not just the URL path), otherwise
+// the controller throws "The given id must not be null" (500).
+type firewallZoneUpdateRequest struct {
+	ID         string   `json:"_id"`
 	Name       string   `json:"name,omitempty"`
 	NetworkIDs []string `json:"network_ids"`
 }
@@ -25,7 +34,7 @@ type firewallZoneRequest struct {
 // the go-unifi SDK's CreateFirewallZone because the SDK serializes
 // "default_zone":false which the API rejects (400 Bad Request).
 func (c *Client) CreateFirewallZone(ctx context.Context, site string, d *unifi.FirewallZone) (*unifi.FirewallZone, error) {
-	payload := firewallZoneRequest{
+	payload := firewallZoneCreateRequest{
 		Name:       d.Name,
 		NetworkIDs: d.NetworkIDs,
 	}
@@ -46,7 +55,8 @@ func (c *Client) CreateFirewallZone(ctx context.Context, site string, d *unifi.F
 // UpdateFirewallZone updates a firewall zone using the v2 API. Same
 // serialization workaround as CreateFirewallZone.
 func (c *Client) UpdateFirewallZone(ctx context.Context, site string, d *unifi.FirewallZone) (*unifi.FirewallZone, error) {
-	payload := firewallZoneRequest{
+	payload := firewallZoneUpdateRequest{
+		ID:         d.ID,
 		Name:       d.Name,
 		NetworkIDs: d.NetworkIDs,
 	}
