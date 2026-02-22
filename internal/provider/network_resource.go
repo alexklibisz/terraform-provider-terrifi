@@ -344,14 +344,11 @@ func (r *networkResource) applyPlanToState(plan, state *networkResourceModel) {
 }
 
 func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceModel) *unifi.Network {
-	// SettingPreference must be "manual" so the controller doesn't auto-override
-	// our explicit settings (e.g., setting_preference=auto auto-enables DHCP).
-	manual := "manual"
 	net := &unifi.Network{
-		Purpose:           m.Purpose.ValueString(),
-		Enabled:           true,
-		SettingPreference: &manual,
+		Purpose: m.Purpose.ValueString(),
+		Enabled: true,
 	}
+	applySDKSettingPreferenceWorkaround(net)
 
 	if !m.Name.IsNull() {
 		name := m.Name.ValueString()
@@ -380,6 +377,16 @@ func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceMode
 		net.DHCPDEnabled = m.DHCPEnabled.ValueBool()
 	}
 
+	// TODO(go-unifi): The IsUnknown() guards on DHCP fields below work around a
+	// bug in the SDK's marshalCorporate() (network_encode.go). That function uses
+	// valueOrDefault(n.DHCPDStart, defaultStart) which unconditionally sends DHCP
+	// range values even when the caller leaves them nil. During a Terraform create,
+	// computed+optional fields like dhcp_start/dhcp_stop are "unknown" (not null),
+	// so ValueString() returns "". Passing &"" to the SDK causes marshalCorporate()
+	// to serialize empty strings, which crashes the controller with:
+	//   java.lang.IllegalArgumentException: Could not parse []
+	// When the SDK is fixed (e.g., by not defaulting nil pointer fields), the
+	// IsUnknown() checks here can be collapsed back to just IsNull().
 	if !m.DHCPStart.IsNull() && !m.DHCPStart.IsUnknown() {
 		start := m.DHCPStart.ValueString()
 		net.DHCPDStart = &start
@@ -507,4 +514,18 @@ func toAttrValues(vals []types.String) []attr.Value {
 		result[i] = v
 	}
 	return result
+}
+
+// applySDKSettingPreferenceWorkaround forces setting_preference to "manual" on
+// a Network before it is passed to the go-unifi SDK.
+//
+// TODO(go-unifi): Remove this function and its call in modelToAPI when the SDK's
+// marshalCorporate() (network_encode.go) is fixed. That function defaults
+// setting_preference to "auto" via valueOrDefault(n.SettingPreference, "auto"),
+// which causes the UniFi controller to auto-override caller-supplied settings.
+// For example, with setting_preference=auto the controller force-enables DHCP
+// on any corporate network that has a subnet, regardless of dhcpd_enabled.
+func applySDKSettingPreferenceWorkaround(net *unifi.Network) {
+	manual := "manual"
+	net.SettingPreference = &manual
 }
