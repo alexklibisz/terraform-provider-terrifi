@@ -31,6 +31,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      - name: Set up Terraform
+        timeout-minutes: 1
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
       - name: Install Taskfile
         timeout-minutes: 1
         uses: arduino/setup-task@v2
