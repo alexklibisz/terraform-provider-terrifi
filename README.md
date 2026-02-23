@@ -23,10 +23,17 @@ Here's a rough list of features that I'm looking to implement:
 - [x] `terrifi_network` resource working on real hardware.
 - [x] `terrifi_firewall_zone` resource working on real hardware.
 - [ ] `terrifi_client_device` resource working on real hardware.
-- [ ] `terrifi_wifi` resource working on real hardware.
-- [ ] `terrifi_policy` resource working on real hardware.
+- [x] `terrifi_wifi` resource working on real hardware.
+- [x] `terrifi_policy` resource working on real hardware.
 - [ ] End-to-end working with my home UniFi network.
 - [ ] Publish to Terraform and Opentofu registries.
+
+## Releasing
+
+1. Go to the [Tag workflow](../../actions/workflows/tag.yml) in GitHub Actions.
+2. Click "Run workflow", enter the version tag (e.g., `v0.1.0`), and run it.
+3. The tag workflow creates and pushes the tag, which triggers the [Release workflow](../../actions/workflows/release.yml).
+4. The release workflow builds binaries for linux/darwin (amd64/arm64) and publishes them as a GitHub Release.
 
 ## Background
 
