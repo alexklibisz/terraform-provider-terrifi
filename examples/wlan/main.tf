@@ -8,7 +8,7 @@ terraform {
 
 provider "terrifi" {}
 
-# Pass the passphrase securely via TF_VAR_wifi_passphrase, -var, or a .tfvars file.
+# Set via: export TF_VAR_wifi_passphrase="your-password"
 variable "wifi_passphrase" {
   type      = string
   sensitive = true

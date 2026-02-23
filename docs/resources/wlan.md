@@ -13,9 +13,8 @@ Manages a WLAN (WiFi network) on the UniFi controller. Supports WPA2/WPA3 securi
 
 ### Basic WPA2 WiFi network
 
-Use a Terraform variable to avoid hardcoding the passphrase in your configuration. Pass it at apply time via `TF_VAR_wifi_passphrase`, `-var`, or a `.tfvars` file.
-
 ```terraform
+# Set via: export TF_VAR_wifi_passphrase="your-password"
 variable "wifi_passphrase" {
   type      = string
   sensitive = true
