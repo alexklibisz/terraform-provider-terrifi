@@ -32,7 +32,7 @@ type firewallZoneResourceModel struct {
 	ID         types.String `tfsdk:"id"`
 	Site       types.String `tfsdk:"site"`
 	Name       types.String `tfsdk:"name"`
-	NetworkIDs types.List   `tfsdk:"network_ids"`
+	NetworkIDs types.Set   `tfsdk:"network_ids"`
 	ZoneKey    types.String `tfsdk:"zone_key"`
 }
 
@@ -76,8 +76,8 @@ func (r *firewallZoneResource) Schema(
 				Required:            true,
 			},
 
-			"network_ids": schema.ListAttribute{
-				MarkdownDescription: "List of network IDs to associate with this firewall zone.",
+			"network_ids": schema.SetAttribute{
+				MarkdownDescription: "Set of network IDs to associate with this firewall zone.",
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
@@ -275,8 +275,8 @@ func (r *firewallZoneResource) apiToModel(zone *unifi.FirewallZone, m *firewallZ
 		for i, id := range zone.NetworkIDs {
 			vals[i] = types.StringValue(id)
 		}
-		m.NetworkIDs = types.ListValueMust(types.StringType, vals)
+		m.NetworkIDs = types.SetValueMust(types.StringType, vals)
 	} else {
-		m.NetworkIDs = types.ListNull(types.StringType)
+		m.NetworkIDs = types.SetNull(types.StringType)
 	}
 }

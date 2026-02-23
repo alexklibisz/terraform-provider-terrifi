@@ -36,7 +36,7 @@ func TestFirewallZoneModelToAPI(t *testing.T) {
 	t.Run("name only", func(t *testing.T) {
 		model := &firewallZoneResourceModel{
 			Name:       types.StringValue("My Zone"),
-			NetworkIDs: types.ListNull(types.StringType),
+			NetworkIDs: types.SetNull(types.StringType),
 		}
 
 		zone := r.modelToAPI(ctx, model)
@@ -48,7 +48,7 @@ func TestFirewallZoneModelToAPI(t *testing.T) {
 	t.Run("with network IDs", func(t *testing.T) {
 		model := &firewallZoneResourceModel{
 			Name: types.StringValue("My Zone"),
-			NetworkIDs: types.ListValueMust(types.StringType, []attr.Value{
+			NetworkIDs: types.SetValueMust(types.StringType, []attr.Value{
 				types.StringValue("net-001"),
 				types.StringValue("net-002"),
 			}),
@@ -57,13 +57,13 @@ func TestFirewallZoneModelToAPI(t *testing.T) {
 		zone := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "My Zone", zone.Name)
-		assert.Equal(t, []string{"net-001", "net-002"}, zone.NetworkIDs)
+		assert.ElementsMatch(t, []string{"net-001", "net-002"}, zone.NetworkIDs)
 	})
 
-	t.Run("empty network IDs list", func(t *testing.T) {
+	t.Run("empty network IDs set", func(t *testing.T) {
 		model := &firewallZoneResourceModel{
 			Name:       types.StringValue("Empty Zone"),
-			NetworkIDs: types.ListValueMust(types.StringType, []attr.Value{}),
+			NetworkIDs: types.SetValueMust(types.StringType, []attr.Value{}),
 		}
 
 		zone := r.modelToAPI(ctx, model)
@@ -75,13 +75,13 @@ func TestFirewallZoneModelToAPI(t *testing.T) {
 	t.Run("null network IDs vs unknown", func(t *testing.T) {
 		model := &firewallZoneResourceModel{
 			Name:       types.StringValue("Null Zone"),
-			NetworkIDs: types.ListNull(types.StringType),
+			NetworkIDs: types.SetNull(types.StringType),
 		}
 
 		zone := r.modelToAPI(ctx, model)
 		assert.Nil(t, zone.NetworkIDs)
 
-		model.NetworkIDs = types.ListUnknown(types.StringType)
+		model.NetworkIDs = types.SetUnknown(types.StringType)
 		zone = r.modelToAPI(ctx, model)
 		assert.Nil(t, zone.NetworkIDs)
 	})
@@ -125,7 +125,7 @@ func TestFirewallZoneAPIToModel(t *testing.T) {
 		assert.Equal(t, 2, len(model.NetworkIDs.Elements()))
 	})
 
-	t.Run("empty network IDs returns empty list", func(t *testing.T) {
+	t.Run("empty network IDs returns empty set", func(t *testing.T) {
 		zone := &unifi.FirewallZone{
 			ID:         "zone-003",
 			Name:       "Empty Zone",
@@ -158,14 +158,14 @@ func TestFirewallZoneApplyPlanToState(t *testing.T) {
 	t.Run("partial update preserves unchanged fields", func(t *testing.T) {
 		state := &firewallZoneResourceModel{
 			Name: types.StringValue("Old Zone"),
-			NetworkIDs: types.ListValueMust(types.StringType, []attr.Value{
+			NetworkIDs: types.SetValueMust(types.StringType, []attr.Value{
 				types.StringValue("net-001"),
 			}),
 		}
 
 		plan := &firewallZoneResourceModel{
 			Name:       types.StringValue("New Zone"),
-			NetworkIDs: types.ListNull(types.StringType),
+			NetworkIDs: types.SetNull(types.StringType),
 		}
 
 		r.applyPlanToState(plan, state)
@@ -178,14 +178,14 @@ func TestFirewallZoneApplyPlanToState(t *testing.T) {
 	t.Run("full update", func(t *testing.T) {
 		state := &firewallZoneResourceModel{
 			Name: types.StringValue("Old Zone"),
-			NetworkIDs: types.ListValueMust(types.StringType, []attr.Value{
+			NetworkIDs: types.SetValueMust(types.StringType, []attr.Value{
 				types.StringValue("net-001"),
 			}),
 		}
 
 		plan := &firewallZoneResourceModel{
 			Name: types.StringValue("New Zone"),
-			NetworkIDs: types.ListValueMust(types.StringType, []attr.Value{
+			NetworkIDs: types.SetValueMust(types.StringType, []attr.Value{
 				types.StringValue("net-002"),
 				types.StringValue("net-003"),
 			}),
