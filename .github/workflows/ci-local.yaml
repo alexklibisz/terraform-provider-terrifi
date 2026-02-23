@@ -51,3 +51,9 @@ jobs:
       - name: Acceptance tests (Docker)
         timeout-minutes: 10
         run: task test:acc
+      - name: GoReleaser dry run
+        timeout-minutes: 5
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: build --snapshot --clean
