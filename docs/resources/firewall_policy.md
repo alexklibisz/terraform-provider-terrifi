@@ -47,15 +47,32 @@ resource "terrifi_firewall_policy" "allow_https" {
   protocol  = "tcp"
 
   source {
-    zone_id         = terrifi_firewall_zone.management.id
-    matching_target = "IP"
-    ips             = ["10.0.0.0/24"]
+    zone_id = terrifi_firewall_zone.management.id
+    ips     = ["10.0.0.0/24"]
   }
 
   destination {
     zone_id            = terrifi_firewall_zone.servers.id
     port_matching_type = "SPECIFIC"
     port               = 443
+  }
+}
+```
+
+### Block by MAC address
+
+```terraform
+resource "terrifi_firewall_policy" "block_mac" {
+  name   = "Block specific device"
+  action = "BLOCK"
+
+  source {
+    zone_id       = terrifi_firewall_zone.iot.id
+    mac_addresses = ["aa:bb:cc:dd:ee:ff"]
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.trusted.id
   }
 }
 ```
@@ -115,11 +132,15 @@ resource "terrifi_firewall_policy" "weekday_block" {
 ### Source/Destination
 
 - `zone_id` (String, Required) — The firewall zone ID.
-- `matching_target` (String) — Match target type. Valid values: `ANY`, `IP`, `NETWORK`, `DEVICE`, `MAC`. Default: `ANY`.
 - `ips` (Set of String) — IP addresses or CIDR ranges to match.
+- `mac_addresses` (Set of String) — MAC addresses to match.
+- `network_ids` (Set of String) — Network IDs to match.
+- `device_ids` (Set of String) — Device IDs to match.
 - `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `LIST`. Default: `ANY`.
 - `port` (Number) — Specific port number (when `port_matching_type` is `SPECIFIC`).
 - `port_group_id` (String) — Port group ID (when `port_matching_type` is `LIST`).
+
+At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set. When none is set, the endpoint matches any target.
 
 ### Schedule
 

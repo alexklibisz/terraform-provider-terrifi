@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
@@ -24,16 +25,20 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 	t.Run("minimal block rule", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-src"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-dst"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
@@ -77,20 +82,24 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 	t.Run("with source IPs and port", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":         types.StringValue("zone-src"),
-			"matching_target": types.StringValue("IP"),
+			"zone_id": types.StringValue("zone-src"),
 			"ips": types.SetValueMust(types.StringType, []attr.Value{
 				types.StringValue("10.0.0.1"),
 				types.StringValue("10.0.0.2"),
 			}),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("SPECIFIC"),
 			"port":               types.Int64Value(443),
 			"port_group_id":      types.StringNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-dst"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
@@ -131,16 +140,20 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 	t.Run("with schedule", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-src"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-dst"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
@@ -188,16 +201,20 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 	t.Run("disabled rule", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-src"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-dst"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
@@ -230,16 +247,20 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 	t.Run("with connection states", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-src"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":            types.StringValue("zone-dst"),
-			"matching_target":    types.StringValue("ANY"),
 			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
 			"port_group_id":      types.StringNull(),
@@ -270,6 +291,105 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 		assert.Equal(t, "RESPOND_ONLY", policy.ConnectionStateType)
 		assert.ElementsMatch(t, []string{"NEW", "ESTABLISHED"}, policy.ConnectionStates)
+	})
+
+	t.Run("with MAC addresses", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id": types.StringValue("zone-src"),
+			"ips":     types.SetNull(types.StringType),
+			"mac_addresses": types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("aa:bb:cc:dd:ee:ff"),
+			}),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
+			"port_matching_type": types.StringValue("ANY"),
+			"port":               types.Int64Null(),
+			"port_group_id":      types.StringNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":            types.StringValue("zone-dst"),
+			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
+			"port_matching_type": types.StringValue("ANY"),
+			"port":               types.Int64Null(),
+			"port_group_id":      types.StringNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("MAC Rule"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "MAC", policy.Source.MatchingTarget)
+		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, policy.Source.IPs)
+		assert.Equal(t, "ANY", policy.Destination.MatchingTarget)
+		assert.Nil(t, policy.Destination.IPs)
+	})
+
+	t.Run("with network IDs", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":       types.StringValue("zone-src"),
+			"ips":           types.SetNull(types.StringType),
+			"mac_addresses": types.SetNull(types.StringType),
+			"network_ids": types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("net-001"),
+				types.StringValue("net-002"),
+			}),
+			"device_ids":         types.SetNull(types.StringType),
+			"port_matching_type": types.StringValue("ANY"),
+			"port":               types.Int64Null(),
+			"port_group_id":      types.StringNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":            types.StringValue("zone-dst"),
+			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
+			"port_matching_type": types.StringValue("ANY"),
+			"port":               types.Int64Null(),
+			"port_group_id":      types.StringNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Network Rule"),
+			Action:              types.StringValue("ALLOW"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "NETWORK", policy.Source.MatchingTarget)
+		assert.ElementsMatch(t, []string{"net-001", "net-002"}, policy.Source.IPs)
 	})
 }
 
@@ -347,6 +467,14 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.Equal(t, int64(5), model.Index.ValueInt64())
 		assert.False(t, model.Source.IsNull())
 		assert.False(t, model.Destination.IsNull())
+
+		// Verify the source IPs are in the "ips" typed field.
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.False(t, srcModel.IPs.IsNull())
+		assert.True(t, srcModel.MACAddresses.IsNull())
+		assert.True(t, srcModel.NetworkIDs.IsNull())
+		assert.True(t, srcModel.DeviceIDs.IsNull())
 	})
 
 	t.Run("zero-value booleans are null", func(t *testing.T) {
@@ -456,6 +584,68 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 
 		assert.False(t, model.Schedule.IsNull())
 	})
+
+	t.Run("MAC matching target populates mac_addresses", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-008",
+			Name:   "MAC Rule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "MAC",
+				IPs:            []string{"aa:bb:cc:dd:ee:ff"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.IPs.IsNull())
+		assert.False(t, srcModel.MACAddresses.IsNull())
+		assert.True(t, srcModel.NetworkIDs.IsNull())
+		assert.True(t, srcModel.DeviceIDs.IsNull())
+
+		var macs []string
+		srcModel.MACAddresses.ElementsAs(context.Background(), &macs, false)
+		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, macs)
+	})
+
+	t.Run("NETWORK matching target populates network_ids", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-009",
+			Name:   "Network Rule",
+			Action: "ALLOW",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "NETWORK",
+				IPs:            []string{"net-001"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.IPs.IsNull())
+		assert.True(t, srcModel.MACAddresses.IsNull())
+		assert.False(t, srcModel.NetworkIDs.IsNull())
+		assert.True(t, srcModel.DeviceIDs.IsNull())
+
+		var networks []string
+		srcModel.NetworkIDs.ElementsAs(context.Background(), &networks, false)
+		assert.ElementsMatch(t, []string{"net-001"}, networks)
+	})
 }
 
 func TestFirewallPolicyApplyPlanToState(t *testing.T) {
@@ -557,9 +747,8 @@ resource "terrifi_firewall_policy" "test" {
   action = "ALLOW"
 
   source {
-    zone_id          = terrifi_firewall_zone.zone1.id
-    matching_target  = "IP"
-    ips              = ["10.0.0.0/24"]
+    zone_id = terrifi_firewall_zone.zone1.id
+    ips     = ["10.0.0.0/24"]
   }
 
   destination {
@@ -569,8 +758,41 @@ resource "terrifi_firewall_policy" "test" {
 `, policyName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "ALLOW"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.matching_target", "IP"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.ips.#", "1"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_macAddress(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-mac-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-mac-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-mac-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id       = terrifi_firewall_zone.zone1.id
+    mac_addresses = ["aa:bb:cc:dd:ee:ff"]
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "BLOCK"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.mac_addresses.#", "1"),
 				),
 			},
 		},

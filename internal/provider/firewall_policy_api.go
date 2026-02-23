@@ -69,6 +69,7 @@ type firewallPolicyEndpointRequest struct {
 	MatchingTarget     string   `json:"matching_target,omitempty"`
 	MatchingTargetType string   `json:"matching_target_type,omitempty"`
 	IPs                []string `json:"ips,omitempty"`
+	MACs               []string `json:"macs,omitempty"`
 	PortMatchingType   string   `json:"port_matching_type,omitempty"`
 	Port               *int64   `json:"port,omitempty"`
 	PortGroupID        string   `json:"port_group_id,omitempty"`
@@ -174,6 +175,7 @@ type firewallPolicyEndpointResponse struct {
 	ZoneID           string          `json:"zone_id"`
 	MatchingTarget   string          `json:"matching_target"`
 	IPs              []string        `json:"ips"`
+	MACs             []string        `json:"macs"`
 	PortMatchingType string          `json:"port_matching_type"`
 	Port             json.RawMessage `json:"port"`
 	PortGroupID      string          `json:"port_group_id"`
@@ -240,7 +242,7 @@ func (ep *firewallPolicyEndpointResponse) toSDKSource() *unifi.FirewallPolicySou
 	return &unifi.FirewallPolicySource{
 		ZoneID:           ep.ZoneID,
 		MatchingTarget:   ep.MatchingTarget,
-		IPs:              ep.IPs,
+		IPs:              ep.resolveIPs(),
 		PortMatchingType: ep.PortMatchingType,
 		Port:             ep.parsePort(),
 		PortGroupID:      ep.PortGroupID,
@@ -251,11 +253,21 @@ func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPoli
 	return &unifi.FirewallPolicyDestination{
 		ZoneID:           ep.ZoneID,
 		MatchingTarget:   ep.MatchingTarget,
-		IPs:              ep.IPs,
+		IPs:              ep.resolveIPs(),
 		PortMatchingType: ep.PortMatchingType,
 		Port:             ep.parsePort(),
 		PortGroupID:      ep.PortGroupID,
 	}
+}
+
+// resolveIPs returns the endpoint values, merging the "macs" field back into
+// a single slice so the resource layer can handle all target types uniformly
+// via the IPs field on the SDK struct.
+func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
+	if ep.MatchingTarget == "MAC" && len(ep.MACs) > 0 {
+		return ep.MACs
+	}
+	return ep.IPs
 }
 
 func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCreateRequest {
@@ -285,27 +297,11 @@ func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCre
 	}
 
 	if d.Source != nil {
-		req.Source = &firewallPolicyEndpointRequest{
-			ZoneID:             d.Source.ZoneID,
-			MatchingTarget:     d.Source.MatchingTarget,
-			MatchingTargetType: matchingTargetType(d.Source.MatchingTarget),
-			IPs:                d.Source.IPs,
-			PortMatchingType:   d.Source.PortMatchingType,
-			Port:               d.Source.Port,
-			PortGroupID:        d.Source.PortGroupID,
-		}
+		req.Source = buildEndpointRequest(d.Source.ZoneID, d.Source.MatchingTarget, d.Source.IPs, d.Source.PortMatchingType, d.Source.Port, d.Source.PortGroupID)
 	}
 
 	if d.Destination != nil {
-		req.Destination = &firewallPolicyEndpointRequest{
-			ZoneID:             d.Destination.ZoneID,
-			MatchingTarget:     d.Destination.MatchingTarget,
-			MatchingTargetType: matchingTargetType(d.Destination.MatchingTarget),
-			IPs:                d.Destination.IPs,
-			PortMatchingType:   d.Destination.PortMatchingType,
-			Port:               d.Destination.Port,
-			PortGroupID:        d.Destination.PortGroupID,
-		}
+		req.Destination = buildEndpointRequest(d.Destination.ZoneID, d.Destination.MatchingTarget, d.Destination.IPs, d.Destination.PortMatchingType, d.Destination.Port, d.Destination.PortGroupID)
 	}
 
 	if d.Schedule != nil {
@@ -328,6 +324,24 @@ func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCre
 	}
 
 	return req
+}
+
+func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatchingType string, port *int64, portGroupID string) *firewallPolicyEndpointRequest {
+	ep := &firewallPolicyEndpointRequest{
+		ZoneID:             zoneID,
+		MatchingTarget:     matchingTarget,
+		MatchingTargetType: matchingTargetType(matchingTarget),
+		PortMatchingType:   portMatchingType,
+		Port:               port,
+		PortGroupID:        portGroupID,
+	}
+	// The API expects MAC values in the "macs" field, not "ips".
+	if matchingTarget == "MAC" {
+		ep.MACs = ips
+	} else {
+		ep.IPs = ips
+	}
+	return ep
 }
 
 func boolPtr(b bool) *bool { return &b }

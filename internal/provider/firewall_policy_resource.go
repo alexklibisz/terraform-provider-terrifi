@@ -55,8 +55,10 @@ type firewallPolicyResourceModel struct {
 
 type firewallPolicyEndpointModel struct {
 	ZoneID           types.String `tfsdk:"zone_id"`
-	MatchingTarget   types.String `tfsdk:"matching_target"`
 	IPs              types.Set    `tfsdk:"ips"`
+	MACAddresses     types.Set    `tfsdk:"mac_addresses"`
+	NetworkIDs       types.Set    `tfsdk:"network_ids"`
+	DeviceIDs        types.Set    `tfsdk:"device_ids"`
 	PortMatchingType types.String `tfsdk:"port_matching_type"`
 	Port             types.Int64  `tfsdk:"port"`
 	PortGroupID      types.String `tfsdk:"port_group_id"`
@@ -74,8 +76,10 @@ type firewallPolicyScheduleModel struct {
 // endpointAttrTypes defines the attribute types for source/destination nested objects.
 var endpointAttrTypes = map[string]attr.Type{
 	"zone_id":            types.StringType,
-	"matching_target":    types.StringType,
 	"ips":                types.SetType{ElemType: types.StringType},
+	"mac_addresses":      types.SetType{ElemType: types.StringType},
+	"network_ids":        types.SetType{ElemType: types.StringType},
+	"device_ids":         types.SetType{ElemType: types.StringType},
 	"port_matching_type": types.StringType,
 	"port":               types.Int64Type,
 	"port_group_id":      types.StringType,
@@ -109,17 +113,23 @@ func (r *firewallPolicyResource) Schema(
 			MarkdownDescription: "The ID of the firewall zone.",
 			Required:            true,
 		},
-		"matching_target": schema.StringAttribute{
-			MarkdownDescription: "The matching target type. Valid values: `ANY`, `IP`, `NETWORK`.",
-			Optional:            true,
-			Computed:            true,
-			Default:             stringdefault.StaticString("ANY"),
-			Validators: []validator.String{
-				stringvalidator.OneOf("ANY", "IP", "NETWORK", "DEVICE", "MAC"),
-			},
-		},
 		"ips": schema.SetAttribute{
-			MarkdownDescription: "Set of IP addresses or CIDR ranges to match.",
+			MarkdownDescription: "IP addresses or CIDR ranges to match.",
+			ElementType:         types.StringType,
+			Optional:            true,
+		},
+		"mac_addresses": schema.SetAttribute{
+			MarkdownDescription: "MAC addresses to match.",
+			ElementType:         types.StringType,
+			Optional:            true,
+		},
+		"network_ids": schema.SetAttribute{
+			MarkdownDescription: "Network IDs to match.",
+			ElementType:         types.StringType,
+			Optional:            true,
+		},
+		"device_ids": schema.SetAttribute{
+			MarkdownDescription: "Device IDs to match.",
 			ElementType:         types.StringType,
 			Optional:            true,
 		},
@@ -534,7 +544,6 @@ func (r *firewallPolicyResource) modelToAPI(ctx context.Context, m *firewallPoli
 func endpointModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) *unifi.FirewallPolicySource {
 	ep := &unifi.FirewallPolicySource{
 		ZoneID:           m.ZoneID.ValueString(),
-		MatchingTarget:   m.MatchingTarget.ValueString(),
 		PortMatchingType: m.PortMatchingType.ValueString(),
 		PortGroupID:      m.PortGroupID.ValueString(),
 	}
@@ -544,11 +553,7 @@ func endpointModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) *un
 		ep.Port = &v
 	}
 
-	if !m.IPs.IsNull() && !m.IPs.IsUnknown() {
-		var ips []string
-		m.IPs.ElementsAs(ctx, &ips, false)
-		ep.IPs = ips
-	}
+	ep.MatchingTarget, ep.IPs = resolveMatchingTarget(ctx, m)
 
 	return ep
 }
@@ -556,7 +561,6 @@ func endpointModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) *un
 func destinationModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) *unifi.FirewallPolicyDestination {
 	ep := &unifi.FirewallPolicyDestination{
 		ZoneID:           m.ZoneID.ValueString(),
-		MatchingTarget:   m.MatchingTarget.ValueString(),
 		PortMatchingType: m.PortMatchingType.ValueString(),
 		PortGroupID:      m.PortGroupID.ValueString(),
 	}
@@ -566,13 +570,32 @@ func destinationModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) 
 		ep.Port = &v
 	}
 
-	if !m.IPs.IsNull() && !m.IPs.IsUnknown() {
-		var ips []string
-		m.IPs.ElementsAs(ctx, &ips, false)
-		ep.IPs = ips
-	}
+	ep.MatchingTarget, ep.IPs = resolveMatchingTarget(ctx, m)
 
 	return ep
+}
+
+// resolveMatchingTarget derives the API matching_target and ips values from the
+// typed endpoint fields. Exactly one of ips, mac_addresses, network_ids, or
+// device_ids should be set. If none is set, matching_target is ANY.
+func resolveMatchingTarget(ctx context.Context, m *firewallPolicyEndpointModel) (string, []string) {
+	type targetField struct {
+		field  types.Set
+		target string
+	}
+	for _, tf := range []targetField{
+		{m.IPs, "IP"},
+		{m.MACAddresses, "MAC"},
+		{m.NetworkIDs, "NETWORK"},
+		{m.DeviceIDs, "DEVICE"},
+	} {
+		if !tf.field.IsNull() && !tf.field.IsUnknown() {
+			var vals []string
+			tf.field.ElementsAs(ctx, &vals, false)
+			return tf.target, vals
+		}
+	}
+	return "ANY", nil
 }
 
 func scheduleModelToAPI(ctx context.Context, m *firewallPolicyScheduleModel) *unifi.FirewallPolicySchedule {
@@ -674,7 +697,6 @@ func boolValueOrNull(b bool) types.Bool {
 func endpointAPIToModel(src *unifi.FirewallPolicySource) types.Object {
 	attrs := map[string]attr.Value{
 		"zone_id":            types.StringValue(src.ZoneID),
-		"matching_target":    stringValueOrNull(src.MatchingTarget),
 		"port_matching_type": stringValueOrNull(src.PortMatchingType),
 		"port_group_id":      stringValueOrNull(src.PortGroupID),
 	}
@@ -685,15 +707,7 @@ func endpointAPIToModel(src *unifi.FirewallPolicySource) types.Object {
 		attrs["port"] = types.Int64Null()
 	}
 
-	if src.IPs != nil {
-		vals := make([]attr.Value, len(src.IPs))
-		for i, ip := range src.IPs {
-			vals[i] = types.StringValue(ip)
-		}
-		attrs["ips"] = types.SetValueMust(types.StringType, vals)
-	} else {
-		attrs["ips"] = types.SetNull(types.StringType)
-	}
+	populateTypedEndpointFields(attrs, src.MatchingTarget, src.IPs)
 
 	return types.ObjectValueMust(endpointAttrTypes, attrs)
 }
@@ -701,7 +715,6 @@ func endpointAPIToModel(src *unifi.FirewallPolicySource) types.Object {
 func destinationAPIToModel(dst *unifi.FirewallPolicyDestination) types.Object {
 	attrs := map[string]attr.Value{
 		"zone_id":            types.StringValue(dst.ZoneID),
-		"matching_target":    stringValueOrNull(dst.MatchingTarget),
 		"port_matching_type": stringValueOrNull(dst.PortMatchingType),
 		"port_group_id":      stringValueOrNull(dst.PortGroupID),
 	}
@@ -712,17 +725,46 @@ func destinationAPIToModel(dst *unifi.FirewallPolicyDestination) types.Object {
 		attrs["port"] = types.Int64Null()
 	}
 
-	if dst.IPs != nil {
-		vals := make([]attr.Value, len(dst.IPs))
-		for i, ip := range dst.IPs {
-			vals[i] = types.StringValue(ip)
-		}
-		attrs["ips"] = types.SetValueMust(types.StringType, vals)
-	} else {
-		attrs["ips"] = types.SetNull(types.StringType)
-	}
+	populateTypedEndpointFields(attrs, dst.MatchingTarget, dst.IPs)
 
 	return types.ObjectValueMust(endpointAttrTypes, attrs)
+}
+
+// populateTypedEndpointFields sets the correct typed field (ips, mac_addresses,
+// network_ids, device_ids) based on the API's matching_target value, and sets
+// the others to null.
+func populateTypedEndpointFields(attrs map[string]attr.Value, matchingTarget string, ips []string) {
+	setType := types.SetType{ElemType: types.StringType}
+	nullSet := types.SetNull(types.StringType)
+
+	// Default: all null.
+	attrs["ips"] = nullSet
+	attrs["mac_addresses"] = nullSet
+	attrs["network_ids"] = nullSet
+	attrs["device_ids"] = nullSet
+
+	if ips == nil {
+		return
+	}
+
+	vals := make([]attr.Value, len(ips))
+	for i, v := range ips {
+		vals[i] = types.StringValue(v)
+	}
+	sv := types.SetValueMust(setType.ElemType, vals)
+
+	switch matchingTarget {
+	case "IP":
+		attrs["ips"] = sv
+	case "MAC":
+		attrs["mac_addresses"] = sv
+	case "NETWORK":
+		attrs["network_ids"] = sv
+	case "DEVICE":
+		attrs["device_ids"] = sv
+	default:
+		// ANY or unknown — leave all null.
+	}
 }
 
 func scheduleAPIToModel(sched *unifi.FirewallPolicySchedule) types.Object {
