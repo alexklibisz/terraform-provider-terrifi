@@ -42,6 +42,7 @@ type clientDeviceResourceModel struct {
 	NetworkID         types.String `tfsdk:"network_id"`
 	NetworkOverrideID types.String `tfsdk:"network_override_id"`
 	LocalDNSRecord    types.String `tfsdk:"local_dns_record"`
+	ClientGroupID     types.String `tfsdk:"client_group_id"`
 	Blocked           types.Bool   `tfsdk:"blocked"`
 }
 
@@ -132,6 +133,12 @@ func (r *clientDeviceResource) Schema(
 				Validators: []validator.String{
 					stringvalidator.AlsoRequires(path.MatchRoot("fixed_ip")),
 				},
+			},
+
+			"client_group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the client group to assign this device to. " +
+					"Use `terrifi_client_group` to manage groups.",
+				Optional: true,
 			},
 
 			"blocked": schema.BoolAttribute{
@@ -345,6 +352,11 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	} else {
 		state.LocalDNSRecord = types.StringNull()
 	}
+	if !plan.ClientGroupID.IsNull() && !plan.ClientGroupID.IsUnknown() {
+		state.ClientGroupID = plan.ClientGroupID
+	} else {
+		state.ClientGroupID = types.StringNull()
+	}
 	if !plan.Blocked.IsNull() && !plan.Blocked.IsUnknown() {
 		state.Blocked = plan.Blocked
 	} else {
@@ -381,6 +393,10 @@ func (r *clientDeviceResource) modelToAPI(m *clientDeviceResourceModel) *unifi.C
 	if !m.LocalDNSRecord.IsNull() && !m.LocalDNSRecord.IsUnknown() {
 		c.LocalDNSRecord = m.LocalDNSRecord.ValueString()
 		c.LocalDNSRecordEnabled = true
+	}
+
+	if !m.ClientGroupID.IsNull() && !m.ClientGroupID.IsUnknown() {
+		c.UserGroupID = m.ClientGroupID.ValueString()
 	}
 
 	if !m.Blocked.IsNull() && !m.Blocked.IsUnknown() {
@@ -421,6 +437,8 @@ func (r *clientDeviceResource) apiToModel(c *unifi.Client, m *clientDeviceResour
 	} else {
 		m.LocalDNSRecord = types.StringNull()
 	}
+
+	m.ClientGroupID = stringValueOrNull(c.UserGroupID)
 
 	// Preserve blocked state faithfully: true or false when explicitly set by
 	// the API, null when the API doesn't return the field at all.

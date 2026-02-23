@@ -240,8 +240,9 @@ resource "terrifi_client_group" "test" {
 }
 
 resource "terrifi_client_device" "test" {
-  mac  = %q
-  name = "tfacc-grouped-device"
+  mac             = %q
+  name            = "tfacc-grouped-device"
+  client_group_id = terrifi_client_group.test.id
 }
 `, groupName, mac),
 				Check: resource.ComposeTestCheckFunc(
@@ -249,7 +250,67 @@ resource "terrifi_client_device" "test" {
 					resource.TestCheckResourceAttrSet("terrifi_client_group.test", "id"),
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "mac", mac),
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-grouped-device"),
-					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "id"),
+					resource.TestCheckResourceAttrPair(
+						"terrifi_client_device.test", "client_group_id",
+						"terrifi_client_group.test", "id",
+					),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientGroup_reassignDevice(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	groupName1 := fmt.Sprintf("tfacc-cligrp1-%s", suffix)
+	groupName2 := fmt.Sprintf("tfacc-cligrp2-%s", suffix)
+	mac := randomMAC()
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_group" "group1" {
+  name = %q
+}
+
+resource "terrifi_client_group" "group2" {
+  name = %q
+}
+
+resource "terrifi_client_device" "test" {
+  mac             = %q
+  name            = "tfacc-reassign"
+  client_group_id = terrifi_client_group.group1.id
+}
+`, groupName1, groupName2, mac),
+				Check: resource.TestCheckResourceAttrPair(
+					"terrifi_client_device.test", "client_group_id",
+					"terrifi_client_group.group1", "id",
+				),
+			},
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_group" "group1" {
+  name = %q
+}
+
+resource "terrifi_client_group" "group2" {
+  name = %q
+}
+
+resource "terrifi_client_device" "test" {
+  mac             = %q
+  name            = "tfacc-reassign"
+  client_group_id = terrifi_client_group.group2.id
+}
+`, groupName1, groupName2, mac),
+				Check: resource.TestCheckResourceAttrPair(
+					"terrifi_client_device.test", "client_group_id",
+					"terrifi_client_group.group2", "id",
 				),
 			},
 		},
