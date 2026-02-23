@@ -20,10 +20,10 @@ This project is very much a work-in-progress.
 Here's a rough list of features that I'm looking to implement:
 
 - [x] `terrifi_dns_record` resource working on real hardware.
-- [ ] `terrifi_network` resource working on real hardware.
+- [x] `terrifi_network` resource working on real hardware.
+- [x] `terrifi_firewall_zone` resource working on real hardware.
 - [ ] `terrifi_client_device` resource working on real hardware.
 - [ ] `terrifi_wifi` resource working on real hardware.
-- [ ] `terrifi_zone` resource working on real hardware.
 - [ ] `terrifi_policy` resource working on real hardware.
 - [ ] End-to-end working with my home UniFi network.
 - [ ] Publish to Terraform and Opentofu registries.

@@ -17,28 +17,12 @@
       "Bash(gh:*)",
       "Bash(mkdir:*)",
       "WebFetch(domain:registry.hub.docker.com)",
+      "WebFetch(domain:developer.hashicorp.com)",
+      "WebFetch(domain:deepwiki.com)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:hub.docker.com)",
       "WebFetch(domain:developer.hashicorp.com)",
       "WebFetch(domain:deepwiki.com)"
     ]
-  },
-  "sandbox": {
-    "enabled": true,
-    "excludedCommands": ["docker"],
-    "network": {
-      "allowedDomains": [
-        "github.com",
-        "*.github.com",
-        "registry.hub.docker.com",
-        "hub.docker.com",
-        "*.golang.org",
-        "proxy.golang.org",
-        "sum.golang.org",
-        "storage.googleapis.com",
-        "developer.hashicorp.com",
-        "deepwiki.com"
-      ]
-    }
   }
 }
