@@ -191,13 +191,13 @@ func TestWLANAPIToModel(t *testing.T) {
 
 	t.Run("passphrase from API is ignored", func(t *testing.T) {
 		wlan := &unifi.WLAN{
-			ID:           "wlan-pass",
-			Name:         "Pass Test",
-			NetworkID:    "net-pass",
-			XPassphrase:  "returned-by-api",
-			WLANBand:     "both",
-			Security:     "wpapsk",
-			WPAMode:      "wpa2",
+			ID:          "wlan-pass",
+			Name:        "Pass Test",
+			NetworkID:   "net-pass",
+			XPassphrase: "returned-by-api",
+			WLANBand:    "both",
+			Security:    "wpapsk",
+			WPAMode:     "wpa2",
 		}
 
 		var model wlanResourceModel
