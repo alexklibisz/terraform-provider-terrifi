@@ -62,7 +62,7 @@ func (c *Client) CreateFirewallZone(ctx context.Context, site string, d *unifi.F
 	}
 
 	var result unifi.FirewallZone
-	err := c.doFirewallZoneRequest(ctx, http.MethodPost,
+	err := c.doV2Request(ctx, http.MethodPost,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", c.BaseURL, c.APIPath, site),
 		payload, &result)
 	if err != nil {
@@ -84,7 +84,7 @@ func (c *Client) UpdateFirewallZone(ctx context.Context, site string, d *unifi.F
 	}
 
 	var result unifi.FirewallZone
-	err := c.doFirewallZoneRequest(ctx, http.MethodPut,
+	err := c.doV2Request(ctx, http.MethodPut,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone/%s", c.BaseURL, c.APIPath, site, d.ID),
 		payload, &result)
 	if err != nil {
@@ -96,13 +96,14 @@ func (c *Client) UpdateFirewallZone(ctx context.Context, site string, d *unifi.F
 // DeleteFirewallZone deletes a firewall zone via the v2 API, bypassing the
 // SDK to avoid bug #3 (204 No Content treated as error).
 func (c *Client) DeleteFirewallZone(ctx context.Context, site string, id string) error {
-	return c.doFirewallZoneRequest(ctx, http.MethodDelete,
+	return c.doV2Request(ctx, http.MethodDelete,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone/%s", c.BaseURL, c.APIPath, site, id),
 		struct{}{}, nil)
 }
 
-// doFirewallZoneRequest makes an authenticated HTTP request to the UniFi v2 API.
-func (c *Client) doFirewallZoneRequest(ctx context.Context, method, url string, body any, result any) error {
+// doV2Request makes an authenticated HTTP request to the UniFi v2 API.
+// It is shared by firewall zone and firewall policy operations.
+func (c *Client) doV2Request(ctx context.Context, method, url string, body any, result any) error {
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshaling request body: %w", err)

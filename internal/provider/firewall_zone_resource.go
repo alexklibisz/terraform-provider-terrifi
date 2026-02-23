@@ -32,7 +32,7 @@ type firewallZoneResourceModel struct {
 	ID         types.String `tfsdk:"id"`
 	Site       types.String `tfsdk:"site"`
 	Name       types.String `tfsdk:"name"`
-	NetworkIDs types.Set   `tfsdk:"network_ids"`
+	NetworkIDs types.Set    `tfsdk:"network_ids"`
 	ZoneKey    types.String `tfsdk:"zone_key"`
 }
 
