@@ -223,6 +223,39 @@ resource "terrifi_client_group" "test" {
 	})
 }
 
+func TestAccClientGroup_withClientDevice(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	groupName := fmt.Sprintf("tfacc-cligrp-%s", suffix)
+	mac := randomMAC()
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_group" "test" {
+  name = %q
+}
+
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-grouped-device"
+}
+`, groupName, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_group.test", "name", groupName),
+					resource.TestCheckResourceAttrSet("terrifi_client_group.test", "id"),
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "mac", mac),
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-grouped-device"),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "id"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccClientGroup_idempotentReapply(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()

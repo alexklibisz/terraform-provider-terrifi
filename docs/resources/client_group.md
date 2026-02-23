@@ -11,9 +11,29 @@ Manages a client group on the UniFi controller. Client groups can be referenced 
 
 ## Example Usage
 
+### Basic group
+
 ```terraform
 resource "terrifi_client_group" "iot" {
   name = "IoT Devices"
+}
+```
+
+### Group alongside client devices
+
+```terraform
+resource "terrifi_client_group" "iot" {
+  name = "IoT Devices"
+}
+
+resource "terrifi_client_device" "thermostat" {
+  mac  = "aa:bb:cc:dd:ee:01"
+  name = "Thermostat"
+}
+
+resource "terrifi_client_device" "camera" {
+  mac  = "aa:bb:cc:dd:ee:02"
+  name = "Security Camera"
 }
 ```
 
