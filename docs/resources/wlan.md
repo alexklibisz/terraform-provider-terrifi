@@ -13,7 +13,14 @@ Manages a WLAN (WiFi network) on the UniFi controller. Supports WPA2/WPA3 securi
 
 ### Basic WPA2 WiFi network
 
+Use a Terraform variable to avoid hardcoding the passphrase in your configuration. Pass it at apply time via `TF_VAR_wifi_passphrase`, `-var`, or a `.tfvars` file.
+
 ```terraform
+variable "wifi_passphrase" {
+  type      = string
+  sensitive = true
+}
+
 resource "terrifi_network" "main" {
   name    = "Main"
   purpose = "corporate"
@@ -21,7 +28,7 @@ resource "terrifi_network" "main" {
 
 resource "terrifi_wlan" "home" {
   name       = "Home WiFi"
-  passphrase = "supersecretpassword"
+  passphrase = var.wifi_passphrase
   network_id = terrifi_network.main.id
 }
 ```
@@ -31,7 +38,7 @@ resource "terrifi_wlan" "home" {
 ```terraform
 resource "terrifi_wlan" "private" {
   name       = "Private 5G"
-  passphrase = "anothersecret123"
+  passphrase = var.wifi_passphrase
   network_id = terrifi_network.main.id
   wifi_band  = "5g"
   hide_ssid  = true
@@ -43,7 +50,7 @@ resource "terrifi_wlan" "private" {
 ```terraform
 resource "terrifi_wlan" "secure" {
   name            = "Secure WiFi"
-  passphrase      = "wpa3password1234"
+  passphrase      = var.wifi_passphrase
   network_id      = terrifi_network.main.id
   wpa3_support    = true
   wpa3_transition = true

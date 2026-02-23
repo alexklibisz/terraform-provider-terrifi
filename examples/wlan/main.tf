@@ -8,6 +8,12 @@ terraform {
 
 provider "terrifi" {}
 
+# Pass the passphrase securely via TF_VAR_wifi_passphrase, -var, or a .tfvars file.
+variable "wifi_passphrase" {
+  type      = string
+  sensitive = true
+}
+
 # Create a network to associate with the WLAN.
 resource "terrifi_network" "home" {
   name    = "Home"
@@ -19,14 +25,14 @@ resource "terrifi_network" "home" {
 # Create a basic WPA2 WiFi network.
 resource "terrifi_wlan" "home" {
   name       = "Home WiFi"
-  passphrase = "supersecretpassword"
+  passphrase = var.wifi_passphrase
   network_id = terrifi_network.home.id
 }
 
 # Create a hidden 5 GHz network with WPA3 transition mode.
 resource "terrifi_wlan" "private" {
   name            = "Private 5G"
-  passphrase      = "anothersecret123"
+  passphrase      = var.wifi_passphrase
   network_id      = terrifi_network.home.id
   wifi_band       = "5g"
   hide_ssid       = true
