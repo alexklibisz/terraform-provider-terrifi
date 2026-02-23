@@ -37,7 +37,7 @@ tasks:
     env:
       TF_ACC: "" # Set to empty value to prevent running acceptance tests.
     cmds:
-      - go test ./internal/provider/ -v -count 1 {{.CLI_ARGS}}
+      - go test ./internal/provider/ -v -count 1 -shuffle=on {{.CLI_ARGS}}
 
   test:acc:
     desc: Run acceptance tests against Docker simulation (default)
@@ -45,7 +45,7 @@ tasks:
       TF_ACC: "1"
       TERRIFI_ACC_TARGET: docker
     cmds:
-      - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
   test:acc:hardware:
     desc: Run acceptance tests against real hardware (uses env vars from .envrc.local)
@@ -53,7 +53,7 @@ tasks:
       TF_ACC: "1"
       TERRIFI_ACC_TARGET: hardware
     cmds:
-      - go test ./internal/provider/ -v -count 1 -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
   deps:
     desc: Download Go module dependencies
