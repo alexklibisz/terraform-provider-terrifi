@@ -49,6 +49,18 @@ All paths below are relative to `$UNIFI_API/proxy/network`.
 
 Default site is `default`.
 
+## Controller Logs
+
+To view recent logs from the UniFi controller (useful for diagnosing 500 errors, Java stack traces, etc.):
+
+```bash
+hardware-testing/show_logs.sh 90s    # logs from last 90 seconds
+hardware-testing/show_logs.sh 5m     # logs from last 5 minutes
+hardware-testing/show_logs.sh        # default: last 60 seconds
+```
+
+This SSHs to the hardware controller and runs `docker compose logs`. Use this when API calls return 500 errors to see the server-side Java stack trace.
+
 ## Output Guidelines
 
 - Always pretty-print JSON responses with `python3 -m json.tool`

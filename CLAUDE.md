@@ -55,6 +55,21 @@ Each new feature should include extensive acceptance testing.
 Think of interesting permutations of settings and sequences of changes.
 Too much testing is better than too little - don't hold back.
 
+### go-unifi SDK Workarounds
+
+The go-unifi SDK has several bugs that require workarounds in this provider. All workarounds are tagged with `TODO(go-unifi)` comments so they can be found and removed when the SDK is fixed.
+
+**Conventions for SDK workarounds:**
+- Tag every workaround site with a `// TODO(go-unifi):` comment explaining the upstream bug, the symptom, and what SDK fix would allow removing the workaround.
+- When possible, isolate workarounds into named helper functions (e.g., `applySDKSettingPreferenceWorkaround`) so they can be deleted as a unit.
+- When the SDK lacks working methods for an API (e.g., v2 firewall zones), put all custom HTTP logic in a dedicated `*_api.go` file (e.g., `firewall_zone_api.go`) with a file-level TODO explaining which SDK methods it replaces.
+- Never patch the SDK in the module cache. All workarounds live in this repo.
+
+**Current workarounds (search `TODO(go-unifi)` for details):**
+- `firewall_zone_api.go` — Bypasses SDK's firewall zone CRUD entirely due to three bugs: `default_zone` serialization (400), missing `_id` in PUT body (500), and DELETE returning 204 treated as error.
+- `network_resource.go` — `applySDKSettingPreferenceWorkaround()` forces `setting_preference=manual` because the SDK defaults to `auto`, which causes the controller to auto-override settings like DHCP enable.
+- `network_resource.go` — `IsUnknown()` guards on DHCP fields in `modelToAPI` prevent passing empty strings to the SDK, which would crash the controller via `marshalCorporate()`'s `valueOrDefault()` defaults.
+
 ### Adding a New Resource
 
 1. Create `internal/provider/<name>_resource.go` with model struct, CRUD methods, and schema
