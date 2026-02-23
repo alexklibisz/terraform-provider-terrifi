@@ -15,12 +15,12 @@ services:
     image: terrifi-github-runner
     environment:
       REPO_URL: ${REPO_URL}
-      RUNNER_TOKEN: ${RUNNER_TOKEN}
+      ACCESS_TOKEN: ${ACCESS_TOKEN}
       RUNNER_NAME: ${RUNNER_NAME:-terrifi-hardware-runner}
       RUNNER_WORKDIR: /tmp/runner/work
       LABELS: ${LABELS:-self-hosted,terrifi-hardware-test}
       RUNNER_GROUP: ${RUNNER_GROUP:-Default}
-      EPHEMERAL: ${EPHEMERAL:-false}
+      EPHEMERAL: ${EPHEMERAL:-true}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner-work:/tmp/runner
