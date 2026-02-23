@@ -95,9 +95,6 @@ func (r *wlanResource) Schema(
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(8, 255),
 				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 
 			"network_id": schema.StringAttribute{
@@ -212,6 +209,10 @@ func (r *wlanResource) Create(
 		return
 	}
 
+	// Save passphrase before API call — the API never returns x_passphrase,
+	// so we must restore it from the plan after apiToModel.
+	plannedPassphrase := plan.Passphrase
+
 	wlan := r.modelToAPI(&plan)
 	wlan.WLANGroupID = wlanGroupID
 	wlan.UserGroupID = userGroupID
@@ -225,6 +226,7 @@ func (r *wlanResource) Create(
 	}
 
 	r.apiToModel(created, &plan, site)
+	plan.Passphrase = plannedPassphrase
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -270,6 +272,10 @@ func (r *wlanResource) Update(
 		return
 	}
 
+	// Save passphrase before API call — the API never returns x_passphrase,
+	// so we must restore it from the plan after apiToModel.
+	plannedPassphrase := plan.Passphrase
+
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
@@ -293,6 +299,7 @@ func (r *wlanResource) Update(
 	}
 
 	r.apiToModel(updated, &state, site)
+	state.Passphrase = plannedPassphrase
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -372,7 +379,9 @@ func (r *wlanResource) applyPlanToState(plan, state *wlanResourceModel) {
 	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
 		state.Name = plan.Name
 	}
-	if !plan.Passphrase.IsNull() && !plan.Passphrase.IsUnknown() {
+	// Always apply passphrase from plan — when switching from wpapsk to open,
+	// the plan will be null, and we must clear the state value to match.
+	if !plan.Passphrase.IsUnknown() {
 		state.Passphrase = plan.Passphrase
 	}
 	if !plan.NetworkID.IsNull() && !plan.NetworkID.IsUnknown() {
@@ -443,12 +452,10 @@ func (r *wlanResource) apiToModel(wlan *unifi.WLAN, m *wlanResourceModel, site s
 	m.Name = types.StringValue(wlan.Name)
 	m.NetworkID = types.StringValue(wlan.NetworkID)
 
-	// The UniFi API does not return x_passphrase on read — it's write-only.
-	// We preserve the passphrase from state (via UseStateForUnknown plan modifier).
-	// Only set it if the API actually returns it (which it won't in practice).
-	if wlan.XPassphrase != "" {
-		m.Passphrase = types.StringValue(wlan.XPassphrase)
-	}
+	// Never set passphrase from the API response. The passphrase is managed
+	// exclusively from the Terraform config/plan. Some controller versions return
+	// x_passphrase on GET, others don't — either way, we preserve the value from
+	// prior state (in Read) or from the plan (in Create/Update).
 
 	if wlan.WLANBand != "" {
 		m.WifiBand = types.StringValue(wlan.WLANBand)

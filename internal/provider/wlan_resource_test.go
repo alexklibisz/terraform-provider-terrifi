@@ -188,6 +188,25 @@ func TestWLANAPIToModel(t *testing.T) {
 		assert.Equal(t, "wpapsk", model.Security.ValueString())
 		assert.Equal(t, "wpa2", model.WPAMode.ValueString())
 	})
+
+	t.Run("passphrase from API is ignored", func(t *testing.T) {
+		wlan := &unifi.WLAN{
+			ID:           "wlan-pass",
+			Name:         "Pass Test",
+			NetworkID:    "net-pass",
+			XPassphrase:  "returned-by-api",
+			WLANBand:     "both",
+			Security:     "wpapsk",
+			WPAMode:      "wpa2",
+		}
+
+		var model wlanResourceModel
+		model.Passphrase = types.StringValue("from-config")
+		r.apiToModel(wlan, &model, "default")
+
+		// apiToModel must never overwrite passphrase — it's managed by the caller
+		assert.Equal(t, "from-config", model.Passphrase.ValueString())
+	})
 }
 
 func TestWLANApplyPlanToState(t *testing.T) {
@@ -221,8 +240,8 @@ func TestWLANApplyPlanToState(t *testing.T) {
 		r.applyPlanToState(plan, state)
 
 		assert.Equal(t, "Updated WiFi", state.Name.ValueString())
-		// Null plan fields should not overwrite state
-		assert.Equal(t, "original123", state.Passphrase.ValueString())
+		// Passphrase follows plan (null clears it); other null fields preserve state
+		assert.True(t, state.Passphrase.IsNull())
 		assert.Equal(t, "net123", state.NetworkID.ValueString())
 		assert.Equal(t, "both", state.WifiBand.ValueString())
 	})
@@ -554,6 +573,237 @@ resource "terrifi_wlan" "test" {
 				Config:             config,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func TestAccWLAN_updateSecurityOpenToWpapsk(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, 510) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  network_id = terrifi_network.wlan_test.id
+  security   = "open"
+}
+`, wlanName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "security", "open"),
+				),
+			},
+			{
+				Config: wlanTestNetwork(netName, 510) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "newpassword123"
+  network_id = terrifi_network.wlan_test.id
+  security   = "wpapsk"
+}
+`, wlanName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "security", "wpapsk"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_updateSecurityWpapskToOpen(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, 511) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  security   = "wpapsk"
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "security", "wpapsk"),
+			},
+			{
+				Config: wlanTestNetwork(netName, 511) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  network_id = terrifi_network.wlan_test.id
+  security   = "open"
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "security", "open"),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_updateNetwork(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	netName1 := fmt.Sprintf("tfacc-wlan-net1-%s", suffix)
+	netName2 := fmt.Sprintf("tfacc-wlan-net2-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	net1 := fmt.Sprintf(`
+resource "terrifi_network" "net1" {
+  name          = %q
+  purpose       = "corporate"
+  vlan_id       = 512
+  subnet        = "10.2.0.1/24"
+  network_group = "LAN"
+  dhcp_enabled  = false
+}
+`, netName1)
+
+	net2 := fmt.Sprintf(`
+resource "terrifi_network" "net2" {
+  name          = %q
+  purpose       = "corporate"
+  vlan_id       = 513
+  subnet        = "10.2.1.1/24"
+  network_group = "LAN"
+  dhcp_enabled  = false
+}
+`, netName2)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: net1 + net2 + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.net1.id
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttrPair(
+					"terrifi_wlan.test", "network_id",
+					"terrifi_network.net1", "id",
+				),
+			},
+			{
+				Config: net1 + net2 + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.net2.id
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttrPair(
+					"terrifi_wlan.test", "network_id",
+					"terrifi_network.net2", "id",
+				),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_updateMultipleProperties(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName1 := fmt.Sprintf("tfacc-wlan-%s", suffix)
+	wlanName2 := fmt.Sprintf("tfacc-wlan-upd-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, 514) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  wifi_band  = "both"
+  hide_ssid  = false
+}
+`, wlanName1),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "name", wlanName1),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "wifi_band", "both"),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "hide_ssid", "false"),
+				),
+			},
+			{
+				Config: wlanTestNetwork(netName, 514) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "changedpassword1"
+  network_id = terrifi_network.wlan_test.id
+  wifi_band  = "5g"
+  hide_ssid  = true
+}
+`, wlanName2),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "name", wlanName2),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "wifi_band", "5g"),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "hide_ssid", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_updateWpaMode(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, 515) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  wpa_mode   = "wpa2"
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wpa_mode", "wpa2"),
+			},
+			{
+				Config: wlanTestNetwork(netName, 515) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  wpa_mode   = "auto"
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wpa_mode", "auto"),
+			},
+			{
+				Config: wlanTestNetwork(netName, 515) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  wpa_mode   = "wpa2"
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wpa_mode", "wpa2"),
 			},
 		},
 	})
