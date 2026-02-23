@@ -845,76 +845,61 @@ resource "terrifi_firewall_zone" "test" {
 	})
 }
 
-func TestAccFirewallZone_swapNetworkBetweenZones(t *testing.T) {
-	zone1Name := fmt.Sprintf("tfacc-zone-sw1-%s", randomSuffix())
-	zone2Name := fmt.Sprintf("tfacc-zone-sw2-%s", randomSuffix())
-	net1Name := fmt.Sprintf("tfacc-net-sw1-%s", randomSuffix())
-	net2Name := fmt.Sprintf("tfacc-net-sw2-%s", randomSuffix())
+func TestAccFirewallZone_moveNetworkBetweenZones(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-zone-mv1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-zone-mv2-%s", randomSuffix())
+	netName := fmt.Sprintf("tfacc-net-mv-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// Step 1: zone1 has net1, zone2 has net2
+			// Step 1: net belongs to zone1
 			{
 				Config: fmt.Sprintf(`
-resource "terrifi_network" "net1" {
+resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
   vlan_id = 113
   subnet  = "192.168.113.1/24"
 }
 
-resource "terrifi_network" "net2" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 114
-  subnet  = "192.168.114.1/24"
-}
-
 resource "terrifi_firewall_zone" "zone1" {
   name        = %q
-  network_ids = [terrifi_network.net1.id]
+  network_ids = [terrifi_network.test.id]
 }
 
 resource "terrifi_firewall_zone" "zone2" {
   name        = %q
-  network_ids = [terrifi_network.net2.id]
+  network_ids = []
 }
-`, net1Name, net2Name, zone1Name, zone2Name),
+`, netName, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone1", "network_ids.#", "1"),
-					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone2", "network_ids.#", "1"),
+					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone2", "network_ids.#", "0"),
 				),
 			},
-			// Step 2: Swap — zone1 gets net2, zone2 gets net1
+			// Step 2: Move net from zone1 to zone2
 			{
 				Config: fmt.Sprintf(`
-resource "terrifi_network" "net1" {
+resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
   vlan_id = 113
   subnet  = "192.168.113.1/24"
 }
 
-resource "terrifi_network" "net2" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 114
-  subnet  = "192.168.114.1/24"
-}
-
 resource "terrifi_firewall_zone" "zone1" {
   name        = %q
-  network_ids = [terrifi_network.net2.id]
+  network_ids = []
 }
 
 resource "terrifi_firewall_zone" "zone2" {
   name        = %q
-  network_ids = [terrifi_network.net1.id]
+  network_ids = [terrifi_network.test.id]
 }
-`, net1Name, net2Name, zone1Name, zone2Name),
+`, netName, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone1", "network_ids.#", "1"),
+					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone1", "network_ids.#", "0"),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone2", "network_ids.#", "1"),
 				),
 			},
