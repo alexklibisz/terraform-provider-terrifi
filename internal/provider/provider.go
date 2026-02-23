@@ -320,6 +320,7 @@ func (p *terrifiProvider) Configure(
 // Each entry is a factory function that creates a new resource instance.
 func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewClientDeviceResource,
 		NewDNSRecordResource,
 		NewFirewallPolicyResource,
 		NewFirewallZoneResource,
