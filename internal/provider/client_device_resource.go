@@ -181,6 +181,10 @@ func (r *clientDeviceResource) Create(
 		return
 	}
 
+	// Save client_group_id before the API call — the API doesn't return
+	// usergroup_id in create/update responses, so we restore it after apiToModel.
+	plannedGroupID := plan.ClientGroupID
+
 	site := r.client.SiteOrDefault(plan.Site)
 	apiObj := r.modelToAPI(&plan)
 
@@ -191,6 +195,7 @@ func (r *clientDeviceResource) Create(
 	}
 
 	r.apiToModel(created, &plan, site)
+	plan.ClientGroupID = plannedGroupID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -236,6 +241,10 @@ func (r *clientDeviceResource) Update(
 		return
 	}
 
+	// Save client_group_id before the API call — the API doesn't return
+	// usergroup_id in create/update responses, so we restore it after apiToModel.
+	plannedGroupID := plan.ClientGroupID
+
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
@@ -249,6 +258,7 @@ func (r *clientDeviceResource) Update(
 	}
 
 	r.apiToModel(updated, &state, site)
+	state.ClientGroupID = plannedGroupID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
