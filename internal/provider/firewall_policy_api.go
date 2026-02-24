@@ -127,6 +127,25 @@ func (c *Client) DeleteFirewallPolicy(ctx context.Context, site string, id strin
 		struct{}{}, nil)
 }
 
+// ListFirewallPolicies returns all firewall policies for the given site.
+// Reuses the same workaround as GetFirewallPolicy (custom response struct with
+// string port field).
+func (c *Client) ListFirewallPolicies(ctx context.Context, site string) ([]*unifi.FirewallPolicy, error) {
+	var rawPolicies []firewallPolicyResponse
+	err := c.doV2Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/v2/api/site/%s/firewall-policies", c.BaseURL, c.APIPath, site),
+		struct{}{}, &rawPolicies)
+	if err != nil {
+		return nil, err
+	}
+
+	policies := make([]*unifi.FirewallPolicy, len(rawPolicies))
+	for i := range rawPolicies {
+		policies[i] = rawPolicies[i].toSDK()
+	}
+	return policies, nil
+}
+
 // TODO(go-unifi): GetFirewallPolicy uses a custom implementation because the
 // SDK's generated FirewallPolicySource/Destination struct defines `port` as
 // *int64, but the v2 API returns `port` as a JSON string (e.g. "443"). The SDK
