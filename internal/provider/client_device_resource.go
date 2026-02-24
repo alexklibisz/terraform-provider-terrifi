@@ -258,6 +258,20 @@ func (r *clientDeviceResource) Update(
 
 	updated, err := r.client.UpdateClientDevice(ctx, site, apiObj)
 	if err != nil {
+		if _, ok := err.(*unifi.NotFoundError); ok {
+			// Controller auto-cleaned the user record (common for non-connected
+			// MACs). Re-create it with the desired settings.
+			apiObj.ID = ""
+			created, createErr := r.client.CreateClientDevice(ctx, site, apiObj)
+			if createErr != nil {
+				resp.Diagnostics.AddError("Error Recreating Client Device", createErr.Error())
+				return
+			}
+			r.apiToModel(created, &state, site)
+			state.ClientGroupID = plannedGroupID
+			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+			return
+		}
 		resp.Diagnostics.AddError("Error Updating Client Device", err.Error())
 		return
 	}
