@@ -1,5 +1,20 @@
 builds:
-  - binary: terraform-provider-terrifi
+  - id: provider
+    binary: terraform-provider-terrifi
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+  - id: cli
+    binary: terrifi
+    dir: cmd/terrifi
     env:
       - CGO_ENABLED=0
     goos:
@@ -12,8 +27,17 @@ builds:
       - -s -w
 
 archives:
-  - format: zip
+  - id: provider
+    builds:
+      - provider
+    format: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+  - id: cli
+    builds:
+      - cli
+    format: zip
+    name_template: "terrifi-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
