@@ -34,6 +34,7 @@ type clientDeviceRequest struct {
 	LocalDNSRecordEnabled         *bool  `json:"local_dns_record_enabled,omitempty"`
 	VirtualNetworkOverrideEnabled *bool  `json:"virtual_network_override_enabled,omitempty"`
 	VirtualNetworkOverrideID      string `json:"virtual_network_override_id,omitempty"`
+	UserGroupID                   string `json:"usergroup_id,omitempty"`
 	Blocked                       *bool  `json:"blocked,omitempty"`
 }
 
@@ -123,6 +124,26 @@ func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Cl
 	return respBody.Data, nil
 }
 
+// GetClientDeviceByMAC looks up a client device by MAC address. This is needed
+// when the controller auto-cleans a user record (common for non-connected MACs)
+// but the MAC still exists in the client table with a different ID.
+func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac string) (*unifi.Client, error) {
+	var respBody struct {
+		Meta json.RawMessage `json:"meta"`
+		Data []unifi.Client  `json:"data"`
+	}
+	err := c.doV1Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/api/s/%s/rest/user?mac=%s", c.BaseURL, c.APIPath, site, mac),
+		nil, &respBody)
+	if err != nil {
+		return nil, err
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &unifi.NotFoundError{}
+	}
+	return &respBody.Data[0], nil
+}
+
 // DeleteClientDevice deletes a client device via the v1 REST API.
 func (c *Client) DeleteClientDevice(ctx context.Context, site string, id string) error {
 	return c.doV1Request(ctx, http.MethodDelete,
@@ -178,6 +199,11 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		req.VirtualNetworkOverrideEnabled = boolPtr(true)
 	} else {
 		req.VirtualNetworkOverrideEnabled = boolPtr(false)
+	}
+
+	// User group (client group) assignment
+	if d.UserGroupID != "" {
+		req.UserGroupID = d.UserGroupID
 	}
 
 	// Blocked: pass through as-is

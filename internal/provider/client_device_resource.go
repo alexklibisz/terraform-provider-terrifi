@@ -260,14 +260,22 @@ func (r *clientDeviceResource) Update(
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			// Controller auto-cleaned the user record (common for non-connected
-			// MACs). Re-create it with the desired settings.
-			apiObj.ID = ""
-			created, createErr := r.client.CreateClientDevice(ctx, site, apiObj)
-			if createErr != nil {
-				resp.Diagnostics.AddError("Error Recreating Client Device", createErr.Error())
+			// MACs). Look up the client by MAC to get its current ID, then retry.
+			mac := strings.ToLower(state.MAC.ValueString())
+			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
+			if lookupErr != nil {
+				resp.Diagnostics.AddError("Error Looking Up Client Device by MAC",
+					fmt.Sprintf("Update returned not-found for ID %s and MAC lookup also failed: %s",
+						apiObj.ID, lookupErr.Error()))
 				return
 			}
-			r.apiToModel(created, &state, site)
+			apiObj.ID = found.ID
+			updated, err = r.client.UpdateClientDevice(ctx, site, apiObj)
+			if err != nil {
+				resp.Diagnostics.AddError("Error Updating Client Device (after MAC lookup)", err.Error())
+				return
+			}
+			r.apiToModel(updated, &state, site)
 			state.ClientGroupID = plannedGroupID
 			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 			return
@@ -307,11 +315,13 @@ func (r *clientDeviceResource) Delete(
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			// Controller auto-cleaned the user record (common for non-connected
-			// MACs), but network references may persist. Re-create a temporary
-			// record with cleared bindings so the controller releases them.
-			created, createErr := r.client.CreateClientDevice(ctx, site, &unifi.Client{MAC: mac})
-			if createErr == nil {
-				_ = r.client.DeleteClientDevice(ctx, site, created.ID)
+			// MACs), but network references may persist. Look up by MAC and
+			// clear bindings on the current record.
+			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
+			if lookupErr == nil {
+				clearObj.ID = found.ID
+				_, _ = r.client.UpdateClientDevice(ctx, site, clearObj)
+				_ = r.client.DeleteClientDevice(ctx, site, found.ID)
 			}
 			return
 		}
