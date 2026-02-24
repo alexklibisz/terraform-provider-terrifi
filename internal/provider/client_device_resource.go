@@ -210,6 +210,10 @@ func (r *clientDeviceResource) Read(
 		return
 	}
 
+	// Save client_group_id before the API call — the API doesn't return
+	// usergroup_id in responses, so we preserve it from prior state.
+	priorGroupID := state.ClientGroupID
+
 	site := r.client.SiteOrDefault(state.Site)
 
 	apiObj, err := r.client.GetClientDevice(ctx, site, state.ID.ValueString())
@@ -226,6 +230,7 @@ func (r *clientDeviceResource) Read(
 	}
 
 	r.apiToModel(apiObj, &state, site)
+	state.ClientGroupID = priorGroupID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
