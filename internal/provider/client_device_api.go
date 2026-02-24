@@ -108,6 +108,21 @@ func (c *Client) GetClientDevice(ctx context.Context, site string, id string) (*
 	return &respBody.Data[0], nil
 }
 
+// ListClientDevices returns all configured client devices for the given site.
+func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Client, error) {
+	var respBody struct {
+		Meta json.RawMessage `json:"meta"`
+		Data []unifi.Client  `json:"data"`
+	}
+	err := c.doV1Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/api/s/%s/rest/user", c.BaseURL, c.APIPath, site),
+		nil, &respBody)
+	if err != nil {
+		return nil, err
+	}
+	return respBody.Data, nil
+}
+
 // DeleteClientDevice deletes a client device via the v1 REST API.
 func (c *Client) DeleteClientDevice(ctx context.Context, site string, id string) error {
 	return c.doV1Request(ctx, http.MethodDelete,

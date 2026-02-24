@@ -16,15 +16,9 @@ package provider
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/cookiejar"
 	"os"
-	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -32,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	ui "github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // Compile-time check: terrifiProvider must implement the provider.Provider interface.
@@ -62,29 +55,6 @@ type terrifiProviderModel struct {
 	ApiUrl        types.String `tfsdk:"api_url"`
 	Site          types.String `tfsdk:"site"`
 	AllowInsecure types.Bool   `tfsdk:"allow_insecure"`
-}
-
-// Client wraps the go-unifi API client with site information.
-// The go-unifi SDK (github.com/ubiquiti-community/go-unifi) provides typed Go structs
-// and CRUD methods for every UniFi API endpoint. We wrap it to carry the default site
-// name alongside the API client so resources can fall back to it.
-type Client struct {
-	*ui.ApiClient
-	Site    string
-	BaseURL string
-	APIPath string // API path prefix, e.g. "/proxy/network" for UniFi OS, empty for legacy
-	APIKey  string // Stored separately because the SDK's apiKey field is private
-	HTTP    *retryablehttp.Client
-}
-
-// SiteOrDefault returns the given site if non-empty, otherwise falls back to the
-// provider's default site. Every resource calls this to resolve which site to operate on,
-// since the site attribute is optional on individual resources.
-func (c *Client) SiteOrDefault(site types.String) string {
-	if v := site.ValueString(); v != "" {
-		return v
-	}
-	return c.Site
 }
 
 // New creates a new provider instance. The framework calls this factory function
@@ -174,34 +144,36 @@ func (p *terrifiProvider) Configure(
 
 	// Resolve each setting: prefer the HCL attribute, fall back to the env var.
 	// This lets users configure the provider either way (or mix both).
-	apiUrl := stringValueOrEnv(config.ApiUrl, "UNIFI_API")
-	username := stringValueOrEnv(config.Username, "UNIFI_USERNAME")
-	password := stringValueOrEnv(config.Password, "UNIFI_PASSWORD")
-	apiKey := stringValueOrEnv(config.ApiKey, "UNIFI_API_KEY")
+	cfg := ClientConfig{
+		APIURL:        stringValueOrEnv(config.ApiUrl, "UNIFI_API"),
+		Username:      stringValueOrEnv(config.Username, "UNIFI_USERNAME"),
+		Password:      stringValueOrEnv(config.Password, "UNIFI_PASSWORD"),
+		APIKey:        stringValueOrEnv(config.ApiKey, "UNIFI_API_KEY"),
+		Site:          stringValueOrEnv(config.Site, "UNIFI_SITE"),
+		AllowInsecure: config.AllowInsecure.ValueBool(),
+	}
 
-	allowInsecure := config.AllowInsecure.ValueBool()
-	if !allowInsecure {
+	if !cfg.AllowInsecure {
 		if v := os.Getenv("UNIFI_INSECURE"); v == "true" {
-			allowInsecure = true
+			cfg.AllowInsecure = true
 		}
 	}
 
-	site := stringValueOrEnv(config.Site, "UNIFI_SITE")
-	if site == "" {
-		site = "default"
+	if cfg.Site == "" {
+		cfg.Site = "default"
 	}
 
 	// tflog writes structured logs that appear when TF_LOG=DEBUG is set.
 	// MaskFieldValuesWithFieldKeys redacts sensitive values in log output.
-	ctx = tflog.SetField(ctx, "unifi_api_url", apiUrl)
-	ctx = tflog.SetField(ctx, "unifi_site", site)
+	ctx = tflog.SetField(ctx, "unifi_api_url", cfg.APIURL)
+	ctx = tflog.SetField(ctx, "unifi_site", cfg.Site)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "unifi_api_key")
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "unifi_password")
 	tflog.Debug(ctx, "Configuring terrifi provider")
 
 	// Validate that we have enough config to connect.
 	// AddAttributeError highlights the specific attribute in Terraform's error output.
-	if apiUrl == "" {
+	if cfg.APIURL == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_url"),
 			"Missing API URL",
@@ -209,7 +181,7 @@ func (p *terrifiProvider) Configure(
 		)
 	}
 
-	if apiKey == "" && (username == "" || password == "") {
+	if cfg.APIKey == "" && (cfg.Username == "" || cfg.Password == "") {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_key"),
 			"Missing Authentication",
@@ -221,93 +193,17 @@ func (p *terrifiProvider) Configure(
 		return
 	}
 
-	// Create an HTTP client with automatic retry support.
-	// go-retryablehttp wraps net/http and retries on transient failures (5xx, timeouts).
-	// This is important because UniFi controllers can be flaky under load.
-	c := retryablehttp.NewClient()
-	c.HTTPClient.Timeout = 30 * time.Second
-	c.Logger = NewLogger(ctx) // Route HTTP-level logs through tflog (see logger.go)
-
-	// UniFi controllers typically use self-signed TLS certificates, so most local
-	// setups need InsecureSkipVerify. This is controlled by the allow_insecure flag.
-	if allowInsecure {
-		c.HTTPClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			DialContext: (&net.Dialer{
-				Timeout:   10 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-		}
-	}
-
-	// The UniFi API uses session cookies for authentication (not just bearer tokens).
-	// A cookie jar stores the session cookie after login so subsequent requests are
-	// authenticated automatically.
-	jar, _ := cookiejar.New(nil)
-	c.HTTPClient.Jar = jar
-
-	// Create the go-unifi API client. This is the main SDK entry point that provides
-	// typed methods like CreateDNSRecord(), GetNetwork(), etc.
-	client := &ui.ApiClient{}
-	if err := client.SetHTTPClient(c); err != nil {
+	configuredClient, err := NewClient(ctx, cfg)
+	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to Create HTTP Client",
+			"Unable to Create UniFi Client",
 			fmt.Sprintf("An unexpected error occurred: %s", err.Error()),
 		)
 		return
 	}
 
-	// SetBaseURL tells the SDK where the controller lives. The SDK appends the correct
-	// API paths automatically (e.g., /proxy/network/api for UDM, or /api for classic).
-	if err := client.SetBaseURL(apiUrl); err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid API URL",
-			fmt.Sprintf("The provided API URL is invalid: %s", err.Error()),
-		)
-		return
-	}
-
-	// Authenticate: API key (stateless, set on every request as a header) or
-	// username/password (creates a session via cookie).
-	if apiKey != "" {
-		client.SetAPIKey(apiKey)
-	}
-
-	// Login() serves double duty: it detects the API URL style (classic vs UniFi OS)
-	// and, when no API key is set, authenticates via username/password. When an API key
-	// IS set, Login() skips the POST but still probes the controller to set the correct
-	// API path prefix (e.g. /proxy/network for UniFi OS).
-	if err := client.Login(ctx, username, password); err != nil {
-		resp.Diagnostics.AddError(
-			"Login Failed",
-			fmt.Sprintf("Could not log in to UniFi controller: %s", err.Error()),
-		)
-		return
-	}
-
-	// Discover the API path prefix. The go-unifi SDK does this internally during
-	// Login() but stores it in a private field. We replicate the same probe: UniFi OS
-	// returns 200 on GET / (and uses /proxy/network prefix), while legacy controllers
-	// return 302 (and use no prefix).
-	apiPath, err := discoverAPIPath(ctx, c, apiUrl)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"API Path Discovery Failed",
-			fmt.Sprintf("Could not determine UniFi API path style: %s", err.Error()),
-		)
-		return
-	}
-
-	// Wrap the SDK client with our site default. This is what every resource receives
-	// in its Configure() method via req.ProviderData.
-	configuredClient := &Client{
-		ApiClient: client,
-		Site:      site,
-		BaseURL:   apiUrl,
-		APIPath:   apiPath,
-		APIKey:    apiKey,
-		HTTP:      c,
-	}
+	// Route HTTP-level logs through tflog (see logger.go).
+	configuredClient.HTTP.Logger = NewLogger(ctx)
 
 	// ResourceData and DataSourceData are how the framework passes the client to
 	// individual resources and data sources. Each resource's Configure() method
@@ -333,35 +229,6 @@ func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resourc
 // data sources (read-only lookups) as needed.
 func (p *terrifiProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{}
-}
-
-// discoverAPIPath probes the UniFi controller to determine the API path prefix.
-// UniFi OS controllers return HTTP 200 on GET / and use "/proxy/network" as the
-// API path prefix. Legacy controllers return HTTP 302 and use no prefix.
-// This replicates the logic in the go-unifi SDK's setAPIUrlStyle method.
-func discoverAPIPath(ctx context.Context, c *retryablehttp.Client, baseURL string) (string, error) {
-	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("creating probe request: %w", err)
-	}
-
-	// Disable redirects for this probe — we need to see the raw status code.
-	origCheckRedirect := c.HTTPClient.CheckRedirect
-	c.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	defer func() { c.HTTPClient.CheckRedirect = origCheckRedirect }()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("probing controller: %w", err)
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		return "/proxy/network", nil
-	}
-	return "", nil
 }
 
 // stringValueOrEnv returns the Terraform attribute value if non-empty, otherwise

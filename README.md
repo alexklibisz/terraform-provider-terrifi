@@ -10,6 +10,31 @@ Full disclosure, much of this code is written by and with help from various AI c
 
 Compared to existing UniFi providers ([paultyng](https://github.com/paultyng/terraform-provider-unifi), [filipowm](https://github.com/filipowm/terraform-provider-unifi), [ubiquiti-community](https://github.com/ubiquiti-community/terraform-provider-unifi)), Terrifi is a nearly-from-scratch implementation with a particular focus on extensive testing, including hardware-in-the-loop testing.
 
+## CLI
+
+Terrifi includes a CLI tool for generating Terraform import blocks from a live UniFi controller.
+
+### Install
+
+```sh
+go install github.com/alexklibisz/terrifi/cmd/terrifi@latest
+```
+
+### Usage
+
+Set the same `UNIFI_*` environment variables used by the provider, then run:
+
+```sh
+terrifi generate-imports terrifi_client_device
+terrifi generate-imports terrifi_dns_record
+terrifi generate-imports terrifi_firewall_zone
+terrifi generate-imports terrifi_firewall_policy
+terrifi generate-imports terrifi_network
+terrifi generate-imports terrifi_wlan
+```
+
+This outputs Terraform `import {}` and `resource {}` blocks to stdout, which you can redirect to a `.tf` file.
+
 ## Docs
 
 - Usage docs: [docs/index.md](./docs/index.md)
@@ -22,9 +47,11 @@ Here's a rough list of features that I'm looking to implement:
 - [x] `terrifi_dns_record` resource working on real hardware.
 - [x] `terrifi_network` resource working on real hardware.
 - [x] `terrifi_firewall_zone` resource working on real hardware.
-- [ ] `terrifi_client_device` resource working on real hardware.
+- [x] `terrifi_client_device` resource working on real hardware.
 - [x] `terrifi_wifi` resource working on real hardware.
-- [x] `terrifi_policy` resource working on real hardware.
+- [x] `terrifi_firewall_policy` resource working on real hardware.
+- [ ] `terrifi_client_group` resource working on real hardware.
+- [x] CLI for generating imports working with real hardware.
 - [ ] End-to-end working with my home UniFi network.
 - [ ] Publish to Terraform and Opentofu registries.
 

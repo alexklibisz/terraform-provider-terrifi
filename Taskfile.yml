@@ -13,13 +13,14 @@ tasks:
       - task: build
 
   build:
-    desc: Build the provider binary and generate .terraformrc for local dev
+    desc: Build the provider binary, CLI binary, and generate .terraformrc for local dev
     cmds:
       # Terraform discovers providers by binary name: terraform-provider-<type>.
       # Since our Go module is "terrifi" (not "terraform-provider-terrifi"),
       # `go install` would produce a binary called "terrifi". We use -o to give
       # it the name Terraform expects.
       - go build -o {{.GOBIN}}/terraform-provider-terrifi
+      - go build -o {{.GOBIN}}/terrifi ./cmd/terrifi
       # Generate .terraformrc pointing Terraform at the locally-built binary.
       # .envrc sets TF_CLI_CONFIG_FILE to point here.
       - |
@@ -31,6 +32,11 @@ tasks:
           direct {}
         }
         EOF
+
+  build:cli:
+    desc: Build the terrifi CLI binary
+    cmds:
+      - go build -o {{.GOBIN}}/terrifi ./cmd/terrifi
 
   test:unit:
     desc: Run unit tests (fast, no network needed)
@@ -54,6 +60,22 @@ tasks:
       TERRIFI_ACC_TARGET: hardware
     cmds:
       - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+
+  test:cli:
+    desc: Run CLI + generate unit tests
+    env:
+      TF_ACC: ""
+    cmds:
+      - go test ./internal/generate/ -v -count 1 -shuffle=on {{.CLI_ARGS}}
+
+  test:cli:acc:hardware:
+    desc: Run CLI acceptance tests against real hardware
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: hardware
+    cmds:
+      - go build -o {{.GOBIN}}/terrifi ./cmd/terrifi
+      - go test ./cmd/terrifi/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
   deps:
     desc: Download Go module dependencies
