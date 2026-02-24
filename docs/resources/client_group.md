@@ -14,28 +14,28 @@ Manages a client group on the UniFi controller. Client groups can be referenced 
 ### Basic group
 
 ```terraform
-resource "terrifi_client_group" "iot" {
-  name = "IoT Devices"
+resource "terrifi_client_group" "smart_plugs" {
+  name = "WiFi Smart Plugs"
 }
 ```
 
 ### Assign client devices to a group
 
 ```terraform
-resource "terrifi_client_group" "iot" {
-  name = "IoT Devices"
+resource "terrifi_client_group" "smart_plugs" {
+  name = "WiFi Smart Plugs"
 }
 
-resource "terrifi_client_device" "thermostat" {
+resource "terrifi_client_device" "plug_living_room" {
   mac             = "aa:bb:cc:dd:ee:01"
-  name            = "Thermostat"
-  client_group_id = terrifi_client_group.iot.id
+  name            = "Living Room Plug"
+  client_group_id = terrifi_client_group.smart_plugs.id
 }
 
-resource "terrifi_client_device" "camera" {
+resource "terrifi_client_device" "plug_bedroom" {
   mac             = "aa:bb:cc:dd:ee:02"
-  name            = "Security Camera"
-  client_group_id = terrifi_client_group.iot.id
+  name            = "Bedroom Plug"
+  client_group_id = terrifi_client_group.smart_plugs.id
 }
 ```
 
@@ -58,11 +58,11 @@ resource "terrifi_client_device" "camera" {
 Client groups can be imported using the group ID:
 
 ```shell
-terraform import terrifi_client_group.iot <id>
+terraform import terrifi_client_group.smart_plugs <id>
 ```
 
 To import a client group from a non-default site, use the `site:id` format:
 
 ```shell
-terraform import terrifi_client_group.iot <site>:<id>
+terraform import terrifi_client_group.smart_plugs <site>:<id>
 ```
