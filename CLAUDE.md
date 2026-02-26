@@ -8,17 +8,7 @@ Terrifi is a Terraform provider for managing Ubiquiti UniFi network infrastructu
 
 ## Commands
 
-This project uses [Task](https://taskfile.dev/) (not Make) as the build runner.
-
-- `task build` — Build the provider binary, CLI binary, and generate `.terraformrc` for local dev
-- `task build:cli` — Build just the CLI binary
-- `task lint` — Run `go fmt` + `go vet`
-- `task test:unit` — Fast unit tests (no network, no Docker)
-- `task test:acc` — Acceptance tests against a Docker UniFi controller (starts/stops automatically)
-- `task test:acc:hardware` — Acceptance tests against real hardware (requires `.envrc.local`)
-- `task test:cli` — CLI and generate package unit tests
-- `task test:cli:acc:hardware` — CLI acceptance tests against real hardware
-- `task deps` — Download Go module dependencies
+This project uses [Task](https://taskfile.dev/) (not Make) as the build runner. Read `Taskfile.yml` for all available tasks.
 
 Run a single test:
 ```sh
