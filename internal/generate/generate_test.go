@@ -557,6 +557,37 @@ func TestWLANBlocks(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// ClientGroupBlocks
+// ---------------------------------------------------------------------------
+
+func TestClientGroupBlocks(t *testing.T) {
+	groups := []unifi.ClientGroup{
+		{
+			ID:   "grp1",
+			Name: "WiFi Smart Plugs",
+		},
+		{
+			ID:   "grp2",
+			Name: "IoT Devices",
+		},
+	}
+
+	blocks := ClientGroupBlocks(groups)
+	require.Len(t, blocks, 2)
+
+	b := blocks[0]
+	assert.Equal(t, "terrifi_client_group", b.ResourceType)
+	assert.Equal(t, "wifi_smart_plugs", b.ResourceName)
+	assert.Equal(t, "grp1", b.ImportID)
+
+	attrs := attrMapFromBlock(b)
+	assert.Equal(t, `"WiFi Smart Plugs"`, attrs["name"])
+
+	b2 := blocks[1]
+	assert.Equal(t, "iot_devices", b2.ResourceName)
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
