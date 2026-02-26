@@ -66,3 +66,9 @@ To import a client group from a non-default site, use the `site:id` format:
 ```shell
 terraform import terrifi_client_group.smart_plugs <site>:<id>
 ```
+
+You can also use the [Terrifi CLI](../cli.md) to generate import blocks for all client groups automatically:
+
+```shell
+terrifi generate-imports terrifi_client_group
+```
