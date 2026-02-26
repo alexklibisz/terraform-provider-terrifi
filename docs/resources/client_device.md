@@ -79,6 +79,7 @@ resource "terrifi_client_device" "blocked" {
 - `network_id` (String) — The network ID for fixed IP assignment. Required when `fixed_ip` is set.
 - `network_override_id` (String) — The network ID for VLAN/network override.
 - `local_dns_record` (String) — A local DNS hostname for this client device. Requires `fixed_ip`.
+- `client_group_id` (String) — The ID of the client group to assign this device to. Use `terrifi_client_group` to manage groups.
 - `blocked` (Boolean) — Whether the client device is blocked from network access.
 - `site` (String) — The site to associate the client device with. Defaults to the provider site. Changing this forces a new resource.
 
@@ -98,4 +99,10 @@ To import from a non-default site, use the `site:id` format:
 
 ```shell
 terraform import terrifi_client_device.printer <site>:<id>
+```
+
+You can also use the [Terrifi CLI](../cli.md) to generate import blocks for all client devices automatically:
+
+```shell
+terrifi generate-imports terrifi_client_device
 ```

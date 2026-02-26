@@ -42,6 +42,7 @@ type clientDeviceResourceModel struct {
 	NetworkID         types.String `tfsdk:"network_id"`
 	NetworkOverrideID types.String `tfsdk:"network_override_id"`
 	LocalDNSRecord    types.String `tfsdk:"local_dns_record"`
+	ClientGroupID     types.String `tfsdk:"client_group_id"`
 	Blocked           types.Bool   `tfsdk:"blocked"`
 }
 
@@ -134,6 +135,12 @@ func (r *clientDeviceResource) Schema(
 				},
 			},
 
+			"client_group_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the client group to assign this device to. " +
+					"Use `terrifi_client_group` to manage groups.",
+				Optional: true,
+			},
+
 			"blocked": schema.BoolAttribute{
 				MarkdownDescription: "Whether the client device is blocked from network access.",
 				Optional:            true,
@@ -174,6 +181,10 @@ func (r *clientDeviceResource) Create(
 		return
 	}
 
+	// Save client_group_id before the API call — the API doesn't return
+	// usergroup_id in create/update responses, so we restore it after apiToModel.
+	plannedGroupID := plan.ClientGroupID
+
 	site := r.client.SiteOrDefault(plan.Site)
 	apiObj := r.modelToAPI(&plan)
 
@@ -184,6 +195,7 @@ func (r *clientDeviceResource) Create(
 	}
 
 	r.apiToModel(created, &plan, site)
+	plan.ClientGroupID = plannedGroupID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -197,6 +209,10 @@ func (r *clientDeviceResource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Save client_group_id before the API call — the API doesn't return
+	// usergroup_id in responses, so we preserve it from prior state.
+	priorGroupID := state.ClientGroupID
 
 	site := r.client.SiteOrDefault(state.Site)
 
@@ -214,6 +230,7 @@ func (r *clientDeviceResource) Read(
 	}
 
 	r.apiToModel(apiObj, &state, site)
+	state.ClientGroupID = priorGroupID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -229,6 +246,10 @@ func (r *clientDeviceResource) Update(
 		return
 	}
 
+	// Save client_group_id before the API call — the API doesn't return
+	// usergroup_id in create/update responses, so we restore it after apiToModel.
+	plannedGroupID := plan.ClientGroupID
+
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
@@ -237,11 +258,34 @@ func (r *clientDeviceResource) Update(
 
 	updated, err := r.client.UpdateClientDevice(ctx, site, apiObj)
 	if err != nil {
+		if _, ok := err.(*unifi.NotFoundError); ok {
+			// Controller auto-cleaned the user record (common for non-connected
+			// MACs). Look up the client by MAC to get its current ID, then retry.
+			mac := strings.ToLower(state.MAC.ValueString())
+			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
+			if lookupErr != nil {
+				resp.Diagnostics.AddError("Error Looking Up Client Device by MAC",
+					fmt.Sprintf("Update returned not-found for ID %s and MAC lookup also failed: %s",
+						apiObj.ID, lookupErr.Error()))
+				return
+			}
+			apiObj.ID = found.ID
+			updated, err = r.client.UpdateClientDevice(ctx, site, apiObj)
+			if err != nil {
+				resp.Diagnostics.AddError("Error Updating Client Device (after MAC lookup)", err.Error())
+				return
+			}
+			r.apiToModel(updated, &state, site)
+			state.ClientGroupID = plannedGroupID
+			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+			return
+		}
 		resp.Diagnostics.AddError("Error Updating Client Device", err.Error())
 		return
 	}
 
 	r.apiToModel(updated, &state, site)
+	state.ClientGroupID = plannedGroupID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -271,11 +315,13 @@ func (r *clientDeviceResource) Delete(
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			// Controller auto-cleaned the user record (common for non-connected
-			// MACs), but network references may persist. Re-create a temporary
-			// record with cleared bindings so the controller releases them.
-			created, createErr := r.client.CreateClientDevice(ctx, site, &unifi.Client{MAC: mac})
-			if createErr == nil {
-				_ = r.client.DeleteClientDevice(ctx, site, created.ID)
+			// MACs), but network references may persist. Look up by MAC and
+			// clear bindings on the current record.
+			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
+			if lookupErr == nil {
+				clearObj.ID = found.ID
+				_, _ = r.client.UpdateClientDevice(ctx, site, clearObj)
+				_ = r.client.DeleteClientDevice(ctx, site, found.ID)
 			}
 			return
 		}
@@ -345,6 +391,11 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	} else {
 		state.LocalDNSRecord = types.StringNull()
 	}
+	if !plan.ClientGroupID.IsNull() && !plan.ClientGroupID.IsUnknown() {
+		state.ClientGroupID = plan.ClientGroupID
+	} else {
+		state.ClientGroupID = types.StringNull()
+	}
 	if !plan.Blocked.IsNull() && !plan.Blocked.IsUnknown() {
 		state.Blocked = plan.Blocked
 	} else {
@@ -381,6 +432,10 @@ func (r *clientDeviceResource) modelToAPI(m *clientDeviceResourceModel) *unifi.C
 	if !m.LocalDNSRecord.IsNull() && !m.LocalDNSRecord.IsUnknown() {
 		c.LocalDNSRecord = m.LocalDNSRecord.ValueString()
 		c.LocalDNSRecordEnabled = true
+	}
+
+	if !m.ClientGroupID.IsNull() && !m.ClientGroupID.IsUnknown() {
+		c.UserGroupID = m.ClientGroupID.ValueString()
 	}
 
 	if !m.Blocked.IsNull() && !m.Blocked.IsUnknown() {
@@ -421,6 +476,8 @@ func (r *clientDeviceResource) apiToModel(c *unifi.Client, m *clientDeviceResour
 	} else {
 		m.LocalDNSRecord = types.StringNull()
 	}
+
+	m.ClientGroupID = stringValueOrNull(c.UserGroupID)
 
 	// Preserve blocked state faithfully: true or false when explicitly set by
 	// the API, null when the API doesn't return the field at all.

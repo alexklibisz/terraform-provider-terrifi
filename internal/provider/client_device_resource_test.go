@@ -48,6 +48,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.False(t, c.LocalDNSRecordEnabled)
 		assert.Nil(t, c.VirtualNetworkOverrideEnabled)
 		assert.Empty(t, c.VirtualNetworkOverrideID)
+		assert.Empty(t, c.UserGroupID)
 		assert.Nil(t, c.Blocked)
 	})
 
@@ -60,6 +61,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkID:         types.StringValue("net-123"),
 			NetworkOverrideID: types.StringValue("vlan-456"),
 			LocalDNSRecord:    types.StringValue("mydevice.local"),
+			ClientGroupID:     types.StringValue("group-789"),
 			Blocked:           types.BoolValue(true),
 		}
 
@@ -76,6 +78,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.True(t, *c.VirtualNetworkOverrideEnabled)
 		assert.Equal(t, "mydevice.local", c.LocalDNSRecord)
 		assert.True(t, c.LocalDNSRecordEnabled)
+		assert.Equal(t, "group-789", c.UserGroupID)
 		assert.NotNil(t, c.Blocked)
 		assert.True(t, *c.Blocked)
 	})
@@ -175,6 +178,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.True(t, model.NetworkID.IsNull(), "NetworkID should be null")
 		assert.True(t, model.NetworkOverrideID.IsNull(), "NetworkOverrideID should be null")
 		assert.True(t, model.LocalDNSRecord.IsNull(), "LocalDNSRecord should be null")
+		assert.True(t, model.ClientGroupID.IsNull(), "ClientGroupID should be null")
 		assert.True(t, model.Blocked.IsNull(), "Blocked should be null")
 	})
 
@@ -193,6 +197,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 			VirtualNetworkOverrideID:      "vlan-abc",
 			LocalDNSRecord:                "mydevice.local",
 			LocalDNSRecordEnabled:         true,
+			UserGroupID:                   "group-xyz",
 			Blocked:                       &blocked,
 		}
 
@@ -208,6 +213,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.Equal(t, "net-789", model.NetworkID.ValueString())
 		assert.Equal(t, "vlan-abc", model.NetworkOverrideID.ValueString())
 		assert.Equal(t, "mydevice.local", model.LocalDNSRecord.ValueString())
+		assert.Equal(t, "group-xyz", model.ClientGroupID.ValueString())
 		assert.True(t, model.Blocked.ValueBool())
 	})
 

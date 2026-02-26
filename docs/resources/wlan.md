@@ -102,4 +102,10 @@ To import a WLAN from a non-default site, use the `site:id` format:
 terraform import terrifi_wlan.home <site>:<id>
 ```
 
+You can also use the [Terrifi CLI](../cli.md) to generate import blocks for all WLANs automatically:
+
+```shell
+terrifi generate-imports terrifi_wlan
+```
+
 ~> **Note:** The `passphrase` attribute cannot be imported because the UniFi API does not return it. After import, set the passphrase in your configuration and run `terraform apply` to update it.
