@@ -66,3 +66,9 @@ To import a firewall zone from a non-default site, use the `site:id` format:
 ```shell
 terraform import terrifi_firewall_zone.iot <site>:<id>
 ```
+
+You can also use the [Terrifi CLI](../cli.md) to generate import blocks for all firewall zones automatically:
+
+```shell
+terrifi generate-imports terrifi_firewall_zone
+```

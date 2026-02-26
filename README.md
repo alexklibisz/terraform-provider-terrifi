@@ -10,34 +10,11 @@ Full disclosure, much of this code is written by and with help from various AI c
 
 Compared to existing UniFi providers ([paultyng](https://github.com/paultyng/terraform-provider-unifi), [filipowm](https://github.com/filipowm/terraform-provider-unifi), [ubiquiti-community](https://github.com/ubiquiti-community/terraform-provider-unifi)), Terrifi is a nearly-from-scratch implementation with a particular focus on extensive testing, including hardware-in-the-loop testing.
 
-## CLI
-
-Terrifi includes a CLI tool for generating Terraform import blocks from a live UniFi controller.
-
-### Install
-
-```sh
-go install github.com/alexklibisz/terrifi/cmd/terrifi@latest
-```
-
-### Usage
-
-Set the same `UNIFI_*` environment variables used by the provider, then run:
-
-```sh
-terrifi generate-imports terrifi_client_device
-terrifi generate-imports terrifi_dns_record
-terrifi generate-imports terrifi_firewall_zone
-terrifi generate-imports terrifi_firewall_policy
-terrifi generate-imports terrifi_network
-terrifi generate-imports terrifi_wlan
-```
-
-This outputs Terraform `import {}` and `resource {}` blocks to stdout, which you can redirect to a `.tf` file.
-
 ## Docs
 
-- Usage docs: [docs/index.md](./docs/index.md)
+- [Provider](./docs/index.md)
+- [CLI](./docs/cli.md)
+- Resources: [client_device](./docs/resources/client_device.md), [dns_record](./docs/resources/dns_record.md), [firewall_zone](./docs/resources/firewall_zone.md), [firewall_policy](./docs/resources/firewall_policy.md), [network](./docs/resources/network.md), [wlan](./docs/resources/wlan.md)
 
 ## TODO
 
