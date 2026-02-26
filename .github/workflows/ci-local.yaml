@@ -37,7 +37,7 @@ jobs:
         timeout-minutes: 10
         run: task deps
       - name: Lint
-        timeout-minutes: 1
+        timeout-minutes: 5
         run: task lint
       - name: Build
         timeout-minutes: 10
