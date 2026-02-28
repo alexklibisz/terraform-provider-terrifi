@@ -28,7 +28,10 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: root
     volumes:
       - mongo-data:/data/db
-      - ./init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+    configs:
+      - source: mongo-init
+        target: /docker-entrypoint-initdb.d/init-mongo.sh
+        mode: 0755
     restart: unless-stopped
 
   unifi:
@@ -57,6 +60,24 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
+
+configs:
+  mongo-init:
+    content: |
+      #!/bin/bash
+      # Init scripts run against the temp mongod (no auth) before it restarts
+      # with --auth. Create the unifi user in admin so MONGO_AUTHSOURCE=admin works.
+      mongo admin <<EOJS
+      db.createUser({
+        user: "unifi",
+        pwd: "unifi",
+        roles: [
+          { db: "unifi", role: "dbOwner" },
+          { db: "unifi_stat", role: "dbOwner" },
+          { db: "unifi_audit", role: "dbOwner" }
+        ]
+      })
+      EOJS
 
 volumes:
   unifi-config:
