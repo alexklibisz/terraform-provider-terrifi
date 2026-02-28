@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
 
   mongo:
-    image: mongo:4.4
+    image: mongo:8.2
     network_mode: host
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
