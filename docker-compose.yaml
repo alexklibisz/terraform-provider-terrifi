@@ -7,7 +7,7 @@
 # provider_test.go starts/stops this via testcontainers-go.
 services:
   mongo:
-    image: mongo:4.4
+    image: mongo:8.2
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: root
