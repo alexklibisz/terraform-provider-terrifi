@@ -1,26 +1,96 @@
-# UniFi OS Server (Docker)
+# UniFi OS Server
 
-This directory contains a Docker Compose file for running a real instance of Unifi OS Server (i.e., the self-hosted Unifi control plane) for hardware-in-the-loop testing.
+This directory contains scripts for installing [UniFi OS Server (UOS)](https://community.ui.com/) on a bare Ubuntu/Debian host for hardware-in-the-loop testing.
 
-This is only really necessary if you intend to do hardware-in-the-loop testing.
+UOS Server is Ubiquiti's official self-hosted UniFi platform. It runs as a single podman container managed by a systemd service, bundling MongoDB, the UniFi Network Application, and RabbitMQ. Unlike the standalone Network Application (used by the LinuxServer Docker image), UOS Server supports the full UniFi feature set including zone-based firewall.
+
+## Prerequisites
+
+- Ubuntu or Debian server with systemd
+- SSH access configured with alias `terrifi-unifi-os-server` (i.e., `ssh terrifi-unifi-os-server` works from your dev machine)
+- Root/sudo access on the server
 
 ## Setup
 
-1. Create a server with Docker, Docker Compose, and rsync installed. I've only tested this setup on an Ubuntu Server VM running in Proxmox.
-1. Setup ssh access with an alias `terrifi-unifi-os-server`, i.e., you should be able to ssh from your host (where the Terrifi source code resides) to the server via `ssh terrifi-unifi-os-server`.
-1. Rsync the Docker Compose files over to the server: `./rsync.sh`.
-1. SSH into the server.
-1. Copy the `.env.example` file: `cp .env.example .env` and update the relevant properties for your setup.
-1. Start the Docker Compose services: `docker compose up -d`
+1. Copy `install.sh` to the server:
+   ```sh
+   scp install.sh terrifi-unifi-os-server:~/
+   ```
 
-The UI will be running at `https://<host-ip-or-host-name>:8443`.
+2. SSH in and run the installer:
+   ```sh
+   ssh terrifi-unifi-os-server
+   sudo ./install.sh           # installs default version (5.0.6)
+   sudo ./install.sh 4.3.6     # or specify a version
+   ```
+
+3. Complete the initial setup wizard in the web UI.
+
+## Access
+
+| Port  | Description |
+|-------|-------------|
+| 11443 | UOS web UI (primary) |
+| 8443  | Legacy UniFi Network Application port |
+
+The UI is available at `https://<host>:11443`. The legacy port `8443` also works.
 
 ## Architecture
 
-- **`mongo`** — [MongoDB 4.4](https://hub.docker.com/_/mongo) database required by the UniFi Network Application. On first start, an inline init script creates the `unifi` user with access to the `unifi`, `unifi_stat`, and `unifi_audit` databases.
-- **`unifi`** — [LinuxServer unifi-network-application](https://github.com/linuxserver/docker-unifi-network-application) container with host networking so UniFi devices on the LAN can reach the controller directly.
-- **`ulp-stub`** — tiny nginx that stubs `127.0.0.1:9080/api/ucore/manifest` to silence ULP log spam (UCore isn't present outside real UniFi OS hardware).
+The UOS Server installer:
+- Installs podman (if not already present)
+- Downloads and runs the `uosserver` binary
+- Creates a `uosserver` system user
+- Starts a podman container (`uosserver`) running as that user
+- Registers a `uosserver` systemd service for automatic start on boot
 
-Data is persisted in Docker named volumes (`unifi-config`, `mongo-data`).
+Inside the container: MongoDB, Java/UniFi Network Application, and RabbitMQ all run together.
 
-> **Note:** Switching from the jacobalberty/unifi image means a fresh install — the data directory layout is different. Devices will need to be re-adopted.
+## Management Commands
+
+```sh
+uosserver status          # check if running
+uosserver start           # start the service
+uosserver stop            # stop the service
+uosserver version         # show installed version
+uosserver shell           # open a shell inside the container
+```
+
+## Logs
+
+Use the included `logs.sh` script:
+```sh
+./logs.sh                 # tail server.log (UniFi Network Application)
+./logs.sh mongod          # tail mongod.log
+```
+
+Or access logs directly:
+```sh
+# Podman container logs (startup, systemd)
+sudo su -s /bin/bash -l uosserver -c 'podman logs -f uosserver'
+
+# Application logs inside the container
+sudo su -s /bin/bash -l uosserver -c 'podman exec uosserver tail -f /usr/lib/unifi/logs/server.log'
+```
+
+Remote log viewing:
+```sh
+ssh terrifi-unifi-os-server './logs.sh'
+```
+
+## Reset / Uninstall
+
+To completely remove UOS Server and all its data:
+```sh
+sudo ./uninstall.sh
+```
+
+This runs `uosserver-purge`, which stops the service, removes the container, deletes all data, and uninstalls the binaries. You can then re-run `install.sh` for a fresh start.
+
+## Why not Docker Compose?
+
+This directory previously used a Docker Compose setup with the [LinuxServer unifi-network-application](https://github.com/linuxserver/docker-unifi-network-application) image. We switched to UOS Server because:
+
+1. The LinuxServer image runs the **standalone Network Application**, which lacks features present in full UniFi OS (notably zone-based firewall policies).
+2. Ubiquiti is deprecating the standalone Network Application in favor of UOS. The LinuxServer maintainers plan to retire their image once standalone releases stop.
+3. UOS Server is a single binary install with no Docker Compose orchestration needed — simpler to set up and maintain.

@@ -15,9 +15,8 @@ jobs:
       - self-hosted
       - terrifi-hardware-test
     env:
-      # Using IP instead of terrifi-unifi-os-server.lan because Docker's
-      # DNS resolver (127.0.0.11) intermittently fails to resolve .lan hostnames.
-      UNIFI_API: https://192.168.1.3:8443
+      # Using IP instead of hostname for reliability in the self-hosted runner.
+      UNIFI_API: https://192.168.1.3:11443
       UNIFI_USERNAME: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_USERNAME }}
       UNIFI_PASSWORD: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_PASSWORD }}
       UNIFI_INSECURE: true
