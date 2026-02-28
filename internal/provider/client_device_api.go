@@ -23,19 +23,19 @@ import (
 // clientDeviceRequest is the payload for POST/PUT to api/s/{site}/rest/user.
 // Uses *bool + omitempty for boolean fields so we only send fields we manage.
 type clientDeviceRequest struct {
-	MAC                           string `json:"mac"`
-	Name                          string `json:"name,omitempty"`
-	Note                          string `json:"note,omitempty"`
-	Noted                         *bool  `json:"noted,omitempty"`
-	FixedIP                       string `json:"fixed_ip,omitempty"`
-	NetworkID                     string `json:"network_id,omitempty"`
-	UseFixedIP                    *bool  `json:"use_fixedip,omitempty"`
-	LocalDNSRecord                string `json:"local_dns_record,omitempty"`
-	LocalDNSRecordEnabled         *bool  `json:"local_dns_record_enabled,omitempty"`
-	VirtualNetworkOverrideEnabled *bool  `json:"virtual_network_override_enabled,omitempty"`
-	VirtualNetworkOverrideID      string `json:"virtual_network_override_id,omitempty"`
+	MAC                           string  `json:"mac"`
+	Name                          string  `json:"name,omitempty"`
+	Note                          string  `json:"note,omitempty"`
+	Noted                         *bool   `json:"noted,omitempty"`
+	FixedIP                       string  `json:"fixed_ip,omitempty"`
+	NetworkID                     string  `json:"network_id,omitempty"`
+	UseFixedIP                    *bool   `json:"use_fixedip,omitempty"`
+	LocalDNSRecord                string  `json:"local_dns_record,omitempty"`
+	LocalDNSRecordEnabled         *bool   `json:"local_dns_record_enabled,omitempty"`
+	VirtualNetworkOverrideEnabled *bool   `json:"virtual_network_override_enabled,omitempty"`
+	VirtualNetworkOverrideID      string  `json:"virtual_network_override_id,omitempty"`
 	UserGroupID                   *string `json:"usergroup_id,omitempty"`
-	Blocked                       *bool  `json:"blocked,omitempty"`
+	Blocked                       *bool   `json:"blocked,omitempty"`
 }
 
 // clientDeviceUpdateRequest adds _id to the request for PUT operations.

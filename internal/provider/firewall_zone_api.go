@@ -118,8 +118,8 @@ func (c *Client) doV2Request(ctx context.Context, method, url string, body any, 
 	// Replicate the SDK's auth logic: API key takes precedence over CSRF token.
 	if c.APIKey != "" {
 		req.Header.Set("X-API-Key", c.APIKey)
-	} else if csrf := c.ApiClient.CSRFToken(); csrf != "" {
-		req.Header.Set("X-Csrf-Token", csrf)
+	} else if c.csrf != "" {
+		req.Header.Set("X-Csrf-Token", c.csrf)
 	}
 
 	resp, err := c.HTTP.Do(req)

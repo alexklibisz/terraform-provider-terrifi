@@ -2,16 +2,11 @@ package provider
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/cookiejar"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
@@ -130,33 +125,17 @@ func runDockerTests(m *testing.M) int {
 // waitForAPI polls the UniFi API until login succeeds and basic endpoints respond.
 // The controller can take 60-120 seconds to initialize after Docker reports healthy.
 func waitForAPI(ctx context.Context, endpoint, user, pass string) error {
-	client := &unifi.ApiClient{}
-
-	httpClient := retryablehttp.NewClient()
-	httpClient.HTTPClient.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-	}
-	jar, _ := cookiejar.New(nil)
-	httpClient.HTTPClient.Jar = jar
-	httpClient.Logger = nil // Suppress retry logs during startup
-
-	if err := client.SetHTTPClient(httpClient); err != nil {
-		return fmt.Errorf("setting HTTP client: %w", err)
-	}
-	if err := client.SetBaseURL(endpoint); err != nil {
-		return fmt.Errorf("setting base URL: %w", err)
-	}
-
 	maxRetries := 60
 	retryDelay := 3 * time.Second
 
 	for i := range maxRetries {
-		// Try to login.
-		if err := client.Login(ctx, user, pass); err != nil {
+		client, err := unifi.New(ctx, &unifi.Config{
+			BaseURL:       endpoint,
+			Username:      user,
+			Password:      pass,
+			AllowInsecure: true,
+		})
+		if err != nil {
 			if i%10 == 0 {
 				fmt.Printf("  attempt %d/%d: login failed (%s), retrying...\n", i+1, maxRetries, err)
 			}
