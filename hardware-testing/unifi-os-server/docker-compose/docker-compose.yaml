@@ -20,20 +20,39 @@ services:
       - ./nginx-ulp-stub.conf:/etc/nginx/nginx.conf:ro
     restart: unless-stopped
 
-  unifi:
-    image: jacobalberty/unifi:v10.0.162  # pinned; bump as needed
+  mongo:
+    image: mongo:4.4
     network_mode: host
-    init: true
     environment:
-      TZ: ${TZ:-Etc/UTC}
-      UNIFI_STDOUT: "true"
-      JVM_MAX_HEAP_SIZE: ${JVM_MAX_HEAP_SIZE:-1024M}
-      LOTSOFDEVICES: "true"
-    user: unifi
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
     volumes:
-      - unifi-data:/unifi/data
-      - unifi-log:/unifi/log
-      - unifi-cert:/unifi/cert
+      - mongo-data:/data/db
+    configs:
+      - source: mongo-init
+        target: /docker-entrypoint-initdb.d/init-mongo.sh
+        mode: 0755
+    restart: unless-stopped
+
+  unifi:
+    image: lscr.io/linuxserver/unifi-network-application:version-10.1.85  # pinned; bump as needed
+    network_mode: host
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: ${TZ:-Etc/UTC}
+      MONGO_HOST: localhost
+      MONGO_PORT: 27017
+      MONGO_DBNAME: unifi
+      MONGO_USER: unifi
+      MONGO_PASS: unifi
+      MONGO_AUTHSOURCE: admin
+      MEM_LIMIT: ${MEM_LIMIT:-1024}
+      MEM_STARTUP: ${MEM_STARTUP:-1024}
+    depends_on:
+      - mongo
+    volumes:
+      - unifi-config:/config
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "-k", "https://localhost:8443/manage/account/login"]
@@ -42,7 +61,24 @@ services:
       retries: 5
       start_period: 120s
 
+configs:
+  mongo-init:
+    content: |
+      #!/bin/bash
+      # Init scripts run against the temp mongod (no auth) before it restarts
+      # with --auth. Create the unifi user in admin so MONGO_AUTHSOURCE=admin works.
+      mongo admin <<EOJS
+      db.createUser({
+        user: "unifi",
+        pwd: "unifi",
+        roles: [
+          { db: "unifi", role: "dbOwner" },
+          { db: "unifi_stat", role: "dbOwner" },
+          { db: "unifi_audit", role: "dbOwner" }
+        ]
+      })
+      EOJS
+
 volumes:
-  unifi-data:
-  unifi-log:
-  unifi-cert:
+  unifi-config:
+  mongo-data:

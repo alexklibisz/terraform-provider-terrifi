@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: weekly
 
+  - package-ecosystem: docker-compose
+    directory: /hardware-testing/unifi-os-server/docker-compose
+    schedule:
+      interval: weekly
+
   - package-ecosystem: gomod
     directory: /
     schedule:
