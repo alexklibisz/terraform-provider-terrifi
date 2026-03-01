@@ -21,6 +21,7 @@ func TestWLANModelToAPI(t *testing.T) {
 	t.Run("basic WLAN with all fields", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("My WiFi"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("supersecret"),
 			NetworkID:      types.StringValue("net123"),
 			WifiBand:       types.StringValue("both"),
@@ -45,9 +46,30 @@ func TestWLANModelToAPI(t *testing.T) {
 		assert.True(t, wlan.Enabled)
 	})
 
+	t.Run("disabled WLAN", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:           types.StringValue("Disabled WiFi"),
+			Enabled:        types.BoolValue(false),
+			Passphrase:     types.StringValue("supersecret"),
+			NetworkID:      types.StringValue("net123"),
+			WifiBand:       types.StringValue("both"),
+			Security:       types.StringValue("wpapsk"),
+			HideSSID:       types.BoolValue(false),
+			WPAMode:        types.StringValue("wpa2"),
+			WPA3Support:    types.BoolValue(false),
+			WPA3Transition: types.BoolValue(false),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.False(t, wlan.Enabled)
+		assert.Equal(t, "Disabled WiFi", wlan.Name)
+	})
+
 	t.Run("5g band and hidden SSID", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("Hidden 5G"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("password123"),
 			NetworkID:      types.StringValue("net456"),
 			WifiBand:       types.StringValue("5g"),
@@ -67,6 +89,7 @@ func TestWLANModelToAPI(t *testing.T) {
 	t.Run("open security omits passphrase", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("Guest"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringNull(),
 			NetworkID:      types.StringValue("net789"),
 			WifiBand:       types.StringValue("both"),
@@ -86,6 +109,7 @@ func TestWLANModelToAPI(t *testing.T) {
 	t.Run("WPA3 transition mode", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("WPA3 WiFi"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("wpa3password"),
 			NetworkID:      types.StringValue("net-wpa3"),
 			WifiBand:       types.StringValue("both"),
@@ -110,6 +134,7 @@ func TestWLANAPIToModel(t *testing.T) {
 		wlan := &unifi.WLAN{
 			ID:        "wlan123",
 			Name:      "Test WiFi",
+			Enabled:   true,
 			NetworkID: "net123",
 			WLANBand:  "both",
 			Security:  "wpapsk",
@@ -123,6 +148,7 @@ func TestWLANAPIToModel(t *testing.T) {
 		assert.Equal(t, "wlan123", model.ID.ValueString())
 		assert.Equal(t, "default", model.Site.ValueString())
 		assert.Equal(t, "Test WiFi", model.Name.ValueString())
+		assert.True(t, model.Enabled.ValueBool())
 		assert.Equal(t, "net123", model.NetworkID.ValueString())
 		assert.Equal(t, "both", model.WifiBand.ValueString())
 		assert.Equal(t, "wpapsk", model.Security.ValueString())
@@ -132,6 +158,23 @@ func TestWLANAPIToModel(t *testing.T) {
 		assert.False(t, model.WPA3Transition.ValueBool())
 		// Passphrase is not returned by the API
 		assert.True(t, model.Passphrase.IsNull())
+	})
+
+	t.Run("disabled WLAN from API", func(t *testing.T) {
+		wlan := &unifi.WLAN{
+			ID:        "wlan-disabled",
+			Name:      "Disabled WiFi",
+			Enabled:   false,
+			NetworkID: "net123",
+			WLANBand:  "both",
+			Security:  "wpapsk",
+			WPAMode:   "wpa2",
+		}
+
+		var model wlanResourceModel
+		r.apiToModel(wlan, &model, "default")
+
+		assert.False(t, model.Enabled.ValueBool())
 	})
 
 	t.Run("hidden SSID with WPA3", func(t *testing.T) {
@@ -215,6 +258,7 @@ func TestWLANApplyPlanToState(t *testing.T) {
 	t.Run("partial update preserves unchanged fields", func(t *testing.T) {
 		state := &wlanResourceModel{
 			Name:           types.StringValue("Original WiFi"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("original123"),
 			NetworkID:      types.StringValue("net123"),
 			WifiBand:       types.StringValue("both"),
@@ -227,6 +271,7 @@ func TestWLANApplyPlanToState(t *testing.T) {
 
 		plan := &wlanResourceModel{
 			Name:           types.StringValue("Updated WiFi"),
+			Enabled:        types.BoolNull(),
 			Passphrase:     types.StringNull(),
 			NetworkID:      types.StringNull(),
 			WifiBand:       types.StringNull(),
@@ -240,6 +285,7 @@ func TestWLANApplyPlanToState(t *testing.T) {
 		r.applyPlanToState(plan, state)
 
 		assert.Equal(t, "Updated WiFi", state.Name.ValueString())
+		assert.True(t, state.Enabled.ValueBool())
 		// Passphrase follows plan (null clears it); other null fields preserve state
 		assert.True(t, state.Passphrase.IsNull())
 		assert.Equal(t, "net123", state.NetworkID.ValueString())
@@ -269,6 +315,7 @@ resource "terrifi_network" "wlan_test" {
 func TestAccWLAN_basic(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -277,7 +324,7 @@ func TestAccWLAN_basic(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 500) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -286,6 +333,7 @@ resource "terrifi_wlan" "test" {
 `, wlanName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "name", wlanName),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "true"),
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "security", "wpapsk"),
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "wifi_band", "both"),
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "hide_ssid", "false"),
@@ -301,9 +349,87 @@ resource "terrifi_wlan" "test" {
 	})
 }
 
+func TestAccWLAN_disabled(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = false
+}
+`, wlanName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "name", wlanName),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "false"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_updateEnabled(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = true
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "true"),
+			},
+			{
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = false
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "false"),
+			},
+			{
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = true
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "true"),
+			},
+		},
+	})
+}
+
 func TestAccWLAN_updateName(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName1 := fmt.Sprintf("tfacc-wlan-%s", suffix)
 	wlanName2 := fmt.Sprintf("tfacc-wlan-upd-%s", suffix)
@@ -313,7 +439,7 @@ func TestAccWLAN_updateName(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 501) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -323,7 +449,7 @@ resource "terrifi_wlan" "test" {
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "name", wlanName1),
 			},
 			{
-				Config: wlanTestNetwork(netName, 501) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -339,6 +465,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_updatePassphrase(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -347,7 +474,7 @@ func TestAccWLAN_updatePassphrase(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 502) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "firstpassword1"
@@ -356,7 +483,7 @@ resource "terrifi_wlan" "test" {
 `, wlanName),
 			},
 			{
-				Config: wlanTestNetwork(netName, 502) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "secondpassword2"
@@ -371,6 +498,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_updateBand(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -379,7 +507,7 @@ func TestAccWLAN_updateBand(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 503) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -390,7 +518,7 @@ resource "terrifi_wlan" "test" {
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wifi_band", "2g"),
 			},
 			{
-				Config: wlanTestNetwork(netName, 503) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -401,7 +529,7 @@ resource "terrifi_wlan" "test" {
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wifi_band", "5g"),
 			},
 			{
-				Config: wlanTestNetwork(netName, 503) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -418,6 +546,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_hiddenSSID(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -426,7 +555,7 @@ func TestAccWLAN_hiddenSSID(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 504) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -437,7 +566,7 @@ resource "terrifi_wlan" "test" {
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "hide_ssid", "true"),
 			},
 			{
-				Config: wlanTestNetwork(netName, 504) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -454,6 +583,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_openSecurity(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -462,7 +592,7 @@ func TestAccWLAN_openSecurity(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 505) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   network_id = terrifi_network.wlan_test.id
@@ -481,6 +611,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_import(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -489,7 +620,7 @@ func TestAccWLAN_import(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 506) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -510,6 +641,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_importSiteID(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -518,7 +650,7 @@ func TestAccWLAN_importSiteID(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 507) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -546,10 +678,11 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_idempotentReapply(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
-	config := wlanTestNetwork(netName, 508) + fmt.Sprintf(`
+	config := wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -581,6 +714,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_updateSecurityOpenToWpapsk(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -589,7 +723,7 @@ func TestAccWLAN_updateSecurityOpenToWpapsk(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 510) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   network_id = terrifi_network.wlan_test.id
@@ -601,7 +735,7 @@ resource "terrifi_wlan" "test" {
 				),
 			},
 			{
-				Config: wlanTestNetwork(netName, 510) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "newpassword123"
@@ -620,6 +754,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_updateSecurityWpapskToOpen(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -628,7 +763,7 @@ func TestAccWLAN_updateSecurityWpapskToOpen(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 511) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -639,7 +774,7 @@ resource "terrifi_wlan" "test" {
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "security", "wpapsk"),
 			},
 			{
-				Config: wlanTestNetwork(netName, 511) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   network_id = terrifi_network.wlan_test.id
@@ -655,6 +790,8 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_updateNetwork(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan1 := randomVLAN()
+	vlan2 := randomVLAN()
 	netName1 := fmt.Sprintf("tfacc-wlan-net1-%s", suffix)
 	netName2 := fmt.Sprintf("tfacc-wlan-net2-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
@@ -663,23 +800,23 @@ func TestAccWLAN_updateNetwork(t *testing.T) {
 resource "terrifi_network" "net1" {
   name          = %q
   purpose       = "corporate"
-  vlan_id       = 512
-  subnet        = "10.2.0.1/24"
+  vlan_id       = %d
+  subnet        = "10.%d.%d.1/24"
   network_group = "LAN"
   dhcp_enabled  = false
 }
-`, netName1)
+`, netName1, vlan1, vlan1/256, vlan1%256)
 
 	net2 := fmt.Sprintf(`
 resource "terrifi_network" "net2" {
   name          = %q
   purpose       = "corporate"
-  vlan_id       = 513
-  subnet        = "10.2.1.1/24"
+  vlan_id       = %d
+  subnet        = "10.%d.%d.1/24"
   network_group = "LAN"
   dhcp_enabled  = false
 }
-`, netName2)
+`, netName2, vlan2, vlan2/256, vlan2%256)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
@@ -718,6 +855,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_updateMultipleProperties(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName1 := fmt.Sprintf("tfacc-wlan-%s", suffix)
 	wlanName2 := fmt.Sprintf("tfacc-wlan-upd-%s", suffix)
@@ -727,7 +865,7 @@ func TestAccWLAN_updateMultipleProperties(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 514) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -743,7 +881,7 @@ resource "terrifi_wlan" "test" {
 				),
 			},
 			{
-				Config: wlanTestNetwork(netName, 514) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "changedpassword1"
@@ -765,6 +903,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_updateWpaMode(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -773,7 +912,7 @@ func TestAccWLAN_updateWpaMode(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 515) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -784,7 +923,7 @@ resource "terrifi_wlan" "test" {
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wpa_mode", "wpa2"),
 			},
 			{
-				Config: wlanTestNetwork(netName, 515) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -795,7 +934,7 @@ resource "terrifi_wlan" "test" {
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wpa_mode", "auto"),
 			},
 			{
-				Config: wlanTestNetwork(netName, 515) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name       = %q
   passphrase = "testpassword123"
@@ -812,6 +951,7 @@ resource "terrifi_wlan" "test" {
 func TestAccWLAN_wpa3(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()
+	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
@@ -820,7 +960,7 @@ func TestAccWLAN_wpa3(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: wlanTestNetwork(netName, 509) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name            = %q
   passphrase      = "testpassword123"
@@ -835,7 +975,7 @@ resource "terrifi_wlan" "test" {
 				),
 			},
 			{
-				Config: wlanTestNetwork(netName, 509) + fmt.Sprintf(`
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name            = %q
   passphrase      = "testpassword123"
