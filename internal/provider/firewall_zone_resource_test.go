@@ -871,6 +871,7 @@ resource "terrifi_firewall_zone" "zone1" {
 resource "terrifi_firewall_zone" "zone2" {
   name        = %q
   network_ids = []
+  depends_on  = [terrifi_firewall_zone.zone1]
 }
 `, netName, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
@@ -896,6 +897,7 @@ resource "terrifi_firewall_zone" "zone1" {
 resource "terrifi_firewall_zone" "zone2" {
   name        = %q
   network_ids = [terrifi_network.test.id]
+  depends_on  = [terrifi_firewall_zone.zone1]
 }
 `, netName, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
