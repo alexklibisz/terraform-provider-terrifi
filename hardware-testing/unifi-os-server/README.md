@@ -24,7 +24,9 @@ UOS Server is Ubiquiti's official self-hosted UniFi platform. It runs as a singl
    sudo ./install.sh 4.3.6     # or specify a version
    ```
 
-3. Complete the initial setup wizard in the web UI.
+3. Complete the initial setup wizard in the web UI. When prompted to create an account, just create a local account.
+
+4. Create an API Key. Click the Settings gear icon on the left. Click Control Plane. Go to the Integrations tab. Use the form to create an API key.
 
 ## Access
 
