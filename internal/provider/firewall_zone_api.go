@@ -1,10 +1,10 @@
 package provider
 
-// TODO(go-unifi): This entire file is a workaround for three bugs in the
-// go-unifi SDK (github.com/ubiquiti-community/go-unifi). When the upstream
-// SDK fixes these issues, this file can be deleted and the firewall zone
-// resource can use the SDK's built-in methods directly (c.ApiClient.Create/
-// Update/DeleteFirewallZone). The three upstream bugs are:
+// TODO(go-unifi): This entire file is a workaround for bugs in the go-unifi
+// SDK (github.com/ubiquiti-community/go-unifi). When the upstream SDK fixes
+// these issues, this file can be deleted and the firewall zone resource can
+// use the SDK's built-in methods directly (c.ApiClient.Get/Create/Update/
+// DeleteFirewallZone). The upstream bugs are:
 //
 //  1. unifi.FirewallZone serializes `"default_zone": false` (no omitempty),
 //     which the UniFi v2 API rejects with 400 Bad Request.
@@ -22,6 +22,13 @@ package provider
 //     the SDK misinterprets as an error.
 //     Fix needed in SDK: accept any 2xx status code as success, or
 //     specifically handle 204 for delete operations.
+//
+//  4. SDK's GetFirewallZone uses the v1 REST endpoint, which does not
+//     consistently return the `network_ids` field. Since Create and Update
+//     use the v2 endpoint (which does return network_ids), this mismatch
+//     causes Terraform to see empty network_ids on refresh, producing a
+//     non-empty plan diff and flaky acceptance tests.
+//     Fix needed in SDK: use the v2 GET endpoint for firewall zones.
 
 import (
 	"bytes"
@@ -48,6 +55,28 @@ type firewallZoneUpdateRequest struct {
 	ID         string   `json:"_id"`
 	Name       string   `json:"name,omitempty"`
 	NetworkIDs []string `json:"network_ids"`
+}
+
+// GetFirewallZone reads a firewall zone via the v2 API, bypassing the SDK
+// to avoid bug #4 (v1 endpoint doesn't return network_ids consistently).
+// The v2 API does not support GET on individual zones, so we list all zones
+// and filter by ID (same pattern as GetFirewallPolicy).
+// This method shadows the SDK's promoted GetFirewallZone on ApiClient.
+func (c *Client) GetFirewallZone(ctx context.Context, site string, id string) (*unifi.FirewallZone, error) {
+	var zones []unifi.FirewallZone
+	err := c.doV2Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", c.BaseURL, c.APIPath, site),
+		struct{}{}, &zones)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range zones {
+		if zones[i].ID == id {
+			return &zones[i], nil
+		}
+	}
+	return nil, &unifi.NotFoundError{}
 }
 
 // CreateFirewallZone creates a firewall zone via the v2 API, bypassing the
