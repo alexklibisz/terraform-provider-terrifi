@@ -11,10 +11,6 @@ on:
 jobs:
   main:
     name: Main
-    # Skip Dependabot PRs — GitHub doesn't expose repository secrets to them,
-    # so the UNIFI_API_KEY is always empty and the tests can't authenticate.
-    # Dependabot PRs are still tested by ci-local.yaml (unit + Docker acc tests).
-    if: github.actor != 'dependabot[bot]'
     runs-on:
       - self-hosted
       - terrifi-hardware-test
