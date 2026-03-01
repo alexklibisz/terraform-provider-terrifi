@@ -17,8 +17,7 @@ jobs:
     env:
       # Using IP instead of hostname for reliability in the self-hosted runner.
       UNIFI_API: https://192.168.1.3:11443
-      UNIFI_USERNAME: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_USERNAME }}
-      UNIFI_PASSWORD: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_PASSWORD }}
+      UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
       UNIFI_INSECURE: true
     steps:
       - name: Checkout

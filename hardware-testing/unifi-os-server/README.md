@@ -34,7 +34,9 @@ UOS Server is Ubiquiti's official self-hosted UniFi platform. It runs as a singl
 
 7. Enable Firewall Zones. Go to `https://<hostname or IP>:<port>/network/default/settings/traffic-and-firewall-rules`. You'll see something like "Upgrade to the New Zone-Based Firewall". Click "Click to upgrade" and go through the upgrade steps.
 
-8. Create an API Key. Click the Settings gear icon on the left. Click Control Plane. Go to the Integrations tab. Use the form to create an API key. This is what we'll use in the test suite.
+8. Create an API Key. This is the key we'll use in the test suite. The exact steps vary by version:
+    1. On version 9.x: Click the Settings gear icon on the left. Click Control Plane. Go to the Integrations tab. Use the form to create an API key.
+    2. On version 10.1.x: Click the Integrations icon on the left (looks like an electrical plug). Click "Create new API key".
 
 ## Access
 
