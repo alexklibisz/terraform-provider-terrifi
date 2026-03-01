@@ -66,6 +66,17 @@ resource "terrifi_wlan" "guest" {
 }
 ```
 
+### Disabled WLAN
+
+```terraform
+resource "terrifi_wlan" "maintenance" {
+  name       = "Maintenance WiFi"
+  passphrase = var.wifi_passphrase
+  network_id = terrifi_network.main.id
+  enabled    = false
+}
+```
+
 ## Schema
 
 ### Required
@@ -75,6 +86,7 @@ resource "terrifi_wlan" "guest" {
 
 ### Optional
 
+- `enabled` (Boolean) — Whether the WLAN is enabled. Defaults to `true`.
 - `passphrase` (String, Sensitive) — The WPA passphrase. Must be 8-255 characters. Required when `security` is `wpapsk`.
 - `wifi_band` (String) — The WiFi band. Must be `2g`, `5g`, or `both`. Defaults to `both`.
 - `security` (String) — The security protocol. Must be `open` or `wpapsk`. Defaults to `wpapsk`.

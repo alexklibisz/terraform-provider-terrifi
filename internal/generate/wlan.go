@@ -26,6 +26,9 @@ func WLANBlocks(wlans []unifi.WLAN) []ResourceBlock {
 			Comment: "TODO: find and reference corresponding terrifi_network resource",
 		})
 
+		if !w.Enabled {
+			block.Attributes = append(block.Attributes, Attr{Key: "enabled", Value: HCLBool(false)})
+		}
 		if w.WLANBand != "" && w.WLANBand != "both" {
 			block.Attributes = append(block.Attributes, Attr{Key: "wifi_band", Value: HCLString(w.WLANBand)})
 		}

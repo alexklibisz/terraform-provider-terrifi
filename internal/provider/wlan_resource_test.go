@@ -21,6 +21,7 @@ func TestWLANModelToAPI(t *testing.T) {
 	t.Run("basic WLAN with all fields", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("My WiFi"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("supersecret"),
 			NetworkID:      types.StringValue("net123"),
 			WifiBand:       types.StringValue("both"),
@@ -45,9 +46,30 @@ func TestWLANModelToAPI(t *testing.T) {
 		assert.True(t, wlan.Enabled)
 	})
 
+	t.Run("disabled WLAN", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:           types.StringValue("Disabled WiFi"),
+			Enabled:        types.BoolValue(false),
+			Passphrase:     types.StringValue("supersecret"),
+			NetworkID:      types.StringValue("net123"),
+			WifiBand:       types.StringValue("both"),
+			Security:       types.StringValue("wpapsk"),
+			HideSSID:       types.BoolValue(false),
+			WPAMode:        types.StringValue("wpa2"),
+			WPA3Support:    types.BoolValue(false),
+			WPA3Transition: types.BoolValue(false),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.False(t, wlan.Enabled)
+		assert.Equal(t, "Disabled WiFi", wlan.Name)
+	})
+
 	t.Run("5g band and hidden SSID", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("Hidden 5G"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("password123"),
 			NetworkID:      types.StringValue("net456"),
 			WifiBand:       types.StringValue("5g"),
@@ -67,6 +89,7 @@ func TestWLANModelToAPI(t *testing.T) {
 	t.Run("open security omits passphrase", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("Guest"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringNull(),
 			NetworkID:      types.StringValue("net789"),
 			WifiBand:       types.StringValue("both"),
@@ -86,6 +109,7 @@ func TestWLANModelToAPI(t *testing.T) {
 	t.Run("WPA3 transition mode", func(t *testing.T) {
 		model := &wlanResourceModel{
 			Name:           types.StringValue("WPA3 WiFi"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("wpa3password"),
 			NetworkID:      types.StringValue("net-wpa3"),
 			WifiBand:       types.StringValue("both"),
@@ -110,6 +134,7 @@ func TestWLANAPIToModel(t *testing.T) {
 		wlan := &unifi.WLAN{
 			ID:        "wlan123",
 			Name:      "Test WiFi",
+			Enabled:   true,
 			NetworkID: "net123",
 			WLANBand:  "both",
 			Security:  "wpapsk",
@@ -123,6 +148,7 @@ func TestWLANAPIToModel(t *testing.T) {
 		assert.Equal(t, "wlan123", model.ID.ValueString())
 		assert.Equal(t, "default", model.Site.ValueString())
 		assert.Equal(t, "Test WiFi", model.Name.ValueString())
+		assert.True(t, model.Enabled.ValueBool())
 		assert.Equal(t, "net123", model.NetworkID.ValueString())
 		assert.Equal(t, "both", model.WifiBand.ValueString())
 		assert.Equal(t, "wpapsk", model.Security.ValueString())
@@ -132,6 +158,23 @@ func TestWLANAPIToModel(t *testing.T) {
 		assert.False(t, model.WPA3Transition.ValueBool())
 		// Passphrase is not returned by the API
 		assert.True(t, model.Passphrase.IsNull())
+	})
+
+	t.Run("disabled WLAN from API", func(t *testing.T) {
+		wlan := &unifi.WLAN{
+			ID:        "wlan-disabled",
+			Name:      "Disabled WiFi",
+			Enabled:   false,
+			NetworkID: "net123",
+			WLANBand:  "both",
+			Security:  "wpapsk",
+			WPAMode:   "wpa2",
+		}
+
+		var model wlanResourceModel
+		r.apiToModel(wlan, &model, "default")
+
+		assert.False(t, model.Enabled.ValueBool())
 	})
 
 	t.Run("hidden SSID with WPA3", func(t *testing.T) {
@@ -215,6 +258,7 @@ func TestWLANApplyPlanToState(t *testing.T) {
 	t.Run("partial update preserves unchanged fields", func(t *testing.T) {
 		state := &wlanResourceModel{
 			Name:           types.StringValue("Original WiFi"),
+			Enabled:        types.BoolValue(true),
 			Passphrase:     types.StringValue("original123"),
 			NetworkID:      types.StringValue("net123"),
 			WifiBand:       types.StringValue("both"),
@@ -227,6 +271,7 @@ func TestWLANApplyPlanToState(t *testing.T) {
 
 		plan := &wlanResourceModel{
 			Name:           types.StringValue("Updated WiFi"),
+			Enabled:        types.BoolNull(),
 			Passphrase:     types.StringNull(),
 			NetworkID:      types.StringNull(),
 			WifiBand:       types.StringNull(),
@@ -240,6 +285,7 @@ func TestWLANApplyPlanToState(t *testing.T) {
 		r.applyPlanToState(plan, state)
 
 		assert.Equal(t, "Updated WiFi", state.Name.ValueString())
+		assert.True(t, state.Enabled.ValueBool())
 		// Passphrase follows plan (null clears it); other null fields preserve state
 		assert.True(t, state.Passphrase.IsNull())
 		assert.Equal(t, "net123", state.NetworkID.ValueString())
@@ -286,6 +332,7 @@ resource "terrifi_wlan" "test" {
 `, wlanName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "name", wlanName),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "true"),
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "security", "wpapsk"),
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "wifi_band", "both"),
 					resource.TestCheckResourceAttr("terrifi_wlan.test", "hide_ssid", "false"),
@@ -296,6 +343,81 @@ resource "terrifi_wlan" "test" {
 					resource.TestCheckResourceAttrSet("terrifi_wlan.test", "id"),
 					resource.TestCheckResourceAttrPair("terrifi_wlan.test", "network_id", "terrifi_network.wlan_test", "id"),
 				),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_disabled(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, 516) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = false
+}
+`, wlanName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "name", wlanName),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "false"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_updateEnabled(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, 517) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = true
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "true"),
+			},
+			{
+				Config: wlanTestNetwork(netName, 517) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = false
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "false"),
+			},
+			{
+				Config: wlanTestNetwork(netName, 517) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+  enabled    = true
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "enabled", "true"),
 			},
 		},
 	})
