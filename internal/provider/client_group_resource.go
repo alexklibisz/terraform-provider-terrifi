@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -198,9 +199,23 @@ func (r *clientGroupResource) Delete(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	err := r.client.DeleteClientGroup(ctx, site, state.ID.ValueString())
-	if err != nil {
+	// Retry on ObjectReferredBy errors. When a client device is moved between
+	// groups or deleted, the controller may take a moment to fully clear the
+	// back-reference from the group. This causes a 400 ObjectReferredBy error
+	// if Terraform tries to delete the group concurrently. A brief retry loop
+	// accommodates the controller's eventual consistency.
+	const maxRetries = 5
+	for i := range maxRetries {
+		err := r.client.DeleteClientGroup(ctx, site, state.ID.ValueString())
+		if err == nil {
+			return
+		}
+		if strings.Contains(err.Error(), "ObjectReferredBy") && i < maxRetries-1 {
+			time.Sleep(time.Duration(i+1) * time.Second)
+			continue
+		}
 		resp.Diagnostics.AddError("Error Deleting Client Group", err.Error())
+		return
 	}
 }
 
