@@ -35,6 +35,7 @@ type wlanResourceModel struct {
 	ID             types.String `tfsdk:"id"`
 	Site           types.String `tfsdk:"site"`
 	Name           types.String `tfsdk:"name"`
+	Enabled        types.Bool   `tfsdk:"enabled"`
 	Passphrase     types.String `tfsdk:"passphrase"`
 	NetworkID      types.String `tfsdk:"network_id"`
 	WifiBand       types.String `tfsdk:"wifi_band"`
@@ -86,6 +87,13 @@ func (r *wlanResource) Schema(
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(1, 32),
 				},
+			},
+
+			"enabled": schema.BoolAttribute{
+				MarkdownDescription: "Whether the WLAN is enabled. Default: `true`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
 			},
 
 			"passphrase": schema.StringAttribute{
@@ -379,6 +387,9 @@ func (r *wlanResource) applyPlanToState(plan, state *wlanResourceModel) {
 	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
 		state.Name = plan.Name
 	}
+	if !plan.Enabled.IsNull() && !plan.Enabled.IsUnknown() {
+		state.Enabled = plan.Enabled
+	}
 	// Always apply passphrase from plan — when switching from wpapsk to open,
 	// the plan will be null, and we must clear the state value to match.
 	if !plan.Passphrase.IsUnknown() {
@@ -411,8 +422,11 @@ func (r *wlanResource) modelToAPI(m *wlanResourceModel) *unifi.WLAN {
 	wlan := &unifi.WLAN{
 		Name:                 m.Name.ValueString(),
 		NetworkID:            m.NetworkID.ValueString(),
-		Enabled:              true,
 		ScheduleWithDuration: []unifi.WLANScheduleWithDuration{},
+	}
+
+	if !m.Enabled.IsNull() {
+		wlan.Enabled = m.Enabled.ValueBool()
 	}
 
 	if !m.Passphrase.IsNull() && !m.Passphrase.IsUnknown() {
@@ -450,6 +464,7 @@ func (r *wlanResource) apiToModel(wlan *unifi.WLAN, m *wlanResourceModel, site s
 	m.ID = types.StringValue(wlan.ID)
 	m.Site = types.StringValue(site)
 	m.Name = types.StringValue(wlan.Name)
+	m.Enabled = types.BoolValue(wlan.Enabled)
 	m.NetworkID = types.StringValue(wlan.NetworkID)
 
 	// Never set passphrase from the API response. The passphrase is managed
