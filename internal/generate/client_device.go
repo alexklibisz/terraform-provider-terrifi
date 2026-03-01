@@ -28,11 +28,15 @@ func ClientDeviceBlocks(clients []unifi.Client) []ResourceBlock {
 		}
 		if c.UseFixedIP && c.FixedIP != "" {
 			block.Attributes = append(block.Attributes, Attr{Key: "fixed_ip", Value: HCLString(c.FixedIP)})
-			block.Attributes = append(block.Attributes, Attr{
-				Key:     "network_id",
-				Value:   HCLString(c.NetworkID),
-				Comment: "TODO: find and reference corresponding terrifi_network resource",
-			})
+			// Only emit network_id when network_override_id is not providing the network context.
+			hasNetworkOverride := c.VirtualNetworkOverrideEnabled != nil && *c.VirtualNetworkOverrideEnabled && c.VirtualNetworkOverrideID != ""
+			if !hasNetworkOverride {
+				block.Attributes = append(block.Attributes, Attr{
+					Key:     "network_id",
+					Value:   HCLString(c.NetworkID),
+					Comment: "TODO: find and reference corresponding terrifi_network resource",
+				})
+			}
 		}
 		if c.LocalDNSRecordEnabled && c.LocalDNSRecord != "" {
 			block.Attributes = append(block.Attributes, Attr{Key: "local_dns_record", Value: HCLString(c.LocalDNSRecord)})

@@ -187,7 +187,7 @@ func TestClientDeviceBlocks(t *testing.T) {
 	blocks := ClientDeviceBlocks(clients)
 	require.Len(t, blocks, 2)
 
-	// First block: all fields
+	// First block: all fields, network_id omitted because network_override_id is set
 	b := blocks[0]
 	assert.Equal(t, "terrifi_client_device", b.ResourceType)
 	assert.Equal(t, "my_device", b.ResourceName)
@@ -198,7 +198,8 @@ func TestClientDeviceBlocks(t *testing.T) {
 	assert.Equal(t, `"My Device"`, attrMap["name"])
 	assert.Equal(t, `"A note"`, attrMap["note"])
 	assert.Equal(t, `"192.168.1.100"`, attrMap["fixed_ip"])
-	assert.Equal(t, `"net1"`, attrMap["network_id"])
+	_, hasNetworkID := attrMap["network_id"]
+	assert.False(t, hasNetworkID, "network_id should be omitted when network_override_id is set")
 	assert.Equal(t, `"mydevice.local"`, attrMap["local_dns_record"])
 	assert.Equal(t, `"net2"`, attrMap["network_override_id"])
 	assert.Equal(t, "true", attrMap["blocked"])
@@ -210,6 +211,27 @@ func TestClientDeviceBlocks(t *testing.T) {
 	assert.Equal(t, `"11:22:33:44:55:66"`, attrs2["mac"])
 	_, hasName := attrs2["name"]
 	assert.False(t, hasName)
+}
+
+func TestClientDeviceBlocks_fixedIPWithNetworkID(t *testing.T) {
+	clients := []unifi.Client{
+		{
+			ID:         "id1",
+			MAC:        "aa:bb:cc:dd:ee:ff",
+			UseFixedIP: true,
+			FixedIP:    "192.168.1.100",
+			NetworkID:  "net1",
+		},
+	}
+
+	blocks := ClientDeviceBlocks(clients)
+	require.Len(t, blocks, 1)
+
+	attrMap := attrMapFromBlock(blocks[0])
+	assert.Equal(t, `"192.168.1.100"`, attrMap["fixed_ip"])
+	assert.Equal(t, `"net1"`, attrMap["network_id"])
+	_, hasOverride := attrMap["network_override_id"]
+	assert.False(t, hasOverride)
 }
 
 func TestClientDeviceBlocks_deduplication(t *testing.T) {
