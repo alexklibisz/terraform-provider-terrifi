@@ -1,6 +1,6 @@
 # terrifi
 
-Yet another Terraform provider for UniFi
+Yet another Terraform provider for UniFi.
 
 ## Introduction
 
@@ -12,25 +12,10 @@ Compared to existing UniFi providers ([paultyng](https://github.com/paultyng/ter
 
 ## Docs
 
+- [OpenTofu Registry](https://search.opentofu.org/provider/alexklibisz/terrifi/latest)
 - [Provider](./docs/index.md)
 - [CLI](./docs/cli.md)
 - Resources: [client_device](./docs/resources/client_device.md), [dns_record](./docs/resources/dns_record.md), [firewall_zone](./docs/resources/firewall_zone.md), [firewall_policy](./docs/resources/firewall_policy.md), [network](./docs/resources/network.md), [wlan](./docs/resources/wlan.md)
-
-## TODO
-
-This project is very much a work-in-progress.
-Here's a rough list of features that I'm looking to implement:
-
-- [x] `terrifi_dns_record` resource working on real hardware.
-- [x] `terrifi_network` resource working on real hardware.
-- [x] `terrifi_firewall_zone` resource working on real hardware.
-- [x] `terrifi_client_device` resource working on real hardware.
-- [x] `terrifi_wifi` resource working on real hardware.
-- [x] `terrifi_firewall_policy` resource working on real hardware.
-- [ ] `terrifi_client_group` resource working on real hardware.
-- [x] CLI for generating imports working with real hardware.
-- [ ] End-to-end working with my home UniFi network.
-- [ ] Publish to Terraform and Opentofu registries.
 
 ## Background
 
@@ -53,4 +38,3 @@ Maybe starting over is a dumb idea, but here is my reasoning:
 2. Click "Run workflow", enter the version tag (e.g., `v0.1.0`), and run it.
 3. The tag workflow creates and pushes the tag, which triggers the [Release workflow](../../actions/workflows/release.yml).
 4. The release workflow builds binaries for linux/darwin (amd64/arm64) and publishes them as a GitHub Release.
-
