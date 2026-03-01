@@ -12,7 +12,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/compose v0.40.0
-	github.com/ubiquiti-community/go-unifi v1.33.36
+	github.com/ubiquiti-community/go-unifi v1.33.39
 )
 
 require (
