@@ -26,7 +26,7 @@ UOS Server is Ubiquiti's official self-hosted UniFi platform. It runs as a singl
 
 3. Once installed, go to `https://<hostname or IP>:<port>`. Unless you've provisioned a certificate with Lets Encrypt or similar, you will see a warning that the site is not secure. This is because it's using a self-signed certificate. If you're sure you're at the right hostname/IP, click through the warnings.
 
-4. Complete the initial setup wizard in the web UI. When prompted to create an account, just create a local account.
+4. Complete the initial setup wizard in the web UI. When prompted to create an account, just create a local account. It says something like "Proceed Without a UI Account".
 
 5. Upgrade to the latest version. Go to `https://<hostname or IP>:<port>/network/default/settings/control-plane`. There's a table with columns Application, Status, etc. If an update is available it will show up under the Status tab.
 
