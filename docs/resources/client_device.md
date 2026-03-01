@@ -41,6 +41,19 @@ resource "terrifi_client_device" "server" {
 }
 ```
 
+### Fixed IP with network override
+
+When using a network override, `network_id` is not required — the override provides the network context.
+
+```terraform
+resource "terrifi_client_device" "laptop" {
+  mac                 = "22:33:44:55:66:77"
+  name                = "Work Laptop"
+  fixed_ip            = "192.168.10.20"
+  network_override_id = terrifi_network.lan.id
+}
+```
+
 ### Local DNS record
 
 Local DNS records require a fixed IP assignment (controller requirement).
@@ -75,8 +88,8 @@ resource "terrifi_client_device" "blocked" {
 
 - `name` (String) — The alias/display name for the client device.
 - `note` (String) — A free-text note for the client device.
-- `fixed_ip` (String) — A fixed IP address to assign via DHCP reservation. Requires `network_id`.
-- `network_id` (String) — The network ID for fixed IP assignment. Required when `fixed_ip` is set.
+- `fixed_ip` (String) — A fixed IP address to assign via DHCP reservation. Requires `network_id` or `network_override_id`.
+- `network_id` (String) — The network ID for fixed IP assignment. Required when `fixed_ip` is set unless `network_override_id` provides the network context.
 - `network_override_id` (String) — The network ID for VLAN/network override.
 - `local_dns_record` (String) — A local DNS hostname for this client device. Requires `fixed_ip`.
 - `client_group_id` (String) — The ID of the client group to assign this device to. Use `terrifi_client_group` to manage groups.

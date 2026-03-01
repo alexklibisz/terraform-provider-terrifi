@@ -20,8 +20,9 @@ import (
 var macRegexp = regexp.MustCompile(`^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$`)
 
 var (
-	_ resource.Resource                = &clientDeviceResource{}
-	_ resource.ResourceWithImportState = &clientDeviceResource{}
+	_ resource.Resource                     = &clientDeviceResource{}
+	_ resource.ResourceWithImportState      = &clientDeviceResource{}
+	_ resource.ResourceWithConfigValidators = &clientDeviceResource{}
 )
 
 func NewClientDeviceResource() resource.Resource {
@@ -108,16 +109,14 @@ func (r *clientDeviceResource) Schema(
 
 			"fixed_ip": schema.StringAttribute{
 				MarkdownDescription: "A fixed IP address to assign to this client via DHCP reservation. " +
-					"Requires `network_id` to also be set.",
+					"Requires `network_id` or `network_override_id` to also be set.",
 				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.AlsoRequires(path.MatchRoot("network_id")),
-				},
 			},
 
 			"network_id": schema.StringAttribute{
-				MarkdownDescription: "The network ID for fixed IP assignment. Required when `fixed_ip` is set.",
-				Optional:            true,
+				MarkdownDescription: "The network ID for fixed IP assignment. " +
+					"Required when `fixed_ip` is set unless `network_override_id` provides the network context.",
+				Optional: true,
 			},
 
 			"network_override_id": schema.StringAttribute{
@@ -146,6 +145,12 @@ func (r *clientDeviceResource) Schema(
 				Optional:            true,
 			},
 		},
+	}
+}
+
+func (r *clientDeviceResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		clientDeviceFixedIPNetworkValidator{},
 	}
 }
 
@@ -354,6 +359,49 @@ func (r *clientDeviceResource) ImportState(
 	}
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// ---------------------------------------------------------------------------
+// Config validators
+// ---------------------------------------------------------------------------
+
+// clientDeviceFixedIPNetworkValidator ensures that when fixed_ip is specified,
+// at least one of network_id or network_override_id is also specified.
+type clientDeviceFixedIPNetworkValidator struct{}
+
+func (v clientDeviceFixedIPNetworkValidator) Description(_ context.Context) string {
+	return "When fixed_ip is specified, either network_id or network_override_id must also be specified."
+}
+
+func (v clientDeviceFixedIPNetworkValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v clientDeviceFixedIPNetworkValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var fixedIP, networkID, networkOverrideID types.String
+
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("fixed_ip"), &fixedIP)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("network_id"), &networkID)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("network_override_id"), &networkOverrideID)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if fixedIP.IsNull() || fixedIP.IsUnknown() {
+		return
+	}
+
+	networkIDSet := !networkID.IsNull() && !networkID.IsUnknown()
+	networkOverrideIDSet := !networkOverrideID.IsNull() && !networkOverrideID.IsUnknown()
+
+	if !networkIDSet && !networkOverrideIDSet {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("fixed_ip"),
+			"Missing Network Attribute",
+			"Attribute \"network_id\" or \"network_override_id\" must be specified when \"fixed_ip\" is specified.",
+		)
+	}
 }
 
 // ---------------------------------------------------------------------------
