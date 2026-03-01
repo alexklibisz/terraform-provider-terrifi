@@ -9,6 +9,7 @@
 #
 # Logs are stored inside the podman container at /usr/lib/unifi/logs/.
 # This script runs `podman exec` as the uosserver user to access them.
+# install.sh sets up a sudoers rule so no password prompt is needed.
 #
 # Remote usage:
 #   ssh terrifi-unifi-os-server './logs.sh'

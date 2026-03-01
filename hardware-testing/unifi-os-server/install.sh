@@ -49,6 +49,16 @@ chmod +x "$INSTALLER"
 echo "Running UOS Server installer (non-interactive) ..."
 "$INSTALLER" --non-interactive
 
+# ── Allow passwordless podman exec as uosserver ──────────────────────
+# Rootless podman stores container state per-user, so interacting with
+# the uosserver container requires switching to the uosserver user.
+# This sudoers rule lets any user do that without a password prompt.
+
+SUDOERS_FILE="/etc/sudoers.d/uosserver"
+echo "ALL ALL=(ALL) NOPASSWD: /usr/bin/su -s /bin/bash -l uosserver -c podman *" > "$SUDOERS_FILE"
+chmod 0440 "$SUDOERS_FILE"
+echo "Installed sudoers rule: ${SUDOERS_FILE}"
+
 # ── Wait for service to become healthy ───────────────────────────────
 
 echo "Waiting for UOS Server to start ..."
