@@ -227,6 +227,7 @@ resource "terrifi_firewall_zone" "test" {
 func TestAccFirewallZone_withNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-nets-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-%s", randomSuffix())
+	vlan := randomVLAN()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -236,15 +237,15 @@ func TestAccFirewallZone_withNetworks(t *testing.T) {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 100
-  subnet  = "192.168.100.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.test.id]
 }
-`, netName, zoneName),
+`, netName, vlan, vlan/256, vlan%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "name", zoneName),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "1"),
@@ -288,6 +289,7 @@ resource "terrifi_firewall_zone" "test" {
 func TestAccFirewallZone_addNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-add-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-add-%s", randomSuffix())
+	vlan := randomVLAN()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -297,14 +299,14 @@ func TestAccFirewallZone_addNetworks(t *testing.T) {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 101
-  subnet  = "192.168.101.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name = %q
 }
-`, netName, zoneName),
+`, netName, vlan, vlan/256, vlan%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "name", zoneName),
 				),
@@ -314,15 +316,15 @@ resource "terrifi_firewall_zone" "test" {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 101
-  subnet  = "192.168.101.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.test.id]
 }
-`, netName, zoneName),
+`, netName, vlan, vlan/256, vlan%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "1"),
 				),
@@ -334,6 +336,7 @@ resource "terrifi_firewall_zone" "test" {
 func TestAccFirewallZone_removeNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-rm-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-rm-%s", randomSuffix())
+	vlan := randomVLAN()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -343,15 +346,15 @@ func TestAccFirewallZone_removeNetworks(t *testing.T) {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 102
-  subnet  = "192.168.102.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.test.id]
 }
-`, netName, zoneName),
+`, netName, vlan, vlan/256, vlan%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "1"),
 				),
@@ -361,15 +364,15 @@ resource "terrifi_firewall_zone" "test" {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 102
-  subnet  = "192.168.102.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = []
 }
-`, netName, zoneName),
+`, netName, vlan, vlan/256, vlan%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "0"),
 				),
@@ -382,6 +385,8 @@ func TestAccFirewallZone_replaceNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-repl-%s", randomSuffix())
 	net1Name := fmt.Sprintf("tfacc-net-r1-%s", randomSuffix())
 	net2Name := fmt.Sprintf("tfacc-net-r2-%s", randomSuffix())
+	vlan1 := randomVLAN()
+	vlan2 := randomVLAN()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -391,22 +396,22 @@ func TestAccFirewallZone_replaceNetworks(t *testing.T) {
 resource "terrifi_network" "net1" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 103
-  subnet  = "192.168.103.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_network" "net2" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 104
-  subnet  = "192.168.104.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.net1.id]
 }
-`, net1Name, net2Name, zoneName),
+`, net1Name, vlan1, vlan1/256, vlan1%256, net2Name, vlan2, vlan2/256, vlan2%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "1"),
 				),
@@ -416,22 +421,22 @@ resource "terrifi_firewall_zone" "test" {
 resource "terrifi_network" "net1" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 103
-  subnet  = "192.168.103.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_network" "net2" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 104
-  subnet  = "192.168.104.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.net2.id]
 }
-`, net1Name, net2Name, zoneName),
+`, net1Name, vlan1, vlan1/256, vlan1%256, net2Name, vlan2, vlan2/256, vlan2%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "1"),
 				),
@@ -444,6 +449,7 @@ func TestAccFirewallZone_updateNameAndNetworks(t *testing.T) {
 	name1 := fmt.Sprintf("tfacc-zone-both1-%s", randomSuffix())
 	name2 := fmt.Sprintf("tfacc-zone-both2-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-both-%s", randomSuffix())
+	vlan := randomVLAN()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -453,14 +459,14 @@ func TestAccFirewallZone_updateNameAndNetworks(t *testing.T) {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 105
-  subnet  = "192.168.105.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name = %q
 }
-`, netName, name1),
+`, netName, vlan, vlan/256, vlan%256, name1),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "name", name1),
 				),
@@ -470,15 +476,15 @@ resource "terrifi_firewall_zone" "test" {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 105
-  subnet  = "192.168.105.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.test.id]
 }
-`, netName, name2),
+`, netName, vlan, vlan/256, vlan%256, name2),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "name", name2),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "1"),
@@ -594,6 +600,8 @@ func TestAccFirewallZone_multipleZonesWithDistinctNetworks(t *testing.T) {
 	zone2Name := fmt.Sprintf("tfacc-zone-dn2-%s", randomSuffix())
 	net1Name := fmt.Sprintf("tfacc-net-dn1-%s", randomSuffix())
 	net2Name := fmt.Sprintf("tfacc-net-dn2-%s", randomSuffix())
+	vlan1 := randomVLAN()
+	vlan2 := randomVLAN()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -603,15 +611,15 @@ func TestAccFirewallZone_multipleZonesWithDistinctNetworks(t *testing.T) {
 resource "terrifi_network" "net1" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 106
-  subnet  = "192.168.106.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_network" "net2" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 107
-  subnet  = "192.168.107.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "zone1" {
@@ -623,7 +631,7 @@ resource "terrifi_firewall_zone" "zone2" {
   name        = %q
   network_ids = [terrifi_network.net2.id]
 }
-`, net1Name, net2Name, zone1Name, zone2Name),
+`, net1Name, vlan1, vlan1/256, vlan1%256, net2Name, vlan2, vlan2/256, vlan2%256, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone1", "network_ids.#", "1"),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone2", "network_ids.#", "1"),
@@ -636,6 +644,7 @@ resource "terrifi_firewall_zone" "zone2" {
 func TestAccFirewallZone_importWithNetworks(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-impn-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-impn-%s", randomSuffix())
+	vlan := randomVLAN()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -645,15 +654,15 @@ func TestAccFirewallZone_importWithNetworks(t *testing.T) {
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 108
-  subnet  = "192.168.108.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.test.id]
 }
-`, netName, zoneName),
+`, netName, vlan, vlan/256, vlan%256, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "1"),
 				),
@@ -672,105 +681,69 @@ func TestAccFirewallZone_multipleNetworksInZone(t *testing.T) {
 	net1Name := fmt.Sprintf("tfacc-net-mn1-%s", randomSuffix())
 	net2Name := fmt.Sprintf("tfacc-net-mn2-%s", randomSuffix())
 	net3Name := fmt.Sprintf("tfacc-net-mn3-%s", randomSuffix())
+	vlan1 := randomVLAN()
+	vlan2 := randomVLAN()
+	vlan3 := randomVLAN()
+
+	netConfig := fmt.Sprintf(`
+resource "terrifi_network" "net1" {
+  name    = %q
+  purpose = "corporate"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
+}
+
+resource "terrifi_network" "net2" {
+  name    = %q
+  purpose = "corporate"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
+}
+
+resource "terrifi_network" "net3" {
+  name    = %q
+  purpose = "corporate"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
+}
+`, net1Name, vlan1, vlan1/256, vlan1%256, net2Name, vlan2, vlan2/256, vlan2%256, net3Name, vlan3, vlan3/256, vlan3%256)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Step 1: Create zone with 2 networks
 			{
-				Config: fmt.Sprintf(`
-resource "terrifi_network" "net1" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 109
-  subnet  = "192.168.109.1/24"
-}
-
-resource "terrifi_network" "net2" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 110
-  subnet  = "192.168.110.1/24"
-}
-
-resource "terrifi_network" "net3" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 111
-  subnet  = "192.168.111.1/24"
-}
-
+				Config: netConfig + fmt.Sprintf(`
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.net1.id, terrifi_network.net2.id]
 }
-`, net1Name, net2Name, net3Name, zoneName),
+`, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "2"),
 				),
 			},
 			// Step 2: Add a third network
 			{
-				Config: fmt.Sprintf(`
-resource "terrifi_network" "net1" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 109
-  subnet  = "192.168.109.1/24"
-}
-
-resource "terrifi_network" "net2" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 110
-  subnet  = "192.168.110.1/24"
-}
-
-resource "terrifi_network" "net3" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 111
-  subnet  = "192.168.111.1/24"
-}
-
+				Config: netConfig + fmt.Sprintf(`
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.net1.id, terrifi_network.net2.id, terrifi_network.net3.id]
 }
-`, net1Name, net2Name, net3Name, zoneName),
+`, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "3"),
 				),
 			},
 			// Step 3: Remove the middle network
 			{
-				Config: fmt.Sprintf(`
-resource "terrifi_network" "net1" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 109
-  subnet  = "192.168.109.1/24"
-}
-
-resource "terrifi_network" "net2" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 110
-  subnet  = "192.168.110.1/24"
-}
-
-resource "terrifi_network" "net3" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 111
-  subnet  = "192.168.111.1/24"
-}
-
+				Config: netConfig + fmt.Sprintf(`
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.net1.id, terrifi_network.net3.id]
 }
-`, net1Name, net2Name, net3Name, zoneName),
+`, zoneName),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.test", "network_ids.#", "2"),
 				),
@@ -782,20 +755,21 @@ resource "terrifi_firewall_zone" "test" {
 func TestAccFirewallZone_idempotentReapply(t *testing.T) {
 	zoneName := fmt.Sprintf("tfacc-zone-idem-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-idem-%s", randomSuffix())
+	vlan := randomVLAN()
 
 	config := fmt.Sprintf(`
 resource "terrifi_network" "test" {
   name    = %q
   purpose = "corporate"
-  vlan_id = 112
-  subnet  = "192.168.112.1/24"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
 }
 
 resource "terrifi_firewall_zone" "test" {
   name        = %q
   network_ids = [terrifi_network.test.id]
 }
-`, netName, zoneName)
+`, netName, vlan, vlan/256, vlan%256, zoneName)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
@@ -849,20 +823,24 @@ func TestAccFirewallZone_moveNetworkBetweenZones(t *testing.T) {
 	zone1Name := fmt.Sprintf("tfacc-zone-mv1-%s", randomSuffix())
 	zone2Name := fmt.Sprintf("tfacc-zone-mv2-%s", randomSuffix())
 	netName := fmt.Sprintf("tfacc-net-mv-%s", randomSuffix())
+	vlan := randomVLAN()
+
+	netConfig := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name    = %q
+  purpose = "corporate"
+  vlan_id = %d
+  subnet  = "10.%d.%d.1/24"
+}
+`, netName, vlan, vlan/256, vlan%256)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Step 1: net belongs to zone1
 			{
-				Config: fmt.Sprintf(`
-resource "terrifi_network" "test" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 113
-  subnet  = "192.168.113.1/24"
-}
-
+				Config: netConfig + fmt.Sprintf(`
 resource "terrifi_firewall_zone" "zone1" {
   name        = %q
   network_ids = [terrifi_network.test.id]
@@ -872,7 +850,7 @@ resource "terrifi_firewall_zone" "zone2" {
   name        = %q
   network_ids = []
 }
-`, netName, zone1Name, zone2Name),
+`, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone1", "network_ids.#", "1"),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone2", "network_ids.#", "0"),
@@ -880,14 +858,7 @@ resource "terrifi_firewall_zone" "zone2" {
 			},
 			// Step 2: Move net from zone1 to zone2
 			{
-				Config: fmt.Sprintf(`
-resource "terrifi_network" "test" {
-  name    = %q
-  purpose = "corporate"
-  vlan_id = 113
-  subnet  = "192.168.113.1/24"
-}
-
+				Config: netConfig + fmt.Sprintf(`
 resource "terrifi_firewall_zone" "zone1" {
   name        = %q
   network_ids = []
@@ -897,7 +868,7 @@ resource "terrifi_firewall_zone" "zone2" {
   name        = %q
   network_ids = [terrifi_network.test.id]
 }
-`, netName, zone1Name, zone2Name),
+`, zone1Name, zone2Name),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone1", "network_ids.#", "0"),
 					resource.TestCheckResourceAttr("terrifi_firewall_zone.zone2", "network_ids.#", "1"),
