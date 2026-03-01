@@ -15,7 +15,6 @@ Compared to existing UniFi providers ([paultyng](https://github.com/paultyng/ter
 - [OpenTofu Registry](https://search.opentofu.org/provider/alexklibisz/terrifi/latest)
 - [Provider](./docs/index.md)
 - [CLI](./docs/cli.md)
-- Resources: [client_device](./docs/resources/client_device.md), [dns_record](./docs/resources/dns_record.md), [firewall_zone](./docs/resources/firewall_zone.md), [firewall_policy](./docs/resources/firewall_policy.md), [network](./docs/resources/network.md), [wlan](./docs/resources/wlan.md)
 
 ## Background
 
