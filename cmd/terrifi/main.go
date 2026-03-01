@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 )
@@ -11,8 +12,17 @@ import (
 //
 //	go build -ldflags "-X main.version=v1.0.0"
 //
-// GoReleaser sets this automatically.
+// GoReleaser sets this automatically. For `go install ...@<version>` builds,
+// the version is read from the embedded Go module build info as a fallback.
 var version = "dev"
+
+func init() {
+	if version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			version = info.Main.Version
+		}
+	}
+}
 
 func main() {
 	rootCmd := &cobra.Command{
