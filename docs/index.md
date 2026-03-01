@@ -7,7 +7,9 @@ description: |-
 
 # Terrifi Provider
 
-The Terrifi provider lets you manage resources on a Ubiquiti UniFi controller. It communicates with the UniFi API to create, read, update, and delete network configuration such as DNS records.
+The Terrifi provider lets you manage resources on a Ubiquiti UniFi controller.
+It communicates with the UniFi API to create, read, update, and delete network configuration such as DNS records, networks, WLANs, firewall zones, firewall zone rules, and client devices.
+We leverage hardware-in-the-loop testing to ensure that all resources are fully functional with real UniFi hardware.
 
 ## Example Usage
 
