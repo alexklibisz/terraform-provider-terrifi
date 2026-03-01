@@ -302,10 +302,10 @@ func (r *clientDeviceResource) Delete(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	// Clear all network bindings before deleting. The controller retains DHCP
-	// reservations and DNS records even after the user record is removed, which
-	// prevents referenced networks from being deleted. Sending an update with
-	// all bindings cleared fixes this.
+	// Clear all network and group bindings before deleting. The controller
+	// retains DHCP reservations, DNS records, and group references even after
+	// the user record is removed. Sending an update with all bindings cleared
+	// ensures dependent resources (networks, client groups) can be deleted.
 	mac := strings.ToLower(state.MAC.ValueString())
 	clearObj := &unifi.Client{
 		ID:  state.ID.ValueString(),
@@ -325,6 +325,9 @@ func (r *clientDeviceResource) Delete(
 			}
 			return
 		}
+		// Non-404 errors clearing bindings are not fatal — proceed to delete.
+		// The delete itself may still succeed, and dependent resource deletes
+		// (e.g., client groups) have retry logic for stale references.
 	}
 
 	err = r.client.DeleteClientDevice(ctx, site, state.ID.ValueString())
