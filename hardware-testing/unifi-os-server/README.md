@@ -99,10 +99,42 @@ sudo ./uninstall.sh
 
 This runs `uosserver-purge`, which stops the service, removes the container, deletes all data, and uninstalls the binaries. You can then re-run `install.sh` for a fresh start.
 
-## Why not Docker Compose?
+## Approaches Considered
 
-This directory previously used a Docker Compose setup with the [LinuxServer unifi-network-application](https://github.com/linuxserver/docker-unifi-network-application) image. We switched to UOS Server because:
+We evaluated three approaches for running a UniFi controller for hardware-in-the-loop testing:
 
-1. The LinuxServer image runs the **standalone Network Application**, which lacks features present in full UniFi OS (notably zone-based firewall policies).
-2. Ubiquiti is deprecating the standalone Network Application in favor of UOS. The LinuxServer maintainers plan to retire their image once standalone releases stop.
-3. UOS Server is a single binary install with no Docker Compose orchestration needed — simpler to set up and maintain.
+### 1. LinuxServer Docker Compose (previous approach)
+
+A Docker Compose stack with the [LinuxServer unifi-network-application](https://github.com/linuxserver/docker-unifi-network-application) image, a separate MongoDB container, and an nginx stub to silence ULP log spam.
+
+| Pros | Cons |
+|------|------|
+| Familiar Docker Compose workflow | Runs the **standalone Network Application**, not full UniFi OS |
+| Easy to version-pin and reproduce | Missing features like zone-based firewall policies |
+| Dependabot tracks image updates | Three containers to orchestrate (UniFi, MongoDB, ULP stub) |
+| | Ubiquiti is deprecating the standalone app; LinuxServer will [retire the image](https://github.com/linuxserver/docker-unifi-network-application/issues/171) |
+
+### 2. UniFi OS Server (current approach)
+
+Ubiquiti's official [UOS Server](https://community.ui.com/) installer — a single binary that sets up a podman container managed by systemd.
+
+| Pros | Cons |
+|------|------|
+| Full UniFi OS feature set (zone-based firewall, etc.) | Not containerized in the Docker Compose sense — installs system-wide |
+| Single binary install, no orchestration needed | Opaque: Ubiquiti controls what's inside the podman container |
+| Officially supported by Ubiquiti | Requires a dedicated VM or bare-metal host |
+| Automatic systemd service management | Updates are manual (through the UI or re-running the installer) |
+| Same API surface as real UniFi hardware | |
+
+### 3. Real UniFi Hardware (e.g., Cloud Key, Dream Machine)
+
+Run tests against an actual UniFi appliance on the network.
+
+| Pros | Cons |
+|------|------|
+| Most realistic test environment | Expensive hardware required |
+| Zero setup beyond initial device config | Can't easily reset/rebuild for clean test runs |
+| Guaranteed API parity | Single point of failure if the device dies |
+| | Harder to version-control the setup |
+
+We chose **UOS Server** as the best balance: it provides the full UniFi OS API surface (unlike the LinuxServer image) while being easy to set up and tear down on a VM (unlike dedicated hardware).
