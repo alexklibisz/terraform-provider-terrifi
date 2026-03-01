@@ -176,13 +176,23 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		req.Noted = boolPtr(true)
 	}
 
-	// Fixed IP: derive use_fixedip from whether both fixed_ip and network_id
-	// are set. The controller requires a valid network_id to resolve the DHCP
-	// scope; sending use_fixedip=true without one returns "not found: type=".
-	if d.FixedIP != "" && d.NetworkID != "" {
-		req.FixedIP = d.FixedIP
-		req.NetworkID = d.NetworkID
-		req.UseFixedIP = boolPtr(true)
+	// Fixed IP: the controller requires a valid network_id to resolve the
+	// DHCP scope; sending use_fixedip=true without one returns "not found:
+	// type=". When no explicit network_id is provided, fall back to the
+	// virtual_network_override_id so that fixed_ip + network_override_id
+	// works without requiring the user to duplicate the ID into network_id.
+	if d.FixedIP != "" {
+		netID := d.NetworkID
+		if netID == "" {
+			netID = d.VirtualNetworkOverrideID
+		}
+		if netID != "" {
+			req.FixedIP = d.FixedIP
+			req.NetworkID = netID
+			req.UseFixedIP = boolPtr(true)
+		} else {
+			req.UseFixedIP = boolPtr(false)
+		}
 	} else {
 		req.UseFixedIP = boolPtr(false)
 	}
