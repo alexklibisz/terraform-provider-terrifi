@@ -26,13 +26,15 @@ UOS Server is Ubiquiti's official self-hosted UniFi platform. It runs as a singl
 
 3. Once installed, go to `https://<hostname or IP>:<port>`. Unless you've provisioned a certificate with Lets Encrypt or similar, you will see a warning that the site is not secure. This is because it's using a self-signed certificate. If you're sure you're at the right hostname/IP, click through the warnings.
 
-3. Complete the initial setup wizard in the web UI. When prompted to create an account, just create a local account.
+4. Complete the initial setup wizard in the web UI. When prompted to create an account, just create a local account.
 
-4. Adopt any connected UniFi devices (gateways, access points, etc.). This typically requires resetting the devices.
+5. Upgrade to the latest version. Go to `https://<hostname or IP>:<port>/network/default/settings/control-plane`. There's a table with columns Application, Status, etc. If an update is available it will show up under the Status tab.
 
-5. Enable Firewall Zones. Go to `https://<hostname or IP>:<port>/network/default/settings/traffic-and-firewall-rules`. You'll see something like "Upgrade to the New Zone-Based Firewall". Click "Click to upgrade" and go through the upgrade steps.
+6. Adopt any connected UniFi devices (gateways, access points, etc.). This typically requires resetting the devices.
 
-6. Create an API Key. Click the Settings gear icon on the left. Click Control Plane. Go to the Integrations tab. Use the form to create an API key.
+7. Enable Firewall Zones. Go to `https://<hostname or IP>:<port>/network/default/settings/traffic-and-firewall-rules`. You'll see something like "Upgrade to the New Zone-Based Firewall". Click "Click to upgrade" and go through the upgrade steps.
+
+8. Create an API Key. Click the Settings gear icon on the left. Click Control Plane. Go to the Integrations tab. Use the form to create an API key. This is what we'll use in the test suite.
 
 ## Access
 
