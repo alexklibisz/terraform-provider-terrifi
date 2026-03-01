@@ -6,14 +6,18 @@
 # mode. The installer creates a podman container managed by a systemd service.
 #
 # Usage:
-#   sudo ./install.sh              # install default version (5.0.6)
-#   sudo ./install.sh 4.3.6        # install a specific version
+#   sudo ./install.sh                        # install default version
+#   sudo DOWNLOAD_URL=<url> ./install.sh     # install from an explicit URL
+#
+# Ubiquiti download URLs contain per-release UUIDs and cannot be derived from
+# the version number alone.  Get the latest URL from:
+#   https://ui.com/download/releases/unifi-os-server
 
 set -euo pipefail
 
-VERSION="${1:-5.0.6}"
-PLATFORM="x64"
-DOWNLOAD_URL="https://fw-download.ubnt.com/data/uos-server/${VERSION}/uosserver-installer-${VERSION}-${PLATFORM}.bin"
+# Default download URL for UOS Server 5.0.6 (x64).
+# Override with the DOWNLOAD_URL env var when a newer version is released.
+DOWNLOAD_URL="${DOWNLOAD_URL:-https://fw-download.ubnt.com/data/unifi-os-server/1856-linux-x64-5.0.6-33f4990f-6c68-4e72-9d9c-477496c22450.6-x64}"
 
 # ── Preflight ────────────────────────────────────────────────────────
 
@@ -39,7 +43,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 INSTALLER="${TMPDIR}/uosserver-installer.bin"
 
-echo "Downloading UOS Server v${VERSION} (${PLATFORM}) ..."
+echo "Downloading UOS Server installer ..."
 echo "  URL: ${DOWNLOAD_URL}"
 curl -fSL -o "$INSTALLER" "$DOWNLOAD_URL"
 chmod +x "$INSTALLER"
