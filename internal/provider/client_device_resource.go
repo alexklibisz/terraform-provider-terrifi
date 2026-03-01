@@ -118,12 +118,18 @@ func (r *clientDeviceResource) Schema(
 			"network_id": schema.StringAttribute{
 				MarkdownDescription: "The network ID for fixed IP assignment. Required when `fixed_ip` is set.",
 				Optional:            true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 
 			"network_override_id": schema.StringAttribute{
 				MarkdownDescription: "The network ID for VLAN/network override. When set, the client " +
 					"will be placed on this network regardless of the SSID or port profile it connects to.",
 				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 
 			"local_dns_record": schema.StringAttribute{

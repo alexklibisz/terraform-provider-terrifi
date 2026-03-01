@@ -176,8 +176,10 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		req.Noted = boolPtr(true)
 	}
 
-	// Fixed IP: derive use_fixedip from whether fixed_ip is set
-	if d.FixedIP != "" {
+	// Fixed IP: derive use_fixedip from whether both fixed_ip and network_id
+	// are set. The controller requires a valid network_id to resolve the DHCP
+	// scope; sending use_fixedip=true without one returns "not found: type=".
+	if d.FixedIP != "" && d.NetworkID != "" {
 		req.FixedIP = d.FixedIP
 		req.NetworkID = d.NetworkID
 		req.UseFixedIP = boolPtr(true)
