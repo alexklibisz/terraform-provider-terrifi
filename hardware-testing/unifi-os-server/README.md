@@ -12,9 +12,9 @@ UOS Server is Ubiquiti's official self-hosted UniFi platform. It runs as a singl
 
 ## Setup
 
-1. Copy `install.sh` to the server:
+1. Copy scripts to the server:
    ```sh
-   scp install.sh terrifi-unifi-os-server:~/
+   ./rsync.sh
    ```
 
 2. SSH in and run the installer:
