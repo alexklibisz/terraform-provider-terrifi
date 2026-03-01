@@ -7,7 +7,10 @@
 # provider_test.go starts/stops this via testcontainers-go.
 services:
   mongo:
-    image: mongo:4.4
+    # Note: MongoDB 5.0+ requires AVX CPU instructions. If running in a VM,
+    # ensure the hypervisor passes through the host CPU (e.g. cpu type "host"
+    # in Proxmox). See https://github.com/docker-library/mongo/issues/619
+    image: mongo:8.2
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: root
@@ -54,7 +57,7 @@ configs:
       #!/bin/bash
       # Init scripts run against the temp mongod (no auth) before it restarts
       # with --auth. Create the unifi user in admin so MONGO_AUTHSOURCE=admin works.
-      mongo admin <<EOJS
+      mongosh admin <<EOJS
       db.createUser({
         user: "unifi",
         pwd: "unifi",
