@@ -68,6 +68,24 @@ resource "terrifi_client_device" "nas" {
 }
 ```
 
+### Assign to client groups
+
+```terraform
+resource "terrifi_client_group" "iot" {
+  name = "IoT Devices"
+}
+
+resource "terrifi_client_group" "monitored" {
+  name = "Monitored Devices"
+}
+
+resource "terrifi_client_device" "sensor" {
+  mac              = "aa:bb:cc:dd:ee:01"
+  name             = "Temperature Sensor"
+  client_group_ids = [terrifi_client_group.iot.id, terrifi_client_group.monitored.id]
+}
+```
+
 ### Block a client
 
 ```terraform
@@ -92,7 +110,7 @@ resource "terrifi_client_device" "blocked" {
 - `network_id` (String) — The network ID for fixed IP assignment. Required when `fixed_ip` is set unless `network_override_id` provides the network context.
 - `network_override_id` (String) — The network ID for VLAN/network override.
 - `local_dns_record` (String) — A local DNS hostname for this client device. Requires `fixed_ip`.
-- `client_group_id` (String) — The ID of the client group to assign this device to. Use `terrifi_client_group` to manage groups.
+- `client_group_ids` (Set of String) — Set of client group IDs to assign this device to. Use `terrifi_client_group` to manage groups.
 - `blocked` (Boolean) — Whether the client device is blocked from network access.
 - `site` (String) — The site to associate the client device with. Defaults to the provider site. Changing this forces a new resource.
 

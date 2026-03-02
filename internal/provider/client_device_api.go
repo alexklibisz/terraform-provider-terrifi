@@ -34,7 +34,7 @@ type clientDeviceRequest struct {
 	LocalDNSRecordEnabled         *bool   `json:"local_dns_record_enabled,omitempty"`
 	VirtualNetworkOverrideEnabled *bool   `json:"virtual_network_override_enabled,omitempty"`
 	VirtualNetworkOverrideID      string  `json:"virtual_network_override_id,omitempty"`
-	UserGroupID                   *string `json:"usergroup_id,omitempty"`
+	NetworkMembersGroupIDs        []string `json:"network_members_group_ids"`
 	Blocked                       *bool   `json:"blocked,omitempty"`
 }
 
@@ -213,10 +213,14 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		req.VirtualNetworkOverrideEnabled = boolPtr(false)
 	}
 
-	// User group (client group) assignment — always set the pointer so that
-	// an empty string explicitly clears the group (needed during Delete to
-	// remove the reference before deleting the group itself).
-	req.UserGroupID = &d.UserGroupID
+	// Client group assignment — always set the slice so that an empty slice
+	// explicitly clears group references (needed during Delete to remove
+	// references before deleting the groups themselves).
+	if d.NetworkMembersGroupIDs != nil {
+		req.NetworkMembersGroupIDs = d.NetworkMembersGroupIDs
+	} else {
+		req.NetworkMembersGroupIDs = []string{}
+	}
 
 	// Blocked: pass through as-is
 	req.Blocked = d.Blocked

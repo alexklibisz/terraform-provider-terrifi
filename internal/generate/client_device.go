@@ -48,6 +48,13 @@ func ClientDeviceBlocks(clients []unifi.Client) []ResourceBlock {
 				Comment: "TODO: find and reference corresponding terrifi_network resource",
 			})
 		}
+		if len(c.NetworkMembersGroupIDs) > 0 {
+			block.Attributes = append(block.Attributes, Attr{
+				Key:     "client_group_ids",
+				Value:   HCLStringList(c.NetworkMembersGroupIDs),
+				Comment: "TODO: find and reference corresponding terrifi_client_group resources",
+			})
+		}
 		if c.Blocked != nil && *c.Blocked {
 			block.Attributes = append(block.Attributes, Attr{Key: "blocked", Value: HCLBool(true)})
 		}
