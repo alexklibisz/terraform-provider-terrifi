@@ -388,7 +388,7 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 		policy := r.modelToAPI(ctx, model)
 
-		assert.Equal(t, "DEVICE", policy.Source.MatchingTarget)
+		assert.Equal(t, "CLIENT", policy.Source.MatchingTarget)
 		assert.ElementsMatch(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, policy.Source.IPs)
 		assert.Equal(t, "ANY", policy.Destination.MatchingTarget)
 		assert.Nil(t, policy.Destination.IPs)
@@ -698,14 +698,14 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.ElementsMatch(t, []string{"net-001"}, networks)
 	})
 
-	t.Run("DEVICE matching target populates device_ids", func(t *testing.T) {
+	t.Run("CLIENT matching target populates device_ids", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:     "pol-010",
 			Name:   "Device Rule",
 			Action: "BLOCK",
 			Source: &unifi.FirewallPolicySource{
 				ZoneID:         "zone-src",
-				MatchingTarget: "DEVICE",
+				MatchingTarget: "CLIENT",
 				IPs:            []string{"02:aa:bb:cc:dd:01"},
 			},
 			Destination: &unifi.FirewallPolicyDestination{

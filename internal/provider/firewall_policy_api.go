@@ -288,7 +288,7 @@ func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 	if ep.MatchingTarget == "MAC" && len(ep.MACs) > 0 {
 		return ep.MACs
 	}
-	if ep.MatchingTarget == "DEVICE" && len(ep.ClientMACs) > 0 {
+	if ep.MatchingTarget == "CLIENT" && len(ep.ClientMACs) > 0 {
 		return ep.ClientMACs
 	}
 	return ep.IPs
@@ -363,7 +363,7 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 	// the "client_macs" field, not "ips".
 	if matchingTarget == "MAC" {
 		ep.MACs = ips
-	} else if matchingTarget == "DEVICE" {
+	} else if matchingTarget == "CLIENT" {
 		ep.ClientMACs = ips
 	} else {
 		ep.IPs = ips
@@ -383,7 +383,7 @@ func matchingTargetType(matchingTarget string) string {
 	if matchingTarget == "" || matchingTarget == "ANY" {
 		return "" // omitempty will exclude it from the JSON
 	}
-	if matchingTarget == "DEVICE" {
+	if matchingTarget == "CLIENT" {
 		return "OBJECT"
 	}
 	return "SPECIFIC"
