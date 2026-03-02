@@ -74,6 +74,8 @@ type firewallPolicyEndpointRequest struct {
 	PortMatchingType   string   `json:"port_matching_type,omitempty"`
 	Port               *int64   `json:"port,omitempty"`
 	PortGroupID        string   `json:"port_group_id,omitempty"`
+	MatchOppositePorts *bool    `json:"match_opposite_ports,omitempty"`
+	MatchOppositeIPs   *bool    `json:"match_opposite_ips,omitempty"`
 }
 
 // firewallPolicyScheduleRequest is the schedule nested object.
@@ -192,14 +194,16 @@ type firewallPolicyResponse struct {
 }
 
 type firewallPolicyEndpointResponse struct {
-	ZoneID           string          `json:"zone_id"`
-	MatchingTarget   string          `json:"matching_target"`
-	IPs              []string        `json:"ips"`
-	MACs             []string        `json:"macs"`
-	ClientMACs       []string        `json:"client_macs"`
-	PortMatchingType string          `json:"port_matching_type"`
-	Port             json.RawMessage `json:"port"`
-	PortGroupID      string          `json:"port_group_id"`
+	ZoneID             string          `json:"zone_id"`
+	MatchingTarget     string          `json:"matching_target"`
+	IPs                []string        `json:"ips"`
+	MACs               []string        `json:"macs"`
+	ClientMACs         []string        `json:"client_macs"`
+	PortMatchingType   string          `json:"port_matching_type"`
+	Port               json.RawMessage `json:"port"`
+	PortGroupID        string          `json:"port_group_id"`
+	MatchOppositePorts bool            `json:"match_opposite_ports"`
+	MatchOppositeIPs   bool            `json:"match_opposite_ips"`
 }
 
 func (r *firewallPolicyResponse) toSDK() *unifi.FirewallPolicy {
@@ -261,23 +265,27 @@ func (ep *firewallPolicyEndpointResponse) parsePort() *int64 {
 
 func (ep *firewallPolicyEndpointResponse) toSDKSource() *unifi.FirewallPolicySource {
 	return &unifi.FirewallPolicySource{
-		ZoneID:           ep.ZoneID,
-		MatchingTarget:   ep.MatchingTarget,
-		IPs:              ep.resolveIPs(),
-		PortMatchingType: ep.PortMatchingType,
-		Port:             ep.parsePort(),
-		PortGroupID:      ep.PortGroupID,
+		ZoneID:             ep.ZoneID,
+		MatchingTarget:     ep.MatchingTarget,
+		IPs:                ep.resolveIPs(),
+		PortMatchingType:   ep.PortMatchingType,
+		Port:               ep.parsePort(),
+		PortGroupID:        ep.PortGroupID,
+		MatchOppositePorts: ep.MatchOppositePorts,
+		MatchOppositeIPs:   ep.MatchOppositeIPs,
 	}
 }
 
 func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPolicyDestination {
 	return &unifi.FirewallPolicyDestination{
-		ZoneID:           ep.ZoneID,
-		MatchingTarget:   ep.MatchingTarget,
-		IPs:              ep.resolveIPs(),
-		PortMatchingType: ep.PortMatchingType,
-		Port:             ep.parsePort(),
-		PortGroupID:      ep.PortGroupID,
+		ZoneID:             ep.ZoneID,
+		MatchingTarget:     ep.MatchingTarget,
+		IPs:                ep.resolveIPs(),
+		PortMatchingType:   ep.PortMatchingType,
+		Port:               ep.parsePort(),
+		PortGroupID:        ep.PortGroupID,
+		MatchOppositePorts: ep.MatchOppositePorts,
+		MatchOppositeIPs:   ep.MatchOppositeIPs,
 	}
 }
 
@@ -324,11 +332,11 @@ func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCre
 	}
 
 	if d.Source != nil {
-		req.Source = buildEndpointRequest(d.Source.ZoneID, d.Source.MatchingTarget, d.Source.IPs, d.Source.PortMatchingType, d.Source.Port, d.Source.PortGroupID)
+		req.Source = buildEndpointRequest(d.Source.ZoneID, d.Source.MatchingTarget, d.Source.IPs, d.Source.PortMatchingType, d.Source.Port, d.Source.PortGroupID, d.Source.MatchOppositePorts, d.Source.MatchOppositeIPs)
 	}
 
 	if d.Destination != nil {
-		req.Destination = buildEndpointRequest(d.Destination.ZoneID, d.Destination.MatchingTarget, d.Destination.IPs, d.Destination.PortMatchingType, d.Destination.Port, d.Destination.PortGroupID)
+		req.Destination = buildEndpointRequest(d.Destination.ZoneID, d.Destination.MatchingTarget, d.Destination.IPs, d.Destination.PortMatchingType, d.Destination.Port, d.Destination.PortGroupID, d.Destination.MatchOppositePorts, d.Destination.MatchOppositeIPs)
 	}
 
 	if d.Schedule != nil {
@@ -353,7 +361,7 @@ func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCre
 	return req
 }
 
-func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatchingType string, port *int64, portGroupID string) *firewallPolicyEndpointRequest {
+func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatchingType string, port *int64, portGroupID string, matchOppositePorts, matchOppositeIPs bool) *firewallPolicyEndpointRequest {
 	ep := &firewallPolicyEndpointRequest{
 		ZoneID:             zoneID,
 		MatchingTarget:     matchingTarget,
@@ -361,6 +369,12 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 		PortMatchingType:   portMatchingType,
 		Port:               port,
 		PortGroupID:        portGroupID,
+	}
+	if matchOppositePorts {
+		ep.MatchOppositePorts = boolPtr(true)
+	}
+	if matchOppositeIPs {
+		ep.MatchOppositeIPs = boolPtr(true)
 	}
 	// The API expects MAC values in the "macs" field and device values in
 	// the "client_macs" field, not "ips".

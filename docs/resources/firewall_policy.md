@@ -139,6 +139,8 @@ resource "terrifi_firewall_policy" "weekday_block" {
 - `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `LIST`. Default: `ANY`.
 - `port` (Number) — Specific port number (when `port_matching_type` is `SPECIFIC`).
 - `port_group_id` (String) — Port group ID (when `port_matching_type` is `LIST`).
+- `match_opposite_ports` (Boolean) — Inverts the port matching. When `true` and action is `ALLOW`, all ports _except_ the specified ones are allowed. When `true` and action is `BLOCK`, all ports _except_ the specified ones are blocked.
+- `match_opposite_ips` (Boolean) — Inverts the IP matching. When `true` and action is `ALLOW`, all IPs _except_ the specified ones are allowed. When `true` and action is `BLOCK`, all IPs _except_ the specified ones are blocked.
 
 At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set. When none is set, the endpoint matches any target.
 
