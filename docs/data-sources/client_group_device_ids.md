@@ -9,34 +9,15 @@ description: |-
 
 Returns the IDs of client devices belonging to a particular client group. Use this to reference grouped devices in firewall policies.
 
+This data source is most useful when devices are assigned to groups outside of Terraform (e.g. via the UniFi UI) and you want to reference those group memberships in your Terraform config.
+
 ## Example Usage
 
-### Look up device IDs for a client group
+### Look up devices assigned to a group via the UI
 
 ```terraform
-resource "terrifi_client_group" "iot" {
-  name = "IoT Devices"
-}
-
-resource "terrifi_client_device" "sensor" {
-  mac             = "aa:bb:cc:dd:ee:01"
-  name            = "Temperature Sensor"
-  client_group_id = terrifi_client_group.iot.id
-}
-
-resource "terrifi_client_device" "camera" {
-  mac             = "aa:bb:cc:dd:ee:02"
-  name            = "IP Camera"
-  client_group_id = terrifi_client_group.iot.id
-}
-
 data "terrifi_client_group_device_ids" "iot" {
-  client_group_id = terrifi_client_group.iot.id
-
-  depends_on = [
-    terrifi_client_device.sensor,
-    terrifi_client_device.camera,
-  ]
+  client_group_id = "existing-group-id"
 }
 ```
 
