@@ -54,14 +54,16 @@ type firewallPolicyResourceModel struct {
 }
 
 type firewallPolicyEndpointModel struct {
-	ZoneID           types.String `tfsdk:"zone_id"`
-	IPs              types.Set    `tfsdk:"ips"`
-	MACAddresses     types.Set    `tfsdk:"mac_addresses"`
-	NetworkIDs       types.Set    `tfsdk:"network_ids"`
-	DeviceIDs        types.Set    `tfsdk:"device_ids"`
-	PortMatchingType types.String `tfsdk:"port_matching_type"`
-	Port             types.Int64  `tfsdk:"port"`
-	PortGroupID      types.String `tfsdk:"port_group_id"`
+	ZoneID             types.String `tfsdk:"zone_id"`
+	IPs                types.Set    `tfsdk:"ips"`
+	MACAddresses       types.Set    `tfsdk:"mac_addresses"`
+	NetworkIDs         types.Set    `tfsdk:"network_ids"`
+	DeviceIDs          types.Set    `tfsdk:"device_ids"`
+	PortMatchingType   types.String `tfsdk:"port_matching_type"`
+	Port               types.Int64  `tfsdk:"port"`
+	PortGroupID        types.String `tfsdk:"port_group_id"`
+	MatchOppositePorts types.Bool   `tfsdk:"match_opposite_ports"`
+	MatchOppositeIPs   types.Bool   `tfsdk:"match_opposite_ips"`
 }
 
 type firewallPolicyScheduleModel struct {
@@ -75,14 +77,16 @@ type firewallPolicyScheduleModel struct {
 
 // endpointAttrTypes defines the attribute types for source/destination nested objects.
 var endpointAttrTypes = map[string]attr.Type{
-	"zone_id":            types.StringType,
-	"ips":                types.SetType{ElemType: types.StringType},
-	"mac_addresses":      types.SetType{ElemType: types.StringType},
-	"network_ids":        types.SetType{ElemType: types.StringType},
-	"device_ids":         types.SetType{ElemType: types.StringType},
-	"port_matching_type": types.StringType,
-	"port":               types.Int64Type,
-	"port_group_id":      types.StringType,
+	"zone_id":              types.StringType,
+	"ips":                  types.SetType{ElemType: types.StringType},
+	"mac_addresses":        types.SetType{ElemType: types.StringType},
+	"network_ids":          types.SetType{ElemType: types.StringType},
+	"device_ids":           types.SetType{ElemType: types.StringType},
+	"port_matching_type":   types.StringType,
+	"port":                 types.Int64Type,
+	"port_group_id":        types.StringType,
+	"match_opposite_ports": types.BoolType,
+	"match_opposite_ips":   types.BoolType,
 }
 
 // scheduleAttrTypes defines the attribute types for the schedule nested object.
@@ -148,6 +152,14 @@ func (r *firewallPolicyResource) Schema(
 		},
 		"port_group_id": schema.StringAttribute{
 			MarkdownDescription: "Port group ID to match (when `port_matching_type` is `LIST`).",
+			Optional:            true,
+		},
+		"match_opposite_ports": schema.BoolAttribute{
+			MarkdownDescription: "Whether to also match the opposite port (i.e. apply the same port constraint to the other endpoint).",
+			Optional:            true,
+		},
+		"match_opposite_ips": schema.BoolAttribute{
+			MarkdownDescription: "Whether to also match the opposite IP addresses (i.e. apply the same IP constraint to the other endpoint).",
 			Optional:            true,
 		},
 	}
@@ -542,9 +554,11 @@ func (r *firewallPolicyResource) modelToAPI(ctx context.Context, m *firewallPoli
 
 func endpointModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) *unifi.FirewallPolicySource {
 	ep := &unifi.FirewallPolicySource{
-		ZoneID:           m.ZoneID.ValueString(),
-		PortMatchingType: m.PortMatchingType.ValueString(),
-		PortGroupID:      m.PortGroupID.ValueString(),
+		ZoneID:             m.ZoneID.ValueString(),
+		PortMatchingType:   m.PortMatchingType.ValueString(),
+		PortGroupID:        m.PortGroupID.ValueString(),
+		MatchOppositePorts: m.MatchOppositePorts.ValueBool(),
+		MatchOppositeIPs:   m.MatchOppositeIPs.ValueBool(),
 	}
 
 	if !m.Port.IsNull() && !m.Port.IsUnknown() {
@@ -559,9 +573,11 @@ func endpointModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) *un
 
 func destinationModelToAPI(ctx context.Context, m *firewallPolicyEndpointModel) *unifi.FirewallPolicyDestination {
 	ep := &unifi.FirewallPolicyDestination{
-		ZoneID:           m.ZoneID.ValueString(),
-		PortMatchingType: m.PortMatchingType.ValueString(),
-		PortGroupID:      m.PortGroupID.ValueString(),
+		ZoneID:             m.ZoneID.ValueString(),
+		PortMatchingType:   m.PortMatchingType.ValueString(),
+		PortGroupID:        m.PortGroupID.ValueString(),
+		MatchOppositePorts: m.MatchOppositePorts.ValueBool(),
+		MatchOppositeIPs:   m.MatchOppositeIPs.ValueBool(),
 	}
 
 	if !m.Port.IsNull() && !m.Port.IsUnknown() {
@@ -695,9 +711,11 @@ func boolValueOrNull(b bool) types.Bool {
 
 func endpointAPIToModel(src *unifi.FirewallPolicySource) types.Object {
 	attrs := map[string]attr.Value{
-		"zone_id":            types.StringValue(src.ZoneID),
-		"port_matching_type": stringValueOrNull(src.PortMatchingType),
-		"port_group_id":      stringValueOrNull(src.PortGroupID),
+		"zone_id":              types.StringValue(src.ZoneID),
+		"port_matching_type":   stringValueOrNull(src.PortMatchingType),
+		"port_group_id":        stringValueOrNull(src.PortGroupID),
+		"match_opposite_ports": boolValueOrNull(src.MatchOppositePorts),
+		"match_opposite_ips":   boolValueOrNull(src.MatchOppositeIPs),
 	}
 
 	if src.Port != nil {
@@ -713,9 +731,11 @@ func endpointAPIToModel(src *unifi.FirewallPolicySource) types.Object {
 
 func destinationAPIToModel(dst *unifi.FirewallPolicyDestination) types.Object {
 	attrs := map[string]attr.Value{
-		"zone_id":            types.StringValue(dst.ZoneID),
-		"port_matching_type": stringValueOrNull(dst.PortMatchingType),
-		"port_group_id":      stringValueOrNull(dst.PortGroupID),
+		"zone_id":              types.StringValue(dst.ZoneID),
+		"port_matching_type":   stringValueOrNull(dst.PortMatchingType),
+		"port_group_id":        stringValueOrNull(dst.PortGroupID),
+		"match_opposite_ports": boolValueOrNull(dst.MatchOppositePorts),
+		"match_opposite_ips":   boolValueOrNull(dst.MatchOppositeIPs),
 	}
 
 	if dst.Port != nil {
