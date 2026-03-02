@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -43,7 +44,7 @@ type clientDeviceResourceModel struct {
 	NetworkID         types.String `tfsdk:"network_id"`
 	NetworkOverrideID types.String `tfsdk:"network_override_id"`
 	LocalDNSRecord    types.String `tfsdk:"local_dns_record"`
-	ClientGroupID     types.String `tfsdk:"client_group_id"`
+	ClientGroupIDs    types.Set    `tfsdk:"client_group_ids"`
 	Blocked           types.Bool   `tfsdk:"blocked"`
 }
 
@@ -140,10 +141,11 @@ func (r *clientDeviceResource) Schema(
 				},
 			},
 
-			"client_group_id": schema.StringAttribute{
-				MarkdownDescription: "The ID of the client group to assign this device to. " +
+			"client_group_ids": schema.SetAttribute{
+				MarkdownDescription: "Set of client group IDs to assign this device to. " +
 					"Use `terrifi_client_group` to manage groups.",
-				Optional: true,
+				ElementType: types.StringType,
+				Optional:    true,
 			},
 
 			"blocked": schema.BoolAttribute{
@@ -194,14 +196,14 @@ func (r *clientDeviceResource) Create(
 
 	// Save fields before the API call that need to be restored after
 	// apiToModel because the API response may differ from the user's config:
-	// - client_group_id: the API doesn't return usergroup_id in responses
+	// - client_group_ids: the API may not return network_members_group_ids in responses
 	// - network_id: when fixed_ip uses network_override_id as fallback, the
 	//   API returns network_id but the user didn't configure it
-	plannedGroupID := plan.ClientGroupID
+	plannedGroupIDs := plan.ClientGroupIDs
 	plannedNetworkID := plan.NetworkID
 
 	site := r.client.SiteOrDefault(plan.Site)
-	apiObj := r.modelToAPI(&plan)
+	apiObj := r.modelToAPI(ctx, &plan)
 
 	created, err := r.client.CreateClientDevice(ctx, site, apiObj)
 	if err != nil {
@@ -210,7 +212,7 @@ func (r *clientDeviceResource) Create(
 	}
 
 	r.apiToModel(created, &plan, site)
-	plan.ClientGroupID = plannedGroupID
+	plan.ClientGroupIDs = plannedGroupIDs
 	plan.NetworkID = plannedNetworkID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -227,7 +229,7 @@ func (r *clientDeviceResource) Read(
 	}
 
 	// Save fields before the API call that need to be restored after apiToModel.
-	priorGroupID := state.ClientGroupID
+	priorGroupIDs := state.ClientGroupIDs
 	priorNetworkID := state.NetworkID
 
 	site := r.client.SiteOrDefault(state.Site)
@@ -246,7 +248,7 @@ func (r *clientDeviceResource) Read(
 	}
 
 	r.apiToModel(apiObj, &state, site)
-	state.ClientGroupID = priorGroupID
+	state.ClientGroupIDs = priorGroupIDs
 	state.NetworkID = priorNetworkID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -264,13 +266,13 @@ func (r *clientDeviceResource) Update(
 	}
 
 	// Save fields before the API call that need to be restored after apiToModel.
-	plannedGroupID := plan.ClientGroupID
+	plannedGroupIDs := plan.ClientGroupIDs
 	plannedNetworkID := plan.NetworkID
 
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
-	apiObj := r.modelToAPI(&state)
+	apiObj := r.modelToAPI(ctx, &state)
 	apiObj.ID = state.ID.ValueString()
 
 	updated, err := r.client.UpdateClientDevice(ctx, site, apiObj)
@@ -293,7 +295,7 @@ func (r *clientDeviceResource) Update(
 				return
 			}
 			r.apiToModel(updated, &state, site)
-			state.ClientGroupID = plannedGroupID
+			state.ClientGroupIDs = plannedGroupIDs
 			state.NetworkID = plannedNetworkID
 			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 			return
@@ -303,7 +305,7 @@ func (r *clientDeviceResource) Update(
 	}
 
 	r.apiToModel(updated, &state, site)
-	state.ClientGroupID = plannedGroupID
+	state.ClientGroupIDs = plannedGroupIDs
 	state.NetworkID = plannedNetworkID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -458,10 +460,10 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	} else {
 		state.LocalDNSRecord = types.StringNull()
 	}
-	if !plan.ClientGroupID.IsNull() && !plan.ClientGroupID.IsUnknown() {
-		state.ClientGroupID = plan.ClientGroupID
+	if !plan.ClientGroupIDs.IsNull() && !plan.ClientGroupIDs.IsUnknown() {
+		state.ClientGroupIDs = plan.ClientGroupIDs
 	} else {
-		state.ClientGroupID = types.StringNull()
+		state.ClientGroupIDs = types.SetNull(types.StringType)
 	}
 	if !plan.Blocked.IsNull() && !plan.Blocked.IsUnknown() {
 		state.Blocked = plan.Blocked
@@ -470,7 +472,7 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	}
 }
 
-func (r *clientDeviceResource) modelToAPI(m *clientDeviceResourceModel) *unifi.Client {
+func (r *clientDeviceResource) modelToAPI(ctx context.Context, m *clientDeviceResourceModel) *unifi.Client {
 	c := &unifi.Client{
 		MAC: strings.ToLower(m.MAC.ValueString()),
 	}
@@ -501,8 +503,10 @@ func (r *clientDeviceResource) modelToAPI(m *clientDeviceResourceModel) *unifi.C
 		c.LocalDNSRecordEnabled = true
 	}
 
-	if !m.ClientGroupID.IsNull() && !m.ClientGroupID.IsUnknown() {
-		c.UserGroupID = m.ClientGroupID.ValueString()
+	if !m.ClientGroupIDs.IsNull() && !m.ClientGroupIDs.IsUnknown() {
+		var ids []string
+		m.ClientGroupIDs.ElementsAs(ctx, &ids, false)
+		c.NetworkMembersGroupIDs = ids
 	}
 
 	if !m.Blocked.IsNull() && !m.Blocked.IsUnknown() {
@@ -544,7 +548,15 @@ func (r *clientDeviceResource) apiToModel(c *unifi.Client, m *clientDeviceResour
 		m.LocalDNSRecord = types.StringNull()
 	}
 
-	m.ClientGroupID = stringValueOrNull(c.UserGroupID)
+	if c.NetworkMembersGroupIDs != nil {
+		vals := make([]attr.Value, len(c.NetworkMembersGroupIDs))
+		for i, id := range c.NetworkMembersGroupIDs {
+			vals[i] = types.StringValue(id)
+		}
+		m.ClientGroupIDs = types.SetValueMust(types.StringType, vals)
+	} else {
+		m.ClientGroupIDs = types.SetNull(types.StringType)
+	}
 
 	// Preserve blocked state faithfully: true or false when explicitly set by
 	// the API, null when the API doesn't return the field at all.

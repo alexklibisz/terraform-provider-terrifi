@@ -1,10 +1,12 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -29,6 +31,7 @@ func randomVLAN() int {
 // ---------------------------------------------------------------------------
 
 func TestClientDeviceModelToAPI(t *testing.T) {
+	ctx := context.Background()
 	r := &clientDeviceResource{}
 
 	t.Run("mac only", func(t *testing.T) {
@@ -36,7 +39,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			MAC: types.StringValue("AA:BB:CC:DD:EE:FF"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", c.MAC, "MAC should be lowercased")
 		assert.Empty(t, c.Name)
@@ -48,7 +51,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.False(t, c.LocalDNSRecordEnabled)
 		assert.Nil(t, c.VirtualNetworkOverrideEnabled)
 		assert.Empty(t, c.VirtualNetworkOverrideID)
-		assert.Empty(t, c.UserGroupID)
+		assert.Nil(t, c.NetworkMembersGroupIDs)
 		assert.Nil(t, c.Blocked)
 	})
 
@@ -61,11 +64,13 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkID:         types.StringValue("net-123"),
 			NetworkOverrideID: types.StringValue("vlan-456"),
 			LocalDNSRecord:    types.StringValue("mydevice.local"),
-			ClientGroupID:     types.StringValue("group-789"),
-			Blocked:           types.BoolValue(true),
+			ClientGroupIDs: types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("group-789"),
+			}),
+			Blocked: types.BoolValue(true),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", c.MAC)
 		assert.Equal(t, "My Device", c.Name)
@@ -78,9 +83,25 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.True(t, *c.VirtualNetworkOverrideEnabled)
 		assert.Equal(t, "mydevice.local", c.LocalDNSRecord)
 		assert.True(t, c.LocalDNSRecordEnabled)
-		assert.Equal(t, "group-789", c.UserGroupID)
+		assert.Equal(t, []string{"group-789"}, c.NetworkMembersGroupIDs)
 		assert.NotNil(t, c.Blocked)
 		assert.True(t, *c.Blocked)
+	})
+
+	t.Run("multiple client group IDs", func(t *testing.T) {
+		model := &clientDeviceResourceModel{
+			MAC: types.StringValue("aa:bb:cc:dd:ee:ff"),
+			ClientGroupIDs: types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("group-aaa"),
+				types.StringValue("group-bbb"),
+			}),
+		}
+
+		c := r.modelToAPI(ctx, model)
+
+		assert.Len(t, c.NetworkMembersGroupIDs, 2)
+		assert.Contains(t, c.NetworkMembersGroupIDs, "group-aaa")
+		assert.Contains(t, c.NetworkMembersGroupIDs, "group-bbb")
 	})
 
 	t.Run("fixed_ip sets use_fixedip and network_id", func(t *testing.T) {
@@ -90,7 +111,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkID: types.StringValue("net-abc"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "10.0.0.50", c.FixedIP)
 		assert.True(t, c.UseFixedIP)
@@ -103,7 +124,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			LocalDNSRecord: types.StringValue("host.local"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "host.local", c.LocalDNSRecord)
 		assert.True(t, c.LocalDNSRecordEnabled)
@@ -115,7 +136,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkOverrideID: types.StringValue("override-789"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "override-789", c.VirtualNetworkOverrideID)
 		assert.NotNil(t, c.VirtualNetworkOverrideEnabled)
@@ -128,7 +149,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			Blocked: types.BoolValue(true),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.NotNil(t, c.Blocked)
 		assert.True(t, *c.Blocked)
@@ -140,7 +161,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			Blocked: types.BoolValue(false),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.NotNil(t, c.Blocked)
 		assert.False(t, *c.Blocked)
@@ -151,7 +172,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			MAC: types.StringValue("AA:BB:CC:DD:EE:FF"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", c.MAC)
 	})
@@ -163,7 +184,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkID: types.StringValue(""),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		// FixedIP is set on the intermediate struct, but UseFixedIP should
 		// only be true when NetworkID is also present.
@@ -187,7 +208,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkOverrideID: types.StringValue("override-123"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "10.0.0.50", c.FixedIP)
 		assert.True(t, c.UseFixedIP)
@@ -303,7 +324,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			NetworkID:                "net-123",
 			VirtualNetworkOverrideID: "vlan-456",
 			LocalDNSRecord:           "test.local",
-			UserGroupID:              "group-789",
+			NetworkMembersGroupIDs:   []string{"group-789", "group-abc"},
 			Blocked:                  &blocked,
 		}
 
@@ -324,10 +345,19 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 		assert.Equal(t, "test.local", req.LocalDNSRecord)
 		assert.NotNil(t, req.LocalDNSRecordEnabled)
 		assert.True(t, *req.LocalDNSRecordEnabled)
-		assert.NotNil(t, req.UserGroupID)
-		assert.Equal(t, "group-789", *req.UserGroupID)
+		assert.Equal(t, []string{"group-789", "group-abc"}, req.NetworkMembersGroupIDs)
 		assert.NotNil(t, req.Blocked)
 		assert.True(t, *req.Blocked)
+	})
+
+	t.Run("nil network_members_group_ids sends empty slice", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC: "aa:bb:cc:dd:ee:ff",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, []string{}, req.NetworkMembersGroupIDs)
 	})
 }
 
@@ -352,7 +382,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.True(t, model.NetworkID.IsNull(), "NetworkID should be null")
 		assert.True(t, model.NetworkOverrideID.IsNull(), "NetworkOverrideID should be null")
 		assert.True(t, model.LocalDNSRecord.IsNull(), "LocalDNSRecord should be null")
-		assert.True(t, model.ClientGroupID.IsNull(), "ClientGroupID should be null")
+		assert.True(t, model.ClientGroupIDs.IsNull(), "ClientGroupIDs should be null")
 		assert.True(t, model.Blocked.IsNull(), "Blocked should be null")
 	})
 
@@ -371,7 +401,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 			VirtualNetworkOverrideID:      "vlan-abc",
 			LocalDNSRecord:                "mydevice.local",
 			LocalDNSRecordEnabled:         true,
-			UserGroupID:                   "group-xyz",
+			NetworkMembersGroupIDs:        []string{"group-xyz"},
 			Blocked:                       &blocked,
 		}
 
@@ -387,8 +417,27 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.Equal(t, "net-789", model.NetworkID.ValueString())
 		assert.Equal(t, "vlan-abc", model.NetworkOverrideID.ValueString())
 		assert.Equal(t, "mydevice.local", model.LocalDNSRecord.ValueString())
-		assert.Equal(t, "group-xyz", model.ClientGroupID.ValueString())
+		expected := types.SetValueMust(types.StringType, []attr.Value{types.StringValue("group-xyz")})
+		assert.True(t, model.ClientGroupIDs.Equal(expected), "ClientGroupIDs should contain group-xyz")
 		assert.True(t, model.Blocked.ValueBool())
+	})
+
+	t.Run("multiple client group IDs", func(t *testing.T) {
+		c := &unifi.Client{
+			ID:                     "client-multi",
+			MAC:                    "aa:bb:cc:dd:ee:ff",
+			NetworkMembersGroupIDs: []string{"group-aaa", "group-bbb"},
+		}
+
+		var model clientDeviceResourceModel
+		r.apiToModel(c, &model, "default")
+
+		assert.False(t, model.ClientGroupIDs.IsNull())
+		expected := types.SetValueMust(types.StringType, []attr.Value{
+			types.StringValue("group-aaa"),
+			types.StringValue("group-bbb"),
+		})
+		assert.True(t, model.ClientGroupIDs.Equal(expected))
 	})
 
 	t.Run("use_fixedip false with stale fixed_ip", func(t *testing.T) {
@@ -1206,6 +1255,111 @@ resource "terrifi_client_device" "test" {
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-idempotent"),
+				),
+			},
+			{
+				// Apply the same config again — should produce no diff.
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_clientGroupIDs(t *testing.T) {
+	mac := randomMAC()
+	groupName1 := fmt.Sprintf("tfacc-grp1-%s", randomSuffix())
+	groupName2 := fmt.Sprintf("tfacc-grp2-%s", randomSuffix())
+	groupConfig := fmt.Sprintf(`
+resource "terrifi_client_group" "grp1" {
+  name = %q
+}
+
+resource "terrifi_client_group" "grp2" {
+  name = %q
+}
+`, groupName1, groupName2)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with one client group
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-clientgroups"
+  client_group_ids = [terrifi_client_group.grp1.id]
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "1"),
+				),
+			},
+			// Step 2: Add a second client group
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-clientgroups"
+  client_group_ids = [terrifi_client_group.grp1.id, terrifi_client_group.grp2.id]
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "2"),
+				),
+			},
+			// Step 3: Remove the first group, keeping only the second
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-clientgroups"
+  client_group_ids = [terrifi_client_group.grp2.id]
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "1"),
+				),
+			},
+			// Step 4: Remove all groups
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-clientgroups"
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "client_group_ids"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_clientGroupIDs_idempotent(t *testing.T) {
+	mac := randomMAC()
+	groupName := fmt.Sprintf("tfacc-grpidem-%s", randomSuffix())
+	config := fmt.Sprintf(`
+resource "terrifi_client_group" "test" {
+  name = %q
+}
+
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-grp-idempotent"
+  client_group_ids = [terrifi_client_group.test.id]
+}
+`, groupName, mac)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "1"),
 				),
 			},
 			{
