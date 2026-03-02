@@ -240,9 +240,9 @@ resource "terrifi_client_group" "test" {
 }
 
 resource "terrifi_client_device" "test" {
-  mac             = %q
-  name            = "tfacc-grouped-device"
-  client_group_id = terrifi_client_group.test.id
+  mac              = %q
+  name             = "tfacc-grouped-device"
+  client_group_ids = [terrifi_client_group.test.id]
 }
 `, groupName, mac),
 				Check: resource.ComposeTestCheckFunc(
@@ -250,10 +250,7 @@ resource "terrifi_client_device" "test" {
 					resource.TestCheckResourceAttrSet("terrifi_client_group.test", "id"),
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "mac", mac),
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-grouped-device"),
-					resource.TestCheckResourceAttrPair(
-						"terrifi_client_device.test", "client_group_id",
-						"terrifi_client_group.test", "id",
-					),
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "1"),
 				),
 			},
 		},
@@ -282,14 +279,13 @@ resource "terrifi_client_group" "group2" {
 }
 
 resource "terrifi_client_device" "test" {
-  mac             = %q
-  name            = "tfacc-reassign"
-  client_group_id = terrifi_client_group.group1.id
+  mac              = %q
+  name             = "tfacc-reassign"
+  client_group_ids = [terrifi_client_group.group1.id]
 }
 `, groupName1, groupName2, mac),
-				Check: resource.TestCheckResourceAttrPair(
-					"terrifi_client_device.test", "client_group_id",
-					"terrifi_client_group.group1", "id",
+				Check: resource.TestCheckResourceAttr(
+					"terrifi_client_device.test", "client_group_ids.#", "1",
 				),
 			},
 			{
@@ -303,14 +299,13 @@ resource "terrifi_client_group" "group2" {
 }
 
 resource "terrifi_client_device" "test" {
-  mac             = %q
-  name            = "tfacc-reassign"
-  client_group_id = terrifi_client_group.group2.id
+  mac              = %q
+  name             = "tfacc-reassign"
+  client_group_ids = [terrifi_client_group.group2.id]
 }
 `, groupName1, groupName2, mac),
-				Check: resource.TestCheckResourceAttrPair(
-					"terrifi_client_device.test", "client_group_id",
-					"terrifi_client_group.group2", "id",
+				Check: resource.TestCheckResourceAttr(
+					"terrifi_client_device.test", "client_group_ids.#", "1",
 				),
 			},
 		},
