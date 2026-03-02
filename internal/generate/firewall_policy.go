@@ -46,10 +46,6 @@ func FirewallPolicyBlocks(policies []*unifi.FirewallPolicy) []ResourceBlock {
 		if p.CreateAllowRespond {
 			block.Attributes = append(block.Attributes, Attr{Key: "create_allow_respond", Value: HCLBool(true)})
 		}
-		if p.Index != nil {
-			block.Attributes = append(block.Attributes, Attr{Key: "index", Value: HCLInt64(*p.Index)})
-		}
-
 		if p.Source != nil {
 			block.Blocks = append(block.Blocks, buildEndpointBlock("source", p.Source.ZoneID, p.Source.MatchingTarget, p.Source.IPs, p.Source.PortMatchingType, p.Source.Port, p.Source.PortGroupID))
 		}

@@ -251,8 +251,7 @@ func (r *firewallPolicyResource) Schema(
 			},
 
 			"index": schema.Int64Attribute{
-				MarkdownDescription: "The ordering index of the policy. Assigned by the controller if not specified.",
-				Optional:            true,
+				MarkdownDescription: "The ordering index of the policy, assigned by the controller.",
 				Computed:            true,
 			},
 		},

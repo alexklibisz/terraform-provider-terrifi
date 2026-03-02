@@ -121,13 +121,13 @@ resource "terrifi_firewall_policy" "weekday_block" {
 - `match_ipsec` (Boolean) — Whether to match IPsec traffic.
 - `logging` (Boolean) — Whether to enable syslog logging for matched traffic.
 - `create_allow_respond` (Boolean) — Whether to create a corresponding allow-respond rule.
-- `index` (Number) — Ordering index. Assigned by the controller if not specified.
 - `schedule` (Block) — Schedule configuration. See [Schedule](#schedule) below.
 - `site` (String) — The site. Defaults to the provider site. Changing this forces a new resource.
 
 ### Read-Only
 
 - `id` (String) — The ID of the firewall policy.
+- `index` (Number) — The ordering index of the policy, assigned by the controller.
 
 ### Source/Destination
 

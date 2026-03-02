@@ -375,7 +375,9 @@ func TestFirewallPolicyBlocks(t *testing.T) {
 	assert.Equal(t, `"ALLOW"`, attrs["action"])
 	assert.Equal(t, `"tcp"`, attrs["protocol"])
 	assert.Equal(t, "true", attrs["logging"])
-	assert.Equal(t, "5", attrs["index"])
+	// index is computed-only and should not appear in generated HCL
+	_, hasIndex := attrs["index"]
+	assert.False(t, hasIndex)
 	// ip_version should be omitted when BOTH
 	_, hasIPVersion := attrs["ip_version"]
 	assert.False(t, hasIPVersion)

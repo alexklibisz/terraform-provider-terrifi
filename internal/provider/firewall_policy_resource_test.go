@@ -1417,6 +1417,91 @@ resource "terrifi_firewall_policy" "test" {
 	})
 }
 
+func TestAccFirewallPolicy_indexComputed(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-idx-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-idx-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-idx-%s", randomSuffix())
+
+	config := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "name", policyName),
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "index"),
+				),
+			},
+			// Verify the controller-assigned index is stable (no drift).
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_createAllowRespond(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-car-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-car-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-car-%s", randomSuffix())
+
+	config := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                 = %q
+  action               = "ALLOW"
+  create_allow_respond = true
+
+  source {
+    zone_id       = terrifi_firewall_zone.zone1.id
+    mac_addresses = ["aa:bb:cc:dd:ee:ff"]
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "name", policyName),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "ALLOW"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "create_allow_respond", "true"),
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "index"),
+				),
+			},
+			// Verify no drift after refresh — this was the exact scenario
+			// from issue #70 that triggered the "inconsistent result" error.
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
