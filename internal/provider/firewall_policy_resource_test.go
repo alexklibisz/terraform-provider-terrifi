@@ -1568,8 +1568,8 @@ resource "terrifi_firewall_policy" "test" {
   create_allow_respond = true
 
   source {
-    zone_id       = terrifi_firewall_zone.zone1.id
-    mac_addresses = ["aa:bb:cc:dd:ee:ff"]
+    zone_id = terrifi_firewall_zone.zone1.id
+    ips     = ["192.168.1.100"]
   }
 
   destination {
