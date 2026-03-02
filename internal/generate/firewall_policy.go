@@ -80,7 +80,7 @@ func buildEndpointBlock(name, zoneID, matchingTarget string, ips []string, portM
 		switch matchingTarget {
 		case "IP":
 			nb.Attributes = append(nb.Attributes, Attr{Key: "ips", Value: HCLStringList(ips)})
-		case "MAC":
+		case "IID", "MAC":
 			nb.Attributes = append(nb.Attributes, Attr{Key: "mac_addresses", Value: HCLStringList(ips)})
 		case "NETWORK":
 			nb.Attributes = append(nb.Attributes, Attr{
