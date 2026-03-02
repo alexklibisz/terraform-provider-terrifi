@@ -187,6 +187,7 @@ type firewallPolicyResponse struct {
 	CreateAllowRespond  bool                            `json:"create_allow_respond"`
 	Logging             bool                            `json:"logging"`
 	MatchIPSec          bool                            `json:"match_ip_sec"`
+	Predefined          bool                            `json:"predefined"`
 	Index               *int64                          `json:"index"`
 	Source              *firewallPolicyEndpointResponse `json:"source"`
 	Destination         *firewallPolicyEndpointResponse `json:"destination"`
@@ -220,6 +221,7 @@ func (r *firewallPolicyResponse) toSDK() *unifi.FirewallPolicy {
 		CreateAllowRespond:  r.CreateAllowRespond,
 		Logging:             r.Logging,
 		MatchIPSec:          r.MatchIPSec,
+		Predefined:          r.Predefined,
 		Index:               r.Index,
 	}
 

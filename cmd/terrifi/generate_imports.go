@@ -16,6 +16,7 @@ var validResourceTypes = []string{
 	"terrifi_dns_record",
 	"terrifi_firewall_zone",
 	"terrifi_firewall_policy",
+	"terrifi_firewall_policy_order",
 	"terrifi_network",
 	"terrifi_wlan",
 }
@@ -80,6 +81,13 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("listing firewall policies: %w", err)
 		}
 		blocks = generate.FirewallPolicyBlocks(policies)
+
+	case "terrifi_firewall_policy_order":
+		policies, err := client.ListFirewallPolicies(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing firewall policies: %w", err)
+		}
+		blocks = generate.FirewallPolicyOrderBlocks(policies)
 
 	case "terrifi_network":
 		networks, err := client.ListNetwork(ctx, site)
