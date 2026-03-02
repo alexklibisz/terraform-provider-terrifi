@@ -343,6 +343,57 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 		assert.Nil(t, policy.Destination.IPs)
 	})
 
+	t.Run("with device IDs", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":       types.StringValue("zone-src"),
+			"ips":           types.SetNull(types.StringType),
+			"mac_addresses": types.SetNull(types.StringType),
+			"network_ids":   types.SetNull(types.StringType),
+			"device_ids": types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("02:aa:bb:cc:dd:01"),
+				types.StringValue("02:aa:bb:cc:dd:02"),
+			}),
+			"port_matching_type": types.StringValue("ANY"),
+			"port":               types.Int64Null(),
+			"port_group_id":      types.StringNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":            types.StringValue("zone-dst"),
+			"ips":                types.SetNull(types.StringType),
+			"mac_addresses":      types.SetNull(types.StringType),
+			"network_ids":        types.SetNull(types.StringType),
+			"device_ids":         types.SetNull(types.StringType),
+			"port_matching_type": types.StringValue("ANY"),
+			"port":               types.Int64Null(),
+			"port_group_id":      types.StringNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Device Rule"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "DEVICE", policy.Source.MatchingTarget)
+		assert.ElementsMatch(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, policy.Source.IPs)
+		assert.Equal(t, "ANY", policy.Destination.MatchingTarget)
+		assert.Nil(t, policy.Destination.IPs)
+	})
+
 	t.Run("with network IDs", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":       types.StringValue("zone-src"),
@@ -646,6 +697,37 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		srcModel.NetworkIDs.ElementsAs(context.Background(), &networks, false)
 		assert.ElementsMatch(t, []string{"net-001"}, networks)
 	})
+
+	t.Run("DEVICE matching target populates device_ids", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-010",
+			Name:   "Device Rule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "DEVICE",
+				IPs:            []string{"02:aa:bb:cc:dd:01"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.IPs.IsNull())
+		assert.True(t, srcModel.MACAddresses.IsNull())
+		assert.True(t, srcModel.NetworkIDs.IsNull())
+		assert.False(t, srcModel.DeviceIDs.IsNull())
+
+		var devices []string
+		srcModel.DeviceIDs.ElementsAs(context.Background(), &devices, false)
+		assert.ElementsMatch(t, []string{"02:aa:bb:cc:dd:01"}, devices)
+	})
 }
 
 func TestFirewallPolicyApplyPlanToState(t *testing.T) {
@@ -793,6 +875,50 @@ resource "terrifi_firewall_policy" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "BLOCK"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.mac_addresses.#", "1"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_deviceIDs(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-dev-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-dev-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-dev-%s", randomSuffix())
+	mac := randomMAC()
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-pol-device"
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id    = terrifi_firewall_zone.zone1.id
+    device_ids = [terrifi_client_device.test.mac]
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, mac, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "BLOCK"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.device_ids.#", "1"),
+					resource.TestCheckResourceAttrPair(
+						"terrifi_firewall_policy.test", "source.device_ids.0",
+						"terrifi_client_device.test", "mac",
+					),
 				),
 			},
 		},
