@@ -286,7 +286,7 @@ func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPoli
 // types uniformly via the IPs field on the SDK struct.
 func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 	switch ep.MatchingTarget {
-	case "MAC", "CLIENT":
+	case "IID", "MAC", "CLIENT":
 		if len(ep.MACs) > 0 {
 			return ep.MACs
 		}

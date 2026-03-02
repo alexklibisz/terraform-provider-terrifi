@@ -755,7 +755,7 @@ func populateTypedEndpointFields(attrs map[string]attr.Value, matchingTarget str
 	switch matchingTarget {
 	case "IP":
 		attrs["ips"] = sv
-	case "MAC":
+	case "IID", "MAC":
 		attrs["mac_addresses"] = sv
 	case "NETWORK":
 		attrs["network_ids"] = sv
