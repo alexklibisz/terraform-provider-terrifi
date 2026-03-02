@@ -388,7 +388,7 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 		policy := r.modelToAPI(ctx, model)
 
-		assert.Equal(t, "DEVICE", policy.Source.MatchingTarget)
+		assert.Equal(t, "CLIENT", policy.Source.MatchingTarget)
 		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, policy.Source.IPs)
 		assert.Equal(t, "ANY", policy.Destination.MatchingTarget)
 		assert.Nil(t, policy.Destination.IPs)
@@ -667,14 +667,14 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, macs)
 	})
 
-	t.Run("DEVICE matching target populates device_ids", func(t *testing.T) {
+	t.Run("CLIENT matching target populates device_ids", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:     "pol-010",
 			Name:   "Device Rule",
 			Action: "ALLOW",
 			Source: &unifi.FirewallPolicySource{
 				ZoneID:         "zone-src",
-				MatchingTarget: "DEVICE",
+				MatchingTarget: "CLIENT",
 				IPs:            []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"},
 			},
 			Destination: &unifi.FirewallPolicyDestination{
@@ -776,9 +776,9 @@ func TestBuildEndpointRequest(t *testing.T) {
 		assert.Nil(t, ep.IPs)
 	})
 
-	t.Run("DEVICE matching sends values in macs field", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "DEVICE", []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, "ANY", nil, "")
-		assert.Equal(t, "DEVICE", ep.MatchingTarget)
+	t.Run("CLIENT matching sends values in macs field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "CLIENT", []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, "ANY", nil, "")
+		assert.Equal(t, "CLIENT", ep.MatchingTarget)
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, ep.MACs)
 		assert.Nil(t, ep.IPs)
 	})
@@ -807,9 +807,9 @@ func TestResolveIPs(t *testing.T) {
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
 	})
 
-	t.Run("DEVICE matching returns macs", func(t *testing.T) {
+	t.Run("CLIENT matching returns macs", func(t *testing.T) {
 		ep := &firewallPolicyEndpointResponse{
-			MatchingTarget: "DEVICE",
+			MatchingTarget: "CLIENT",
 			MACs:           []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"},
 		}
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, ep.resolveIPs())
@@ -838,9 +838,9 @@ func TestResolveIPs(t *testing.T) {
 		assert.Nil(t, ep.resolveIPs())
 	})
 
-	t.Run("DEVICE matching falls back to ips when macs empty", func(t *testing.T) {
+	t.Run("CLIENT matching falls back to ips when macs empty", func(t *testing.T) {
 		ep := &firewallPolicyEndpointResponse{
-			MatchingTarget: "DEVICE",
+			MatchingTarget: "CLIENT",
 			IPs:            []string{"aa:bb:cc:dd:ee:f1"},
 		}
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:f1"}, ep.resolveIPs())

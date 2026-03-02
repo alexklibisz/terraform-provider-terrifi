@@ -404,7 +404,7 @@ func TestFirewallPolicyBlocks_deviceIDs(t *testing.T) {
 			Action:  "ALLOW",
 			Source: &unifi.FirewallPolicySource{
 				ZoneID:         "zone1",
-				MatchingTarget: "DEVICE",
+				MatchingTarget: "CLIENT",
 				IPs:            []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"},
 			},
 			Destination: &unifi.FirewallPolicyDestination{

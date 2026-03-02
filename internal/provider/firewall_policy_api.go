@@ -281,11 +281,11 @@ func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPoli
 
 // resolveIPs returns the endpoint values, merging the "macs" field back into
 // a single slice so the resource layer can handle all target types uniformly
-// via the IPs field on the SDK struct. Both MAC and DEVICE matching targets
+// via the IPs field on the SDK struct. Both MAC and CLIENT matching targets
 // store their values in the API's "macs" JSON field.
 func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 	switch ep.MatchingTarget {
-	case "MAC", "DEVICE":
+	case "MAC", "CLIENT":
 		if len(ep.MACs) > 0 {
 			return ep.MACs
 		}
@@ -358,8 +358,8 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 		Port:               port,
 		PortGroupID:        portGroupID,
 	}
-	// The API expects MAC and DEVICE values in the "macs" field, not "ips".
-	if matchingTarget == "MAC" || matchingTarget == "DEVICE" {
+	// The API expects MAC and CLIENT values in the "macs" field, not "ips".
+	if matchingTarget == "MAC" || matchingTarget == "CLIENT" {
 		ep.MACs = ips
 	} else {
 		ep.IPs = ips
