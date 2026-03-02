@@ -155,11 +155,11 @@ func (r *firewallPolicyResource) Schema(
 			Optional:            true,
 		},
 		"match_opposite_ports": schema.BoolAttribute{
-			MarkdownDescription: "Whether to also match the opposite port (i.e. apply the same port constraint to the other endpoint).",
+			MarkdownDescription: "Inverts port matching. When `true` and action is `ALLOW`, all ports except the specified ones are allowed. When `true` and action is `BLOCK`, all ports except the specified ones are blocked.",
 			Optional:            true,
 		},
 		"match_opposite_ips": schema.BoolAttribute{
-			MarkdownDescription: "Whether to also match the opposite IP addresses (i.e. apply the same IP constraint to the other endpoint).",
+			MarkdownDescription: "Inverts IP matching. When `true` and action is `ALLOW`, all IPs except the specified ones are allowed. When `true` and action is `BLOCK`, all IPs except the specified ones are blocked.",
 			Optional:            true,
 		},
 	}
