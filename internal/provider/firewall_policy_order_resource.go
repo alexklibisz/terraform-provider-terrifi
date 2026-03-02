@@ -264,6 +264,7 @@ func (r *firewallPolicyOrderResource) readOrdering(
 	diags *diag.Diagnostics,
 ) {
 	site := r.client.SiteOrDefault(m.Site)
+	m.Site = types.StringValue(site)
 	sourceZoneID := m.SourceZoneID.ValueString()
 	destZoneID := m.DestinationZoneID.ValueString()
 
