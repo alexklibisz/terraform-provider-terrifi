@@ -88,7 +88,7 @@ func buildEndpointBlock(name, zoneID, matchingTarget string, ips []string, portM
 				Value:   HCLStringList(ips),
 				Comment: "TODO: find and reference corresponding terrifi_network resources",
 			})
-		case "DEVICE":
+		case "CLIENT":
 			nb.Attributes = append(nb.Attributes, Attr{
 				Key:     "device_ids",
 				Value:   HCLStringList(ips),

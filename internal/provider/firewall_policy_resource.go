@@ -129,7 +129,7 @@ func (r *firewallPolicyResource) Schema(
 			Optional:            true,
 		},
 		"device_ids": schema.SetAttribute{
-			MarkdownDescription: "Device IDs to match.",
+			MarkdownDescription: "Client device MAC addresses to match. Use the `mac` attribute from `terrifi_client_device` resources.",
 			ElementType:         types.StringType,
 			Optional:            true,
 		},
@@ -587,7 +587,7 @@ func resolveMatchingTarget(ctx context.Context, m *firewallPolicyEndpointModel) 
 		{m.IPs, "IP"},
 		{m.MACAddresses, "MAC"},
 		{m.NetworkIDs, "NETWORK"},
-		{m.DeviceIDs, "DEVICE"},
+		{m.DeviceIDs, "CLIENT"},
 	} {
 		if !tf.field.IsNull() && !tf.field.IsUnknown() {
 			var vals []string
@@ -760,7 +760,7 @@ func populateTypedEndpointFields(attrs map[string]attr.Value, matchingTarget str
 		attrs["mac_addresses"] = sv
 	case "NETWORK":
 		attrs["network_ids"] = sv
-	case "DEVICE":
+	case "CLIENT":
 		attrs["device_ids"] = sv
 	default:
 		// ANY or unknown — leave all null.

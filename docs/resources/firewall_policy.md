@@ -135,7 +135,7 @@ resource "terrifi_firewall_policy" "weekday_block" {
 - `ips` (Set of String) — IP addresses or CIDR ranges to match.
 - `mac_addresses` (Set of String) — MAC addresses to match.
 - `network_ids` (Set of String) — Network IDs to match.
-- `device_ids` (Set of String) — Device IDs to match.
+- `device_ids` (Set of String) — Client device MAC addresses to match. Use the `mac` attribute from `terrifi_client_device` resources.
 - `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `LIST`. Default: `ANY`.
 - `port` (Number) — Specific port number (when `port_matching_type` is `SPECIFIC`).
 - `port_group_id` (String) — Port group ID (when `port_matching_type` is `LIST`).
