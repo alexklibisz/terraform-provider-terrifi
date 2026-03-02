@@ -768,6 +768,86 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 	})
 }
 
+func TestBuildEndpointRequest(t *testing.T) {
+	t.Run("MAC matching sends values in macs field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "MAC", []string{"aa:bb:cc:dd:ee:ff"}, "ANY", nil, "")
+		assert.Equal(t, "MAC", ep.MatchingTarget)
+		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.MACs)
+		assert.Nil(t, ep.IPs)
+	})
+
+	t.Run("CLIENT matching sends values in client_macs field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "CLIENT", []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, "ANY", nil, "")
+		assert.Equal(t, "CLIENT", ep.MatchingTarget)
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.ClientMACs)
+		assert.Nil(t, ep.IPs)
+		assert.Nil(t, ep.MACs)
+	})
+
+	t.Run("IP matching sends values in ips field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "IP", []string{"10.0.0.1"}, "ANY", nil, "")
+		assert.Equal(t, "IP", ep.MatchingTarget)
+		assert.Equal(t, []string{"10.0.0.1"}, ep.IPs)
+		assert.Nil(t, ep.MACs)
+	})
+
+	t.Run("NETWORK matching sends values in ips field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "NETWORK", []string{"net-001"}, "ANY", nil, "")
+		assert.Equal(t, "NETWORK", ep.MatchingTarget)
+		assert.Equal(t, []string{"net-001"}, ep.IPs)
+		assert.Nil(t, ep.MACs)
+	})
+}
+
+func TestResolveIPs(t *testing.T) {
+	t.Run("MAC matching returns macs", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "MAC",
+			MACs:           []string{"aa:bb:cc:dd:ee:ff"},
+		}
+		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
+	})
+
+	t.Run("CLIENT matching returns client_macs", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "CLIENT",
+			ClientMACs:     []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"},
+		}
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.resolveIPs())
+	})
+
+	t.Run("IP matching returns ips", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "IP",
+			IPs:            []string{"10.0.0.1"},
+		}
+		assert.Equal(t, []string{"10.0.0.1"}, ep.resolveIPs())
+	})
+
+	t.Run("NETWORK matching returns ips", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "NETWORK",
+			IPs:            []string{"net-001"},
+		}
+		assert.Equal(t, []string{"net-001"}, ep.resolveIPs())
+	})
+
+	t.Run("ANY matching returns ips", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "ANY",
+		}
+		assert.Nil(t, ep.resolveIPs())
+	})
+
+	t.Run("CLIENT matching falls back to ips when client_macs empty", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "CLIENT",
+			IPs:            []string{"02:aa:bb:cc:dd:01"},
+		}
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01"}, ep.resolveIPs())
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Acceptance tests
 // ---------------------------------------------------------------------------

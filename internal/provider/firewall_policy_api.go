@@ -285,8 +285,11 @@ func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPoli
 // field back into a single slice so the resource layer can handle all target
 // types uniformly via the IPs field on the SDK struct.
 func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
-	if ep.MatchingTarget == "MAC" && len(ep.MACs) > 0 {
-		return ep.MACs
+	switch ep.MatchingTarget {
+	case "MAC", "CLIENT":
+		if len(ep.MACs) > 0 {
+			return ep.MACs
+		}
 	}
 	if ep.MatchingTarget == "CLIENT" && len(ep.ClientMACs) > 0 {
 		return ep.ClientMACs

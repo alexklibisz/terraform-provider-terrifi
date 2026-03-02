@@ -395,6 +395,100 @@ func TestFirewallPolicyBlocks(t *testing.T) {
 	assert.Equal(t, `"zone2"`, dstAttrs["zone_id"])
 }
 
+func TestFirewallPolicyBlocks_deviceIDs(t *testing.T) {
+	policies := []*unifi.FirewallPolicy{
+		{
+			ID:      "pol1",
+			Name:    "Allow Devices",
+			Enabled: true,
+			Action:  "ALLOW",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone1",
+				MatchingTarget: "CLIENT",
+				IPs:            []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone2",
+				MatchingTarget: "ANY",
+			},
+		},
+	}
+
+	blocks := FirewallPolicyBlocks(policies)
+	require.Len(t, blocks, 1)
+
+	b := blocks[0]
+	require.Len(t, b.Blocks, 2)
+
+	srcAttrs := nestedAttrMap(b.Blocks[0])
+	assert.Equal(t, `"zone1"`, srcAttrs["zone_id"])
+	assert.Equal(t, `["aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"]`, srcAttrs["device_ids"])
+
+	// Destination should only have zone_id (matching target is ANY).
+	dstAttrs := nestedAttrMap(b.Blocks[1])
+	assert.Equal(t, `"zone2"`, dstAttrs["zone_id"])
+	_, hasDeviceIDs := dstAttrs["device_ids"]
+	assert.False(t, hasDeviceIDs)
+}
+
+func TestFirewallPolicyBlocks_macAddresses(t *testing.T) {
+	policies := []*unifi.FirewallPolicy{
+		{
+			ID:      "pol1",
+			Name:    "Block MACs",
+			Enabled: true,
+			Action:  "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone1",
+				MatchingTarget: "MAC",
+				IPs:            []string{"aa:bb:cc:dd:ee:ff"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone2",
+				MatchingTarget: "ANY",
+			},
+		},
+	}
+
+	blocks := FirewallPolicyBlocks(policies)
+	require.Len(t, blocks, 1)
+
+	srcAttrs := nestedAttrMap(blocks[0].Blocks[0])
+	assert.Equal(t, `["aa:bb:cc:dd:ee:ff"]`, srcAttrs["mac_addresses"])
+	_, hasIPs := srcAttrs["ips"]
+	assert.False(t, hasIPs)
+	_, hasDeviceIDs := srcAttrs["device_ids"]
+	assert.False(t, hasDeviceIDs)
+}
+
+func TestFirewallPolicyBlocks_networkIDs(t *testing.T) {
+	policies := []*unifi.FirewallPolicy{
+		{
+			ID:      "pol1",
+			Name:    "Allow Networks",
+			Enabled: true,
+			Action:  "ALLOW",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone1",
+				MatchingTarget: "NETWORK",
+				IPs:            []string{"net-001", "net-002"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone2",
+				MatchingTarget: "ANY",
+			},
+		},
+	}
+
+	blocks := FirewallPolicyBlocks(policies)
+	require.Len(t, blocks, 1)
+
+	srcAttrs := nestedAttrMap(blocks[0].Blocks[0])
+	assert.Equal(t, `["net-001", "net-002"]`, srcAttrs["network_ids"])
+	_, hasIPs := srcAttrs["ips"]
+	assert.False(t, hasIPs)
+}
+
 func TestFirewallPolicyBlocks_schedule(t *testing.T) {
 	policies := []*unifi.FirewallPolicy{
 		{
