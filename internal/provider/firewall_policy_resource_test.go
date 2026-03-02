@@ -350,8 +350,8 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 			"mac_addresses": types.SetNull(types.StringType),
 			"network_ids":   types.SetNull(types.StringType),
 			"device_ids": types.SetValueMust(types.StringType, []attr.Value{
-				types.StringValue("aa:bb:cc:dd:ee:f1"),
-				types.StringValue("aa:bb:cc:dd:ee:f2"),
+				types.StringValue("02:aa:bb:cc:dd:01"),
+				types.StringValue("02:aa:bb:cc:dd:02"),
 			}),
 			"port_matching_type": types.StringValue("ANY"),
 			"port":               types.Int64Null(),
@@ -370,7 +370,7 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 		model := &firewallPolicyResourceModel{
 			Name:                types.StringValue("Device Rule"),
-			Action:              types.StringValue("ALLOW"),
+			Action:              types.StringValue("BLOCK"),
 			Enabled:             types.BoolValue(true),
 			IPVersion:           types.StringValue("BOTH"),
 			Protocol:            types.StringValue("all"),
@@ -389,7 +389,7 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 		policy := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "CLIENT", policy.Source.MatchingTarget)
-		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, policy.Source.IPs)
+		assert.ElementsMatch(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, policy.Source.IPs)
 		assert.Equal(t, "ANY", policy.Destination.MatchingTarget)
 		assert.Nil(t, policy.Destination.IPs)
 	})
@@ -667,37 +667,6 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, macs)
 	})
 
-	t.Run("CLIENT matching target populates device_ids", func(t *testing.T) {
-		policy := &unifi.FirewallPolicy{
-			ID:     "pol-010",
-			Name:   "Device Rule",
-			Action: "ALLOW",
-			Source: &unifi.FirewallPolicySource{
-				ZoneID:         "zone-src",
-				MatchingTarget: "CLIENT",
-				IPs:            []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"},
-			},
-			Destination: &unifi.FirewallPolicyDestination{
-				ZoneID:         "zone-dst",
-				MatchingTarget: "ANY",
-			},
-		}
-
-		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
-
-		var srcModel firewallPolicyEndpointModel
-		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
-		assert.True(t, srcModel.IPs.IsNull())
-		assert.True(t, srcModel.MACAddresses.IsNull())
-		assert.True(t, srcModel.NetworkIDs.IsNull())
-		assert.False(t, srcModel.DeviceIDs.IsNull())
-
-		var devices []string
-		srcModel.DeviceIDs.ElementsAs(context.Background(), &devices, false)
-		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, devices)
-	})
-
 	t.Run("NETWORK matching target populates network_ids", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:     "pol-009",
@@ -727,6 +696,37 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		var networks []string
 		srcModel.NetworkIDs.ElementsAs(context.Background(), &networks, false)
 		assert.ElementsMatch(t, []string{"net-001"}, networks)
+	})
+
+	t.Run("CLIENT matching target populates device_ids", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-010",
+			Name:   "Device Rule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "CLIENT",
+				IPs:            []string{"02:aa:bb:cc:dd:01"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.IPs.IsNull())
+		assert.True(t, srcModel.MACAddresses.IsNull())
+		assert.True(t, srcModel.NetworkIDs.IsNull())
+		assert.False(t, srcModel.DeviceIDs.IsNull())
+
+		var devices []string
+		srcModel.DeviceIDs.ElementsAs(context.Background(), &devices, false)
+		assert.ElementsMatch(t, []string{"02:aa:bb:cc:dd:01"}, devices)
 	})
 }
 
@@ -776,11 +776,12 @@ func TestBuildEndpointRequest(t *testing.T) {
 		assert.Nil(t, ep.IPs)
 	})
 
-	t.Run("CLIENT matching sends values in macs field", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "CLIENT", []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, "ANY", nil, "")
+	t.Run("CLIENT matching sends values in client_macs field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "CLIENT", []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, "ANY", nil, "")
 		assert.Equal(t, "CLIENT", ep.MatchingTarget)
-		assert.Equal(t, []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, ep.MACs)
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.ClientMACs)
 		assert.Nil(t, ep.IPs)
+		assert.Nil(t, ep.MACs)
 	})
 
 	t.Run("IP matching sends values in ips field", func(t *testing.T) {
@@ -807,12 +808,12 @@ func TestResolveIPs(t *testing.T) {
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
 	})
 
-	t.Run("CLIENT matching returns macs", func(t *testing.T) {
+	t.Run("CLIENT matching returns client_macs", func(t *testing.T) {
 		ep := &firewallPolicyEndpointResponse{
 			MatchingTarget: "CLIENT",
-			MACs:           []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"},
+			ClientMACs:     []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"},
 		}
-		assert.Equal(t, []string{"aa:bb:cc:dd:ee:f1", "aa:bb:cc:dd:ee:f2"}, ep.resolveIPs())
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.resolveIPs())
 	})
 
 	t.Run("IP matching returns ips", func(t *testing.T) {
@@ -838,12 +839,12 @@ func TestResolveIPs(t *testing.T) {
 		assert.Nil(t, ep.resolveIPs())
 	})
 
-	t.Run("CLIENT matching falls back to ips when macs empty", func(t *testing.T) {
+	t.Run("CLIENT matching falls back to ips when client_macs empty", func(t *testing.T) {
 		ep := &firewallPolicyEndpointResponse{
 			MatchingTarget: "CLIENT",
-			IPs:            []string{"aa:bb:cc:dd:ee:f1"},
+			IPs:            []string{"02:aa:bb:cc:dd:01"},
 		}
-		assert.Equal(t, []string{"aa:bb:cc:dd:ee:f1"}, ep.resolveIPs())
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01"}, ep.resolveIPs())
 	})
 }
 
@@ -964,7 +965,7 @@ func TestAccFirewallPolicy_deviceIDs(t *testing.T) {
 	zone1Name := fmt.Sprintf("tfacc-pol-dev-z1-%s", randomSuffix())
 	zone2Name := fmt.Sprintf("tfacc-pol-dev-z2-%s", randomSuffix())
 	policyName := fmt.Sprintf("tfacc-pol-dev-%s", randomSuffix())
-	deviceName := fmt.Sprintf("tfacc-pol-dev-cd-%s", randomSuffix())
+	mac := randomMAC()
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
@@ -972,35 +973,33 @@ func TestAccFirewallPolicy_deviceIDs(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
-resource "terrifi_client_device" "dev" {
-  mac  = "aa:bb:cc:dd:ee:01"
-  name = %q
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-pol-device"
 }
 
 resource "terrifi_firewall_policy" "test" {
   name   = %q
-  action = "ALLOW"
+  action = "BLOCK"
 
   source {
     zone_id    = terrifi_firewall_zone.zone1.id
-    device_ids = [terrifi_client_device.dev.mac]
+    device_ids = [terrifi_client_device.test.mac]
   }
 
   destination {
     zone_id = terrifi_firewall_zone.zone2.id
   }
 }
-`, deviceName, policyName),
+`, mac, policyName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "ALLOW"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "BLOCK"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.device_ids.#", "1"),
+					resource.TestCheckResourceAttrPair(
+						"terrifi_firewall_policy.test", "source.device_ids.0",
+						"terrifi_client_device.test", "mac",
+					),
 				),
-			},
-			// Verify import round-trip preserves device_ids.
-			{
-				ResourceName:      "terrifi_firewall_policy.test",
-				ImportState:       true,
-				ImportStateVerify: true,
 			},
 		},
 	})

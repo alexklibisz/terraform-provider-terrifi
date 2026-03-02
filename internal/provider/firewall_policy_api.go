@@ -70,6 +70,7 @@ type firewallPolicyEndpointRequest struct {
 	MatchingTargetType string   `json:"matching_target_type,omitempty"`
 	IPs                []string `json:"ips,omitempty"`
 	MACs               []string `json:"macs,omitempty"`
+	ClientMACs         []string `json:"client_macs,omitempty"`
 	PortMatchingType   string   `json:"port_matching_type,omitempty"`
 	Port               *int64   `json:"port,omitempty"`
 	PortGroupID        string   `json:"port_group_id,omitempty"`
@@ -195,6 +196,7 @@ type firewallPolicyEndpointResponse struct {
 	MatchingTarget   string          `json:"matching_target"`
 	IPs              []string        `json:"ips"`
 	MACs             []string        `json:"macs"`
+	ClientMACs       []string        `json:"client_macs"`
 	PortMatchingType string          `json:"port_matching_type"`
 	Port             json.RawMessage `json:"port"`
 	PortGroupID      string          `json:"port_group_id"`
@@ -279,16 +281,18 @@ func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPoli
 	}
 }
 
-// resolveIPs returns the endpoint values, merging the "macs" field back into
-// a single slice so the resource layer can handle all target types uniformly
-// via the IPs field on the SDK struct. Both MAC and CLIENT matching targets
-// store their values in the API's "macs" JSON field.
+// resolveIPs returns the endpoint values, merging the "macs" or "client_macs"
+// field back into a single slice so the resource layer can handle all target
+// types uniformly via the IPs field on the SDK struct.
 func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 	switch ep.MatchingTarget {
 	case "MAC", "CLIENT":
 		if len(ep.MACs) > 0 {
 			return ep.MACs
 		}
+	}
+	if ep.MatchingTarget == "CLIENT" && len(ep.ClientMACs) > 0 {
+		return ep.ClientMACs
 	}
 	return ep.IPs
 }
@@ -358,9 +362,12 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 		Port:               port,
 		PortGroupID:        portGroupID,
 	}
-	// The API expects MAC and CLIENT values in the "macs" field, not "ips".
-	if matchingTarget == "MAC" || matchingTarget == "CLIENT" {
+	// The API expects MAC values in the "macs" field and device values in
+	// the "client_macs" field, not "ips".
+	if matchingTarget == "MAC" {
 		ep.MACs = ips
+	} else if matchingTarget == "CLIENT" {
+		ep.ClientMACs = ips
 	} else {
 		ep.IPs = ips
 	}
@@ -378,6 +385,9 @@ func boolPtr(b bool) *bool { return &b }
 func matchingTargetType(matchingTarget string) string {
 	if matchingTarget == "" || matchingTarget == "ANY" {
 		return "" // omitempty will exclude it from the JSON
+	}
+	if matchingTarget == "CLIENT" {
+		return "OBJECT"
 	}
 	return "SPECIFIC"
 }

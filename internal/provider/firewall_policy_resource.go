@@ -129,7 +129,7 @@ func (r *firewallPolicyResource) Schema(
 			Optional:            true,
 		},
 		"device_ids": schema.SetAttribute{
-			MarkdownDescription: "Device IDs to match.",
+			MarkdownDescription: "Client device MAC addresses to match. Use the `mac` attribute from `terrifi_client_device` resources.",
 			ElementType:         types.StringType,
 			Optional:            true,
 		},
