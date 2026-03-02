@@ -133,7 +133,7 @@ resource "terrifi_firewall_policy" "weekday_block" {
 
 - `zone_id` (String, Required) — The firewall zone ID.
 - `ips` (Set of String) — IP addresses or CIDR ranges to match.
-- `mac_addresses` (Set of String) — MAC addresses to match. **Note:** As of UniFi Network Application v10.1.85, the controller's server-side handling for MAC-based matching (`matching_target: "IID"`) is broken and returns HTTP 500. This is a firmware bug. The provider sends the correct API value, so this attribute will work once the firmware is fixed.
+- `mac_addresses` (Set of String) — MAC addresses to match. **Note:** Currently only supported in the `source` block. The UniFi v2 API uses different enum types for source vs. destination matching targets, and the destination enum does not include `MAC` (see [#69](https://github.com/alexklibisz/terraform-provider-terrifi/issues/69)).
 - `network_ids` (Set of String) — Network IDs to match.
 - `device_ids` (Set of String) — Client device MAC addresses to match. Use the `mac` attribute from `terrifi_client_device` resources.
 - `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `LIST`. Default: `ANY`.

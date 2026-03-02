@@ -337,7 +337,7 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 		policy := r.modelToAPI(ctx, model)
 
-		assert.Equal(t, "IID", policy.Source.MatchingTarget)
+		assert.Equal(t, "MAC", policy.Source.MatchingTarget)
 		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, policy.Source.IPs)
 		assert.Equal(t, "ANY", policy.Destination.MatchingTarget)
 		assert.Nil(t, policy.Destination.IPs)
@@ -636,14 +636,14 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.False(t, model.Schedule.IsNull())
 	})
 
-	t.Run("IID matching target populates mac_addresses", func(t *testing.T) {
+	t.Run("MAC matching target populates mac_addresses", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:     "pol-008",
 			Name:   "MAC Rule",
 			Action: "BLOCK",
 			Source: &unifi.FirewallPolicySource{
 				ZoneID:         "zone-src",
-				MatchingTarget: "IID",
+				MatchingTarget: "MAC",
 				IPs:            []string{"aa:bb:cc:dd:ee:ff"},
 			},
 			Destination: &unifi.FirewallPolicyDestination{
@@ -667,14 +667,14 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, macs)
 	})
 
-	t.Run("legacy MAC matching target still populates mac_addresses", func(t *testing.T) {
+	t.Run("IID matching target also populates mac_addresses", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:     "pol-008b",
-			Name:   "Legacy MAC Rule",
+			Name:   "IID MAC Rule",
 			Action: "BLOCK",
 			Source: &unifi.FirewallPolicySource{
 				ZoneID:         "zone-src",
-				MatchingTarget: "MAC",
+				MatchingTarget: "IID",
 				IPs:            []string{"aa:bb:cc:dd:ee:ff"},
 			},
 			Destination: &unifi.FirewallPolicyDestination{
@@ -798,14 +798,7 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 }
 
 func TestBuildEndpointRequest(t *testing.T) {
-	t.Run("IID matching sends values in macs field", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "IID", []string{"aa:bb:cc:dd:ee:ff"}, "ANY", nil, "")
-		assert.Equal(t, "IID", ep.MatchingTarget)
-		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.MACs)
-		assert.Nil(t, ep.IPs)
-	})
-
-	t.Run("legacy MAC matching sends values in macs field", func(t *testing.T) {
+	t.Run("MAC matching sends values in macs field", func(t *testing.T) {
 		ep := buildEndpointRequest("zone1", "MAC", []string{"aa:bb:cc:dd:ee:ff"}, "ANY", nil, "")
 		assert.Equal(t, "MAC", ep.MatchingTarget)
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.MACs)
@@ -836,15 +829,15 @@ func TestBuildEndpointRequest(t *testing.T) {
 }
 
 func TestResolveIPs(t *testing.T) {
-	t.Run("IID matching returns macs", func(t *testing.T) {
+	t.Run("MAC matching returns macs", func(t *testing.T) {
 		ep := &firewallPolicyEndpointResponse{
-			MatchingTarget: "IID",
+			MatchingTarget: "MAC",
 			MACs:           []string{"aa:bb:cc:dd:ee:ff"},
 		}
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
 	})
 
-	t.Run("legacy MAC matching returns macs", func(t *testing.T) {
+	t.Run("IID matching also returns macs", func(t *testing.T) {
 		ep := &firewallPolicyEndpointResponse{
 			MatchingTarget: "MAC",
 			MACs:           []string{"aa:bb:cc:dd:ee:ff"},
@@ -971,14 +964,46 @@ resource "terrifi_firewall_policy" "test" {
 	})
 }
 
-// NOTE: No acceptance tests for mac_addresses / IID matching target.
-// The provider correctly sends matching_target:"IID" (see unit tests), but the
-// UniFi Network Application (tested on v10.1.85) returns HTTP 500 for any
-// request that uses matching_target:"IID". This is a firmware bug — the enum
-// accepts IID but the server-side handler crashes. Acceptance tests are omitted
-// to avoid destabilizing the test suite (500s trigger retries and can hang the
-// controller). When a firmware update fixes IID handling, add acceptance tests
-// for mac_addresses here.
+func TestAccFirewallPolicy_macAddressSource(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-mac-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-mac-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-mac-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id       = terrifi_firewall_zone.zone1.id
+    mac_addresses = ["aa:bb:cc:dd:ee:ff"]
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "BLOCK"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.mac_addresses.#", "1"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.mac_addresses.0", "aa:bb:cc:dd:ee:ff"),
+				),
+			},
+		},
+	})
+}
+
+// NOTE: No acceptance test for mac_addresses in the destination endpoint.
+// The UniFi v2 API uses different enum classes for source and destination
+// matching_target. The source enum includes "MAC" but the destination enum
+// does not (it lists IID instead, which causes HTTP 500). This is a firmware
+// bug (#69). mac_addresses works correctly in source.
 
 func TestAccFirewallPolicy_deviceIDs(t *testing.T) {
 	zone1Name := fmt.Sprintf("tfacc-pol-dev-z1-%s", randomSuffix())

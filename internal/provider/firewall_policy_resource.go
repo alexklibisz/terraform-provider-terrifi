@@ -584,7 +584,7 @@ func resolveMatchingTarget(ctx context.Context, m *firewallPolicyEndpointModel) 
 	}
 	for _, tf := range []targetField{
 		{m.IPs, "IP"},
-		{m.MACAddresses, "IID"},
+		{m.MACAddresses, "MAC"},
 		{m.NetworkIDs, "NETWORK"},
 		{m.DeviceIDs, "CLIENT"},
 	} {

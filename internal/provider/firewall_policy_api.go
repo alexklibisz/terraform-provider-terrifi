@@ -364,7 +364,7 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 	}
 	// The API expects MAC values in the "macs" field and device values in
 	// the "client_macs" field, not "ips".
-	if matchingTarget == "IID" || matchingTarget == "MAC" {
+	if matchingTarget == "MAC" {
 		ep.MACs = ips
 	} else if matchingTarget == "CLIENT" {
 		ep.ClientMACs = ips
