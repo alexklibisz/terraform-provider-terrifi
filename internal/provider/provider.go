@@ -219,6 +219,7 @@ func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewClientDeviceResource,
 		NewClientGroupResource,
 		NewDNSRecordResource,
+		NewFirewallGroupResource,
 		NewFirewallPolicyResource,
 		NewFirewallZoneResource,
 		NewNetworkResource,

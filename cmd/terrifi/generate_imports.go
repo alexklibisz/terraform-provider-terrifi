@@ -14,6 +14,7 @@ var validResourceTypes = []string{
 	"terrifi_client_device",
 	"terrifi_client_group",
 	"terrifi_dns_record",
+	"terrifi_firewall_group",
 	"terrifi_firewall_zone",
 	"terrifi_firewall_policy",
 	"terrifi_network",
@@ -66,6 +67,13 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("listing DNS records: %w", err)
 		}
 		blocks = generate.DNSRecordBlocks(records)
+
+	case "terrifi_firewall_group":
+		groups, err := client.ListFirewallGroup(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing firewall groups: %w", err)
+		}
+		blocks = generate.FirewallGroupBlocks(groups)
 
 	case "terrifi_firewall_zone":
 		zones, err := client.ListFirewallZone(ctx, site)
