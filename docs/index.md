@@ -49,6 +49,33 @@ provider "terrifi" {
 - `allow_insecure` (Boolean) — Skip TLS certificate verification. Useful for local controllers with self-signed certs. Can also be set with the `UNIFI_INSECURE` environment variable.
 - `response_caching` (Boolean) — Cache GET responses from v2 API endpoints during a single Terraform run. Reduces duplicate list-all calls for firewall zones and policies, which is especially helpful on low-end hardware (e.g., Raspberry Pi). Any write operation invalidates the cache. Can also be set with the `UNIFI_RESPONSE_CACHING` environment variable.
 
+## Performance on Low-End Hardware
+
+If the UniFi controller is running on low-end hardware (e.g., Raspberry Pi), Terraform's default parallelism of 10 concurrent operations can overwhelm the API server, causing slowdowns or crashes.
+
+**Reduce parallelism** to limit concurrent API requests:
+
+```sh
+tofu plan -parallelism=1
+tofu apply -parallelism=1
+```
+
+You can experiment with intermediate values like `-parallelism=2` or `-parallelism=5` to find the right balance between speed and stability.
+
+**Enable response caching** to eliminate duplicate API calls. Firewall zones and policies use v2 API endpoints that only support list-all (no GET-by-ID), so N resources of the same type produce N identical API calls during the refresh phase. With response caching enabled, the first call is served from the controller and subsequent identical calls are served from an in-memory cache. Any write operation (create, update, delete) invalidates the cache automatically.
+
+```terraform
+provider "terrifi" {
+  response_caching = true
+}
+```
+
+Or via environment variable:
+
+```sh
+export UNIFI_RESPONSE_CACHING=true
+```
+
 ## Authentication
 
 The provider supports two authentication methods:
