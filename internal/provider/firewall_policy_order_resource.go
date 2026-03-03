@@ -141,6 +141,11 @@ func (r *firewallPolicyOrderResource) Create(
 		return
 	}
 
+	r.validatePolicyZones(ctx, site, sourceZoneID, destZoneID, policyIDs, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	_, err := r.client.ReorderFirewallPolicies(ctx, site, sourceZoneID, destZoneID, policyIDs)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reordering Firewall Policies", err.Error())
@@ -199,6 +204,11 @@ func (r *firewallPolicyOrderResource) Update(
 		return
 	}
 
+	r.validatePolicyZones(ctx, site, sourceZoneID, destZoneID, policyIDs, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	_, err := r.client.ReorderFirewallPolicies(ctx, site, sourceZoneID, destZoneID, policyIDs)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reordering Firewall Policies", err.Error())
@@ -251,6 +261,66 @@ func (r *firewallPolicyOrderResource) ImportState(
 			"Invalid Import ID",
 			fmt.Sprintf("Expected format: source_zone_id:destination_zone_id or site:source_zone_id:destination_zone_id, got: %s", req.ID),
 		)
+	}
+}
+
+// validatePolicyZones checks that each policy in policyIDs belongs to the
+// specified zone pair. The UniFi batch-reorder API returns a cryptic 404
+// "Firewall Policy Not Found" when a policy's zones don't match, so this
+// provides a clear error message instead.
+func (r *firewallPolicyOrderResource) validatePolicyZones(
+	ctx context.Context,
+	site, sourceZoneID, destZoneID string,
+	policyIDs []string,
+	diags *diag.Diagnostics,
+) {
+	policies, err := r.client.ListFirewallPolicies(ctx, site)
+	if err != nil {
+		diags.AddError(
+			"Error Validating Firewall Policies",
+			fmt.Sprintf("Could not list firewall policies to validate zone membership: %s", err.Error()),
+		)
+		return
+	}
+
+	// Build a lookup by policy ID.
+	type policyInfo struct {
+		name         string
+		sourceZoneID string
+		destZoneID   string
+	}
+	byID := make(map[string]policyInfo, len(policies))
+	for _, p := range policies {
+		info := policyInfo{name: p.Name}
+		if p.Source != nil {
+			info.sourceZoneID = p.Source.ZoneID
+		}
+		if p.Destination != nil {
+			info.destZoneID = p.Destination.ZoneID
+		}
+		byID[p.ID] = info
+	}
+
+	for _, id := range policyIDs {
+		p, ok := byID[id]
+		if !ok {
+			diags.AddError(
+				"Firewall Policy Not Found",
+				fmt.Sprintf("Policy %q does not exist on the controller.", id),
+			)
+			continue
+		}
+		if p.sourceZoneID != sourceZoneID || p.destZoneID != destZoneID {
+			diags.AddError(
+				"Firewall Policy Zone Mismatch",
+				fmt.Sprintf(
+					"Policy %q (%s) has source_zone_id=%q and destination_zone_id=%q, "+
+						"but this terrifi_firewall_policy_order expects source_zone_id=%q and destination_zone_id=%q. "+
+						"Each policy's zones must match the ordering resource's zones.",
+					id, p.name, p.sourceZoneID, p.destZoneID, sourceZoneID, destZoneID,
+				),
+			)
+		}
 	}
 }
 

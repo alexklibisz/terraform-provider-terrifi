@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -290,6 +291,61 @@ resource "terrifi_firewall_policy_order" "test" {
 						"terrifi_firewall_zone.zone3", "id",
 					),
 				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicyOrder_zoneMismatch(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-ord-zm-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-ord-zm-z2-%s", randomSuffix())
+	zone3Name := fmt.Sprintf("tfacc-ord-zm-z3-%s", randomSuffix())
+	polName := fmt.Sprintf("tfacc-ord-zm-p1-%s", randomSuffix())
+
+	// Policy goes zone1 -> zone2, but order resource specifies zone1 -> zone3.
+	config := fmt.Sprintf(`
+resource "terrifi_firewall_zone" "zone1" {
+  name = %q
+}
+
+resource "terrifi_firewall_zone" "zone2" {
+  name = %q
+}
+
+resource "terrifi_firewall_zone" "zone3" {
+  name = %q
+}
+
+resource "terrifi_firewall_policy" "pol1" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+
+resource "terrifi_firewall_policy_order" "test" {
+  source_zone_id      = terrifi_firewall_zone.zone1.id
+  destination_zone_id = terrifi_firewall_zone.zone3.id
+
+  policy_ids = [
+    terrifi_firewall_policy.pol1.id,
+  ]
+}
+`, zone1Name, zone2Name, zone3Name, polName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      config,
+				ExpectError: regexp.MustCompile(`Firewall Policy Zone Mismatch`),
 			},
 		},
 	})
