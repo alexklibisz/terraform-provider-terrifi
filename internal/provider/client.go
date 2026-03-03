@@ -30,6 +30,7 @@ type Client struct {
 	APIKey  string // Stored separately because the SDK's apiKey field is private
 	HTTP    *retryablehttp.Client
 	csrf    string // CSRF token for custom v2/v1 API requests that bypass the SDK
+	cache   *responseCache // nil when response caching is disabled (zero overhead)
 }
 
 // SiteOrDefault returns the given site if non-empty, otherwise falls back to the
@@ -46,12 +47,13 @@ func (c *Client) SiteOrDefault(site types.String) string {
 // UniFi API client. It can be populated from Terraform attributes, env vars,
 // or both (via ClientConfigFromEnv).
 type ClientConfig struct {
-	APIURL        string
-	Username      string
-	Password      string
-	APIKey        string
-	Site          string
-	AllowInsecure bool
+	APIURL           string
+	Username         string
+	Password         string
+	APIKey           string
+	Site             string
+	AllowInsecure    bool
+	ResponseCaching  bool
 }
 
 // ClientConfigFromEnv reads UniFi connection configuration from environment
@@ -69,6 +71,9 @@ func ClientConfigFromEnv() ClientConfig {
 	}
 	if os.Getenv("UNIFI_INSECURE") == "true" {
 		cfg.AllowInsecure = true
+	}
+	if os.Getenv("UNIFI_RESPONSE_CACHING") == "true" {
+		cfg.ResponseCaching = true
 	}
 	return cfg
 }
@@ -128,6 +133,11 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		}
 	}
 
+	var cache *responseCache
+	if cfg.ResponseCaching {
+		cache = newResponseCache()
+	}
+
 	return &Client{
 		ApiClient: sdkClient,
 		Site:      cfg.Site,
@@ -136,6 +146,7 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		APIKey:    cfg.APIKey,
 		HTTP:      httpClient,
 		csrf:      csrf,
+		cache:     cache,
 	}, nil
 }
 

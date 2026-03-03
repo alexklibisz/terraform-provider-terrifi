@@ -132,7 +132,24 @@ func (c *Client) DeleteFirewallZone(ctx context.Context, site string, id string)
 
 // doV2Request makes an authenticated HTTP request to the UniFi v2 API.
 // It is shared by firewall zone and firewall policy operations.
+//
+// When response caching is enabled (c.cache != nil), GET responses are cached
+// by URL and subsequent GETs return cached bytes without hitting the controller.
+// Any non-GET request (POST, PUT, DELETE) invalidates the entire cache to ensure
+// subsequent reads see fresh data.
 func (c *Client) doV2Request(ctx context.Context, method, url string, body any, result any) error {
+	// Cache hit path: return cached bytes for GET requests without making an HTTP call.
+	if method == http.MethodGet && c.cache != nil {
+		if cached, ok := c.cache.get(url); ok {
+			if result != nil && len(cached) > 0 {
+				if err := json.Unmarshal(cached, result); err != nil {
+					return fmt.Errorf("unmarshaling cached response: %w", err)
+				}
+			}
+			return nil
+		}
+	}
+
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshaling request body: %w", err)
@@ -164,6 +181,15 @@ func (c *Client) doV2Request(ctx context.Context, method, url string, body any, 
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("(%d) for %s %s\npayload: %s\nresponse: %s", resp.StatusCode, method, url, string(bodyBytes), string(respBytes))
+	}
+
+	// Cache management: store GET responses, invalidate on writes.
+	if c.cache != nil {
+		if method == http.MethodGet {
+			c.cache.set(url, respBytes)
+		} else {
+			c.cache.invalidateAll()
+		}
 	}
 
 	if result != nil && len(respBytes) > 0 {

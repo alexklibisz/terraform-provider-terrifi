@@ -49,12 +49,13 @@ type terrifiProvider struct{}
 // The framework automatically deserializes this HCL into a terrifiProviderModel struct.
 // types.String/types.Bool are Terraform's wrapper types that track null vs empty vs set.
 type terrifiProviderModel struct {
-	ApiKey        types.String `tfsdk:"api_key"`
-	Username      types.String `tfsdk:"username"`
-	Password      types.String `tfsdk:"password"`
-	ApiUrl        types.String `tfsdk:"api_url"`
-	Site          types.String `tfsdk:"site"`
-	AllowInsecure types.Bool   `tfsdk:"allow_insecure"`
+	ApiKey          types.String `tfsdk:"api_key"`
+	Username        types.String `tfsdk:"username"`
+	Password        types.String `tfsdk:"password"`
+	ApiUrl          types.String `tfsdk:"api_url"`
+	Site            types.String `tfsdk:"site"`
+	AllowInsecure   types.Bool   `tfsdk:"allow_insecure"`
+	ResponseCaching types.Bool   `tfsdk:"response_caching"`
 }
 
 // New creates a new provider instance. The framework calls this factory function
@@ -118,6 +119,13 @@ func (p *terrifiProvider) Schema(
 					"self-signed certs. Can be specified with the `UNIFI_INSECURE` environment variable.",
 				Optional: true,
 			},
+			"response_caching": schema.BoolAttribute{
+				MarkdownDescription: "Cache GET responses from v2 API endpoints during a single Terraform run. " +
+					"Reduces duplicate list-all calls for firewall zones and policies, which is especially " +
+					"helpful on low-end hardware (e.g., Raspberry Pi). Any write operation invalidates the " +
+					"cache. Can be specified with the `UNIFI_RESPONSE_CACHING` environment variable.",
+				Optional: true,
+			},
 		},
 	}
 }
@@ -145,17 +153,24 @@ func (p *terrifiProvider) Configure(
 	// Resolve each setting: prefer the HCL attribute, fall back to the env var.
 	// This lets users configure the provider either way (or mix both).
 	cfg := ClientConfig{
-		APIURL:        stringValueOrEnv(config.ApiUrl, "UNIFI_API"),
-		Username:      stringValueOrEnv(config.Username, "UNIFI_USERNAME"),
-		Password:      stringValueOrEnv(config.Password, "UNIFI_PASSWORD"),
-		APIKey:        stringValueOrEnv(config.ApiKey, "UNIFI_API_KEY"),
-		Site:          stringValueOrEnv(config.Site, "UNIFI_SITE"),
-		AllowInsecure: config.AllowInsecure.ValueBool(),
+		APIURL:          stringValueOrEnv(config.ApiUrl, "UNIFI_API"),
+		Username:        stringValueOrEnv(config.Username, "UNIFI_USERNAME"),
+		Password:        stringValueOrEnv(config.Password, "UNIFI_PASSWORD"),
+		APIKey:          stringValueOrEnv(config.ApiKey, "UNIFI_API_KEY"),
+		Site:            stringValueOrEnv(config.Site, "UNIFI_SITE"),
+		AllowInsecure:   config.AllowInsecure.ValueBool(),
+		ResponseCaching: config.ResponseCaching.ValueBool(),
 	}
 
 	if !cfg.AllowInsecure {
 		if v := os.Getenv("UNIFI_INSECURE"); v == "true" {
 			cfg.AllowInsecure = true
+		}
+	}
+
+	if !cfg.ResponseCaching {
+		if v := os.Getenv("UNIFI_RESPONSE_CACHING"); v == "true" {
+			cfg.ResponseCaching = true
 		}
 	}
 
