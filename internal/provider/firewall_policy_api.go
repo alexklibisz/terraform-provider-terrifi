@@ -368,7 +368,7 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 		ZoneID:             zoneID,
 		MatchingTarget:     matchingTarget,
 		MatchingTargetType: matchingTargetType(matchingTarget),
-		PortMatchingType:   portMatchingType,
+		PortMatchingType:   resolvePortMatchingType(portMatchingType, port, portGroupID),
 		Port:               port,
 		PortGroupID:        portGroupID,
 	}
@@ -392,9 +392,21 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 
 func boolPtr(b bool) *bool { return &b }
 
-// matchingTargetType derives matching_target_type from matching_target.
-// The v2 API requires both fields: matching_target identifies WHAT to match
-// (IP, NETWORK, etc.) and matching_target_type indicates how (ANY vs SPECIFIC).
+// resolvePortMatchingType derives the correct port_matching_type for the API.
+// The v2 API accepts SPECIFIC (when a port number is set), OBJECT (when a port
+// group ID is set), or ANY (no port filter). This function auto-derives the
+// value from what's set, so users don't need to specify port_matching_type
+// explicitly.
+func resolvePortMatchingType(portMatchingType string, port *int64, portGroupID string) string {
+	if portGroupID != "" {
+		return "OBJECT"
+	}
+	if port != nil {
+		return "SPECIFIC"
+	}
+	return portMatchingType
+}
+
 // matchingTargetType derives matching_target_type from matching_target.
 // The v2 API requires this field when matching_target is not ANY. The enum
 // only accepts SPECIFIC or OBJECT (not ANY), so we omit it for ANY targets.

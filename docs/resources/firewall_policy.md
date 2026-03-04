@@ -59,6 +59,32 @@ resource "terrifi_firewall_policy" "allow_https" {
 }
 ```
 
+### Block with port group exception
+
+```terraform
+resource "terrifi_firewall_group" "ntp_ports" {
+  name    = "NTP Ports"
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "block_except_ntp" {
+  name   = "Block except NTP"
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.iot.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.external.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.ntp_ports.id
+    match_opposite_ports = true
+  }
+}
+```
+
 ### Block by MAC address
 
 ```terraform
@@ -136,9 +162,9 @@ resource "terrifi_firewall_policy" "weekday_block" {
 - `mac_addresses` (Set of String) — MAC addresses to match. **Note:** Currently only supported in the `source` block. The UniFi v2 API uses different enum types for source vs. destination matching targets, and the destination enum does not include `MAC` (see [#69](https://github.com/alexklibisz/terraform-provider-terrifi/issues/69)).
 - `network_ids` (Set of String) — Network IDs to match.
 - `device_ids` (Set of String) — Client device MAC addresses to match. Use the `mac` attribute from `terrifi_client_device` resources.
-- `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `LIST`. Default: `ANY`.
+- `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `OBJECT`. Default: `ANY`. Automatically derived when `port` or `port_group_id` is set.
 - `port` (Number) — Specific port number (when `port_matching_type` is `SPECIFIC`).
-- `port_group_id` (String) — Port group ID (when `port_matching_type` is `LIST`).
+- `port_group_id` (String) — Port group ID (when `port_matching_type` is `OBJECT`).
 - `match_opposite_ports` (Boolean) — Inverts the port matching. When `true` and action is `ALLOW`, all ports _except_ the specified ones are allowed. When `true` and action is `BLOCK`, all ports _except_ the specified ones are blocked.
 - `match_opposite_ips` (Boolean) — Inverts the IP matching. When `true` and action is `ALLOW`, all IPs _except_ the specified ones are allowed. When `true` and action is `BLOCK`, all IPs _except_ the specified ones are blocked.
 

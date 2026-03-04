@@ -138,12 +138,12 @@ func (r *firewallPolicyResource) Schema(
 			Optional:            true,
 		},
 		"port_matching_type": schema.StringAttribute{
-			MarkdownDescription: "Port matching type. Valid values: `ANY`, `SPECIFIC`, `LIST`.",
+			MarkdownDescription: "Port matching type. Valid values: `ANY`, `SPECIFIC`, `OBJECT`. Default: `ANY`. Automatically derived when `port` or `port_group_id` is set.",
 			Optional:            true,
 			Computed:            true,
 			Default:             stringdefault.StaticString("ANY"),
 			Validators: []validator.String{
-				stringvalidator.OneOf("ANY", "SPECIFIC", "LIST"),
+				stringvalidator.OneOf("ANY", "SPECIFIC", "OBJECT"),
 			},
 		},
 		"port": schema.Int64Attribute{
@@ -151,7 +151,7 @@ func (r *firewallPolicyResource) Schema(
 			Optional:            true,
 		},
 		"port_group_id": schema.StringAttribute{
-			MarkdownDescription: "Port group ID to match (when `port_matching_type` is `LIST`).",
+			MarkdownDescription: "Port group ID to match (when `port_matching_type` is `OBJECT`).",
 			Optional:            true,
 		},
 		"match_opposite_ports": schema.BoolAttribute{
