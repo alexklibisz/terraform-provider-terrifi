@@ -8,6 +8,8 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '22 * * * *'
 
 jobs:
   main:
