@@ -90,10 +90,13 @@ func (c *Client) UpdateClientDevice(ctx context.Context, site string, d *unifi.C
 	if err := checkV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
-	if len(respBody.Data) != 1 {
-		return nil, &unifi.NotFoundError{}
+	if len(respBody.Data) == 1 {
+		return &respBody.Data[0], nil
 	}
-	return &respBody.Data[0], nil
+	// The controller sometimes returns an empty data array for no-op updates
+	// (when the PUT payload is identical to the current state). Fall back to
+	// GET to retrieve the current record instead of treating this as an error.
+	return c.GetClientDevice(ctx, site, d.ID)
 }
 
 // GetClientDevice reads a client device via the SDK's getClient (GET has no body
