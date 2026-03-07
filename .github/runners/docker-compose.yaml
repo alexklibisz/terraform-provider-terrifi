@@ -45,21 +45,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner-2-work:/tmp/runner
 
-  runner-3:
-    <<: *runner-common
-    environment:
-      REPO_URL: ${REPO_URL}
-      ACCESS_TOKEN: ${ACCESS_TOKEN}
-      RUNNER_NAME: terrifi-runner-3
-      RUNNER_WORKDIR: /tmp/runner/work
-      LABELS: self-hosted,terrifi
-      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
-      EPHEMERAL: ${EPHEMERAL:-true}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - runner-3-work:/tmp/runner
-
 volumes:
   runner-1-work:
   runner-2-work:
-  runner-3-work:

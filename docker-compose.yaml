@@ -33,7 +33,7 @@ services:
       MONGO_PASS: unifi
       MONGO_AUTHSOURCE: admin
       MEM_LIMIT: 1024
-      MEM_STARTUP: 1024
+      MEM_STARTUP: 512
     depends_on:
       - mongo
     healthcheck:
