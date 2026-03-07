@@ -53,4 +53,24 @@ This section describes the hardware and software that I've deployed to support h
 4. [A UniFi AC Pro access point](https://store.ui.com/us/en/products/uap-ac-pro). I purchased it used on eBay specifically for this project. I use some newer access points in my actual network, but this is good enough for testing.
 5. A Beelink Mini PC running Proxmox. I run two VMs here: one for the self-hosted UniFi OS Server and one for the Github Actions runner that runs the HIL test suite.
 
+```mermaid
+graph TD
+    HomeWiFi["Home WiFi"]
+    Opal["Gl.iNet Opal\n(travel router / ISP modem analog)"]
+    GW["UniFi Gateway Lite\n(UXG-Lite)"]
+    SW["Generic Gigabit\n5-Port Switch"]
+    AP["UniFi AC Pro\n(access point)"]
+    Beelink["Beelink Mini PC\n(Proxmox)"]
+    VM1["VM: UniFi OS Server\n(self-hosted controller)"]
+    VM2["VM: GitHub Actions Runner\n(HIL test suite)"]
+
+    HomeWiFi -->|WiFi uplink| Opal
+    Opal -->|WAN| GW
+    GW -->|LAN| SW
+    SW --> AP
+    SW --> Beelink
+    Beelink --> VM1
+    Beelink --> VM2
+```
+
 ### Software
