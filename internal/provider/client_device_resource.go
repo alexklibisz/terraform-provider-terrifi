@@ -254,6 +254,7 @@ func (r *clientDeviceResource) Read(
 	// Save fields before the API call that need to be restored after apiToModel.
 	priorGroupIDs := state.ClientGroupIDs
 	priorNetworkID := state.NetworkID
+	priorDeviceTypeID := state.DeviceTypeID
 
 	site := r.client.SiteOrDefault(state.Site)
 
@@ -274,14 +275,15 @@ func (r *clientDeviceResource) Read(
 	state.ClientGroupIDs = priorGroupIDs
 	state.NetworkID = priorNetworkID
 
-	// Read fingerprint override via the separate v2 API.
+	// Read fingerprint override via the v2 client info API. This may fail for
+	// clients that have never connected (404) — treat as no override. Other
+	// errors are non-fatal: preserve the prior state value if we can't read.
 	mac := strings.ToLower(state.MAC.ValueString())
 	devTypeID, err := r.client.GetFingerprintOverride(ctx, site, mac)
 	if err != nil {
-		resp.Diagnostics.AddError("Error Reading Fingerprint Override", err.Error())
-		return
-	}
-	if devTypeID != 0 {
+		// Non-fatal: keep prior device_type_id state rather than failing Read.
+		state.DeviceTypeID = priorDeviceTypeID
+	} else if devTypeID != 0 {
 		state.DeviceTypeID = types.Int64Value(devTypeID)
 	} else {
 		state.DeviceTypeID = types.Int64Null()

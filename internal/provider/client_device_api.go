@@ -163,22 +163,32 @@ func (c *Client) doV1Request(ctx context.Context, method, url string, body any, 
 }
 
 // GetFingerprintOverride reads the current fingerprint override for a client
-// device via the v2 API. Returns 0 if no override is set.
+// device via the v2 client info API. Returns 0 if no override is set.
+//
+// The fingerprint_override endpoint only supports PUT/DELETE, not GET. So we
+// read the override from the v2 client info endpoint which includes the
+// fingerprint data with dev_id_override.
 func (c *Client) GetFingerprintOverride(ctx context.Context, site string, mac string) (int64, error) {
 	var respBody struct {
-		DevIdOverride int64 `json:"dev_id_override"`
+		Fingerprint struct {
+			DevIdOverride *int64 `json:"dev_id_override,omitempty"`
+			HasOverride   bool   `json:"has_override,omitempty"`
+		} `json:"fingerprint"`
 	}
 	err := c.doV2Request(ctx, http.MethodGet,
-		fmt.Sprintf("%s%s/v2/api/site/%s/station/%s/fingerprint_override", c.BaseURL, c.APIPath, site, mac),
+		fmt.Sprintf("%s%s/v2/api/site/%s/clients/local/%s?includeUnifiDevices=true", c.BaseURL, c.APIPath, site, mac),
 		nil, &respBody)
 	if err != nil {
-		// A 404 means no override is set — return 0.
+		// A 404 means the client isn't known yet — no override.
 		if strings.Contains(err.Error(), "(404)") {
 			return 0, nil
 		}
 		return 0, err
 	}
-	return respBody.DevIdOverride, nil
+	if respBody.Fingerprint.DevIdOverride != nil {
+		return *respBody.Fingerprint.DevIdOverride, nil
+	}
+	return 0, nil
 }
 
 // SetFingerprintOverride sets or clears the fingerprint override for a client
