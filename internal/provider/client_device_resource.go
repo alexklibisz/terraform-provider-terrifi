@@ -312,44 +312,35 @@ func (r *clientDeviceResource) Update(
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
+	mac := strings.ToLower(state.MAC.ValueString())
 	apiObj := r.modelToAPI(ctx, &state)
 	apiObj.ID = state.ID.ValueString()
 
 	updated, err := r.client.UpdateClientDevice(ctx, site, apiObj)
 	if err != nil {
-		if _, ok := err.(*unifi.NotFoundError); ok {
-			// Controller auto-cleaned the user record (common for non-connected
-			// MACs). Look up the client by MAC to get its current ID, then retry.
-			mac := strings.ToLower(state.MAC.ValueString())
-			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
-			if lookupErr != nil {
-				resp.Diagnostics.AddError("Error Looking Up Client Device by MAC",
-					fmt.Sprintf("Update returned not-found for ID %s and MAC lookup also failed: %s",
-						apiObj.ID, lookupErr.Error()))
-				return
-			}
-			apiObj.ID = found.ID
-			updated, err = r.client.UpdateClientDevice(ctx, site, apiObj)
-			if err != nil {
-				resp.Diagnostics.AddError("Error Updating Client Device (after MAC lookup)", err.Error())
-				return
-			}
-			if err := r.syncFingerprintOverride(ctx, site, mac, plannedDeviceTypeID); err != nil {
-				resp.Diagnostics.AddError("Error Setting Fingerprint Override", err.Error())
-				return
-			}
-			r.apiToModel(updated, &state, site)
-			state.ClientGroupIDs = plannedGroupIDs
-			state.NetworkID = plannedNetworkID
-			state.DeviceTypeID = plannedDeviceTypeID
-			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+		if _, ok := err.(*unifi.NotFoundError); !ok {
+			resp.Diagnostics.AddError("Error Updating Client Device", err.Error())
 			return
 		}
-		resp.Diagnostics.AddError("Error Updating Client Device", err.Error())
-		return
+		// Controller auto-cleaned the user record (common for non-connected
+		// MACs). Try MAC lookup + retry update, then fall back to creating
+		// a new record if the update still fails.
+		found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
+		if lookupErr == nil {
+			apiObj.ID = found.ID
+			updated, err = r.client.UpdateClientDevice(ctx, site, apiObj)
+		}
+		if err != nil {
+			// Update failed (either MAC lookup failed or retry update failed).
+			// Create a new user record as a last resort.
+			updated, err = r.client.CreateClientDevice(ctx, site, apiObj)
+			if err != nil {
+				resp.Diagnostics.AddError("Error Creating Client Device (after update not-found)", err.Error())
+				return
+			}
+		}
 	}
 
-	mac := strings.ToLower(state.MAC.ValueString())
 	if err := r.syncFingerprintOverride(ctx, site, mac, plannedDeviceTypeID); err != nil {
 		resp.Diagnostics.AddError("Error Setting Fingerprint Override", err.Error())
 		return

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
@@ -358,6 +360,32 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 		req := buildClientDeviceRequest(c)
 
 		assert.Equal(t, []string{}, req.NetworkMembersGroupIDs)
+	})
+}
+
+func TestCheckV1Meta(t *testing.T) {
+	t.Run("ok response", func(t *testing.T) {
+		raw := json.RawMessage(`{"rc":"ok"}`)
+		err := checkV1Meta(raw)
+		assert.NoError(t, err)
+	})
+
+	t.Run("error response", func(t *testing.T) {
+		raw := json.RawMessage(`{"rc":"error","msg":"api.err.InvalidObject"}`)
+		err := checkV1Meta(raw)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "api.err.InvalidObject")
+	})
+
+	t.Run("empty meta", func(t *testing.T) {
+		err := checkV1Meta(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		raw := json.RawMessage(`not json`)
+		err := checkV1Meta(raw)
+		assert.NoError(t, err)
 	})
 }
 

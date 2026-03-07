@@ -59,6 +59,9 @@ func (c *Client) CreateClientDevice(ctx context.Context, site string, d *unifi.C
 	if err != nil {
 		return nil, err
 	}
+	if err := checkV1Meta(respBody.Meta); err != nil {
+		return nil, err
+	}
 	if len(respBody.Data) != 1 {
 		return nil, &unifi.NotFoundError{}
 	}
@@ -84,6 +87,9 @@ func (c *Client) UpdateClientDevice(ctx context.Context, site string, d *unifi.C
 	if err != nil {
 		return nil, err
 	}
+	if err := checkV1Meta(respBody.Meta); err != nil {
+		return nil, err
+	}
 	if len(respBody.Data) != 1 {
 		return nil, &unifi.NotFoundError{}
 	}
@@ -101,6 +107,9 @@ func (c *Client) GetClientDevice(ctx context.Context, site string, id string) (*
 		fmt.Sprintf("%s%s/api/s/%s/rest/user/%s", c.BaseURL, c.APIPath, site, id),
 		nil, &respBody)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
 	if len(respBody.Data) != 1 {
@@ -136,6 +145,9 @@ func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac stri
 		fmt.Sprintf("%s%s/api/s/%s/rest/user?mac=%s", c.BaseURL, c.APIPath, site, mac),
 		nil, &respBody)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
 	if len(respBody.Data) != 1 {
@@ -204,6 +216,30 @@ func (c *Client) SetFingerprintOverride(ctx context.Context, site string, mac st
 
 	return c.doV2Request(ctx, http.MethodPut, url,
 		map[string]any{"mac": mac, "dev_id_override": deviceTypeID, "search_query": ""}, nil)
+}
+
+// v1Meta represents the meta field in UniFi v1 API responses.
+type v1Meta struct {
+	RC  string `json:"rc"`
+	Msg string `json:"msg"`
+}
+
+// checkV1Meta parses a v1 API response meta field and returns an error if the
+// controller reported an error (rc != "ok"), even when the HTTP status was 200.
+// This prevents silent error swallowing where the controller returns HTTP 200
+// with an error in the meta field and an empty data array.
+func checkV1Meta(raw json.RawMessage) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	var meta v1Meta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return nil
+	}
+	if meta.RC == "error" {
+		return fmt.Errorf("controller error: %s", meta.Msg)
+	}
+	return nil
 }
 
 // buildClientDeviceRequest converts a *unifi.Client to a clientDeviceRequest,
