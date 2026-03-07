@@ -33,16 +33,15 @@ jobs:
       - name: Format check
         timeout-minutes: 1
         run: task fmt
-      # TODO: restore test and GoReleaser steps after cache is populated
-      # - name: Unit tests
-      #   timeout-minutes: 5
-      #   run: task test:unit
-      # - name: Acceptance tests (Docker)
-      #   timeout-minutes: 10
-      #   run: task test:acc
-      # - name: GoReleaser dry run
-      #   timeout-minutes: 5
-      #   uses: goreleaser/goreleaser-action@v6
-      #   with:
-      #     version: latest
-      #     args: build --snapshot --clean
+      - name: Unit tests
+        timeout-minutes: 5
+        run: task test:unit
+      - name: Acceptance tests (Docker)
+        timeout-minutes: 10
+        run: task test:acc
+      - name: GoReleaser dry run
+        timeout-minutes: 5
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          args: build --snapshot --clean
