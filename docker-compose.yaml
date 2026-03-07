@@ -47,7 +47,7 @@ services:
         target: /custom-cont-init.d/demo-mode
         mode: 0755
     ports:
-      - 8443:8443
+      - "8443"
     restart: unless-stopped
 
 configs:
