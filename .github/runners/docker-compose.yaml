@@ -30,6 +30,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner-1-work:/tmp/runner
+      - runner-1-gomod:/go/pkg/mod
 
   runner-2:
     <<: *runner-common
@@ -44,6 +45,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner-2-work:/tmp/runner
+      - runner-2-gomod:/go/pkg/mod
 
   runner-3:
     <<: *runner-common
@@ -58,8 +60,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner-3-work:/tmp/runner
+      - runner-3-gomod:/go/pkg/mod
 
 volumes:
   runner-1-work:
+  runner-1-gomod:
   runner-2-work:
+  runner-2-gomod:
   runner-3-work:
+  runner-3-gomod:
