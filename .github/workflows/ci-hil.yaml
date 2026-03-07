@@ -32,11 +32,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: Set up Terraform
+      - name: Set up OpenTofu
         timeout-minutes: 1
-        uses: hashicorp/setup-terraform@v3
+        uses: opentofu/setup-opentofu@v1
         with:
-          terraform_wrapper: false
+          tofu_wrapper: false
+      - name: Configure OpenTofu for acceptance tests
+        run: |
+          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
+          echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
       - name: Install Taskfile
         timeout-minutes: 1
         uses: arduino/setup-task@v2
