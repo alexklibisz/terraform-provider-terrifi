@@ -1,7 +1,7 @@
 name: CI - HIL
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }} 
   cancel-in-progress: false
 
 on:
@@ -16,18 +16,34 @@ jobs:
     name: Main
     runs-on:
       - self-hosted
-      - terrifi
+      - terrifi-hardware-test
     env:
       # Using IP instead of hostname for reliability in the self-hosted runner.
       UNIFI_API: https://192.168.1.3:11443
       UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
       UNIFI_INSECURE: true
-      TF_ACC_TERRAFORM_PATH: /usr/bin/tofu
-      TF_ACC_PROVIDER_HOST: registry.opentofu.org
     steps:
       - name: Checkout
         timeout-minutes: 1
         uses: actions/checkout@v4
+      - name: Set up Go
+        timeout-minutes: 1
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Set up OpenTofu
+        timeout-minutes: 1
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+      - name: Configure OpenTofu for acceptance tests
+        run: |
+          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
+          echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
+      - name: Install Task
+        timeout-minutes: 1
+        run: sh -c "$(curl -fsSL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
       - name: Check UniFi API key
         timeout-minutes: 1
         run: task checkAPIConnection

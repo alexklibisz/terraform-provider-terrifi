@@ -13,29 +13,27 @@ permissions:
 jobs:
   release:
     name: Release
-    runs-on:
-      - self-hosted
-      - terrifi
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        timeout-minutes: 1
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Create and push tag
-        timeout-minutes: 1
         run: |
           git tag "${{ github.event.inputs.tag }}"
           git push origin "${{ github.event.inputs.tag }}"
       - name: Import GPG key
-        timeout-minutes: 1
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - name: Run GoReleaser
-        timeout-minutes: 10
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest

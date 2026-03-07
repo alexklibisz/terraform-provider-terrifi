@@ -33,7 +33,7 @@ services:
       MONGO_PASS: unifi
       MONGO_AUTHSOURCE: admin
       MEM_LIMIT: 1024
-      MEM_STARTUP: 512
+      MEM_STARTUP: 1024
     depends_on:
       - mongo
     healthcheck:
@@ -47,7 +47,8 @@ services:
         target: /custom-cont-init.d/demo-mode
         mode: 0755
     ports:
-      - "8443"
+      - 8443:8443
+      - 8080:8080
     restart: unless-stopped
 
 configs:

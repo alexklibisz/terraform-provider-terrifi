@@ -14,28 +14,64 @@ on:
 jobs:
   main:
     name: Main
-    runs-on:
-      - self-hosted
-      - terrifi
-    env:
-      TF_ACC_TERRAFORM_PATH: /usr/bin/tofu
-      TF_ACC_PROVIDER_HOST: registry.opentofu.org
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         timeout-minutes: 1
         uses: actions/checkout@v4
+      - name: Set up Go
+        timeout-minutes: 1
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Set up OpenTofu
+        timeout-minutes: 1
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+      - name: Configure OpenTofu for acceptance tests
+        run: |
+          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
+          echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
+      - name: Install Task
+        timeout-minutes: 1
+        run: sh -c "$(curl -fsSL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
       - name: Download Go dependencies
         timeout-minutes: 10
         run: task deps
+      - name: Lint
+        timeout-minutes: 5
+        run: task lint
       - name: Build
         timeout-minutes: 10
         run: task build
-      - name: Format check
-        timeout-minutes: 1
-        run: task fmt
       - name: Unit tests
-        timeout-minutes: 5
+        timeout-minutes: 1
         run: task test:unit
+      - name: Compute Docker image cache key
+        id: docker-image-key
+        run: echo "hash=$(grep 'image:' docker-compose.yaml | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Cache Docker images
+        uses: actions/cache@v4
+        id: docker-cache
+        with:
+          path: /tmp/docker-images
+          key: docker-images-${{ steps.docker-image-key.outputs.hash }}
+      - name: Load cached Docker images
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 1
+        run: |
+          for img in /tmp/docker-images/*.tar; do
+            docker load -i "$img"
+          done
+      - name: Pull Docker images
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 10
+        run: |
+          docker compose -f docker-compose.yaml pull --quiet
+          mkdir -p /tmp/docker-images
+          docker save mongo:8.2 -o /tmp/docker-images/mongo.tar
+          docker save lscr.io/linuxserver/unifi-network-application:version-10.1.85 -o /tmp/docker-images/unifi.tar
       - name: Acceptance tests (Docker)
         timeout-minutes: 10
         run: task test:acc
