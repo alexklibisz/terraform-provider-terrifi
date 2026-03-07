@@ -4,26 +4,42 @@
 
 ## Overview
 
-Terrifi makes use of hardware testing (aka hardware-in-the-loop testing or HIL testing).
+Terrifi uses hardware testing (aka hardware-in-the-loop testing or HIL testing) to ensure all features work with real UniFi hardware.
 
-The continuous integration suite has a series of acceptance tests which run againt two targets:
+The continuous integration suite has a series of acceptance tests (aka integration tests) which run against two targets:
 
-1. Simulation: the [self-hosted UniFi OS Server](https://help.ui.com/hc/en-us/articles/34210126298775-Self-Hosting-UniFi) running in an ephemeral Docker container ([jacobalberty/unifi](https://hub.docker.com/r/jacobalberty/unifi)) with _no_ UniFi hardware attached.
-2. Hardware-in-the-loop (HIL): the same self-hosted UniFi OS Server running in the same Docker container, but it's running on a VM that's attached to a real UniFi network with real UniFi hardware.
+1. Simulation Target: the [self-hosted UniFi Network Application](https://ui.com/download/releases/network-server) running in an ephemeral Docker container ([linuxserver/unifi-network-application](https://docs.linuxserver.io/images/docker-unifi-network-application/)) in a simulation mode with _no_ UniFi hardware attached.
+2. Hardware-in-the-loop (HIL) Target: the [self-hosted UniFi OS Server](https://help.ui.com/hc/en-us/articles/220066768-Updating-and-Installing-Self-Hosted-UniFi-Network-Servers-Linux) running on an Ubuntu VM, connected to a real UniFi network with real UniFi hardware.
 
-The simulation mode exposes some but not all functionality of a real UniFi network.
-The HIL mode is a literal UniFi network with literal UniFi hardware.
+The simulation target exposes some but not all functionality of a real UniFi network.
+For example, firewall zones, firewall policies, and WLANs all require real hardware to test.
+
+The HIL mode is a real UniFi OS Server with real UniFi hardware.
 So we can test (almost) all the funcitonality of the connected hardware.
-The only functionality we can't test is some aspects of the initial setup (e.g., adopting devices), as I haven't found a way to script or automate this yet.
+The only functionality we can't test is some aspects of the initial setup (e.g., reseting and adopting devices).
 
 ## Background
 
 To run a UniFi network, you need to run the UniFi server (essentially a controlplane for the network).
+
 As far as I know, there are three options for running the server:
 
 1. Some of the higher-end UniFi hardware includes the server. This is similar to many general-purpose routers.
 2. UniFi has a hosted offering, i.e., they run it as a subscription.
-3. UniFi publishes the server as a self-hostable application. Some nice community members have packaged this up in a way that's easy to deploy, e.g., [the jacobalberty/unifi Docker image](https://hub.docker.com/r/jacobalberty/unifi) and [the UniFi OS Server Installation scripts](https://community.ui.com/questions/UniFi-OS-Server-Installation-Scripts-or-UniFi-Network-Application-Installation-Scripts-or-UniFi-Eas/ccbc7530-dd61-40a7-82ec-22b17f027776).
+3. UniFi publishes the server as a self-hosted appliance, which I'll cover below.
+
+The self-hosted server appliance comes in two variants: UniFi Network Application and UniFi OS Server.
+
+UniFi Network Application seems to be an older variant and seems to be slated for deprecation.
+When I start it up, I see a notification about upgrading to UniFi OS Server.
+As far as I can tell, this app can be Dockerized; that's what the [Linux Server image](https://docs.linuxserver.io/images/docker-unifi-network-application/) is doing.
+
+UniFi OS Server is the newer variant.
+Compared to Network Application, it adds some functionality but seems to be harder to Dockerize.
+For example, I wasn't able to find a way to generate API Keys in the UniFi Network Application, but I can in UniFi OS Server.
+I also didn't see an option to enable Zone-based firewalls in the Network Application, but I can in UniFi OS Server.
+The way it runs is a bit atypical.
+It seems that the install script embeds a Podman container inside of it, extracts the Podman container, and runs it on the host.
 
 ## Setup
 
@@ -31,10 +47,10 @@ This section describes the hardware and software that I've deployed to support h
 
 ### Hardware
 
-1. A Gl.iNet Opal travel router. I use this to connect the HIL setup to my home WiFi. It's analogous to an ISP modem in a typical home network.
-2. A UniFi Gateway Lite, purchased for the purpose of this project. I also happen to use a Gateway Lite for my home network.
+1. [A Gl.iNet Opal travel router](https://www.amazon.com/GL-iNet-GL-SFT1200-Secure-Travel-Router/dp/B09N72FMH5?th=1). I use this to connect the HIL setup to my home WiFi. It's analogous to an ISP modem in a typical home network. I did it this way so that the test harness is fully isolated from my actual UniFi newtwork, and so I can place the test harness in the corner of my office where I don't have an Ethernet connection.
+2. [A UniFi Gateway Lite](https://www.amazon.com/Ubiquiti-Networks-Gateway-Lite-UXG-Lite/dp/B0CW2DZZ3Z). I purchased this specifically for this project. I also happen to use a Gateway Lite for my home network.
 3. A generic gigabit 5-port switch. This is analogous to an unmanaged switch in a typical network.
-4. A UniFi AC Pro access point, purchased for the purpose of this project. I use some newer access points in my actual network, but this is good enough for testing.
+4. [A UniFi AC Pro access point](https://store.ui.com/us/en/products/uap-ac-pro). I purchased it used on eBay specifically for this project. I use some newer access points in my actual network, but this is good enough for testing.
 5. A Beelink Mini PC running Proxmox. I run two VMs here: one for the self-hosted UniFi OS Server and one for the Github Actions runner that runs the HIL test suite.
 
 ### Software
