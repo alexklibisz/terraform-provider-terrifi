@@ -184,7 +184,7 @@ func TestClientDeviceBlocks(t *testing.T) {
 		},
 	}
 
-	blocks := ClientDeviceBlocks(clients)
+	blocks := ClientDeviceBlocks(clients, nil)
 	require.Len(t, blocks, 2)
 
 	// First block: all fields, network_id omitted because network_override_id is set
@@ -224,7 +224,7 @@ func TestClientDeviceBlocks_fixedIPWithNetworkID(t *testing.T) {
 		},
 	}
 
-	blocks := ClientDeviceBlocks(clients)
+	blocks := ClientDeviceBlocks(clients, nil)
 	require.Len(t, blocks, 1)
 
 	attrMap := attrMapFromBlock(blocks[0])
@@ -234,13 +234,42 @@ func TestClientDeviceBlocks_fixedIPWithNetworkID(t *testing.T) {
 	assert.False(t, hasOverride)
 }
 
+func TestClientDeviceBlocks_deviceTypeID(t *testing.T) {
+	clients := []unifi.Client{
+		{
+			ID:   "id1",
+			MAC:  "aa:bb:cc:dd:ee:ff",
+			Name: "My Device",
+		},
+		{
+			ID:   "id2",
+			MAC:  "11:22:33:44:55:66",
+			Name: "Other Device",
+		},
+	}
+
+	overrides := map[string]int64{
+		"aa:bb:cc:dd:ee:ff": 1084,
+	}
+
+	blocks := ClientDeviceBlocks(clients, overrides)
+	require.Len(t, blocks, 2)
+
+	attrMap1 := attrMapFromBlock(blocks[0])
+	assert.Equal(t, "1084", attrMap1["device_type_id"])
+
+	attrMap2 := attrMapFromBlock(blocks[1])
+	_, hasDevType := attrMap2["device_type_id"]
+	assert.False(t, hasDevType, "device_type_id should not be set when no override exists")
+}
+
 func TestClientDeviceBlocks_deduplication(t *testing.T) {
 	clients := []unifi.Client{
 		{ID: "id1", MAC: "aa:bb:cc:dd:ee:ff", Name: "device"},
 		{ID: "id2", MAC: "11:22:33:44:55:66", Name: "device"},
 	}
 
-	blocks := ClientDeviceBlocks(clients)
+	blocks := ClientDeviceBlocks(clients, nil)
 	require.Len(t, blocks, 2)
 	assert.Equal(t, "device", blocks[0].ResourceName)
 	assert.Equal(t, "device_2", blocks[1].ResourceName)

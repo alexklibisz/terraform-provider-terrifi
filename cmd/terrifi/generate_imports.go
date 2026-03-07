@@ -53,7 +53,19 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("listing client devices: %w", err)
 		}
-		blocks = generate.ClientDeviceBlocks(clients)
+		// Enrich with fingerprint overrides from the v2 API.
+		overrides := map[string]int64{}
+		for _, c := range clients {
+			if c.MAC == "" {
+				continue
+			}
+			devTypeID, err := client.GetFingerprintOverride(ctx, site, c.MAC)
+			if err != nil || devTypeID == 0 {
+				continue
+			}
+			overrides[c.MAC] = devTypeID
+		}
+		blocks = generate.ClientDeviceBlocks(clients, overrides)
 
 	case "terrifi_client_group":
 		groups, err := client.ListClientGroup(ctx, site)

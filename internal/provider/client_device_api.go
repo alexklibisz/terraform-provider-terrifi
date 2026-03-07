@@ -162,6 +162,50 @@ func (c *Client) doV1Request(ctx context.Context, method, url string, body any, 
 	return err
 }
 
+// GetFingerprintOverride reads the current fingerprint override for a client
+// device via the v2 client info API. Returns 0 if no override is set.
+//
+// The fingerprint_override endpoint only supports PUT/DELETE, not GET. So we
+// read the override from the v2 client info endpoint which includes the
+// fingerprint data with dev_id_override.
+func (c *Client) GetFingerprintOverride(ctx context.Context, site string, mac string) (int64, error) {
+	var respBody struct {
+		Fingerprint struct {
+			DevIdOverride *int64 `json:"dev_id_override,omitempty"`
+			HasOverride   bool   `json:"has_override,omitempty"`
+		} `json:"fingerprint"`
+	}
+	err := c.doV2Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/v2/api/site/%s/clients/local/%s?includeUnifiDevices=true", c.BaseURL, c.APIPath, site, mac),
+		nil, &respBody)
+	if err != nil {
+		// A 404 means the client isn't known yet — no override.
+		if strings.Contains(err.Error(), "(404)") {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if respBody.Fingerprint.DevIdOverride != nil {
+		return *respBody.Fingerprint.DevIdOverride, nil
+	}
+	return 0, nil
+}
+
+// SetFingerprintOverride sets or clears the fingerprint override for a client
+// device via the v2 API. Pass 0 to clear the override (sends DELETE), or a
+// positive device type ID to set it (sends PUT).
+func (c *Client) SetFingerprintOverride(ctx context.Context, site string, mac string, deviceTypeID int64) error {
+	url := fmt.Sprintf("%s%s/v2/api/site/%s/station/%s/fingerprint_override", c.BaseURL, c.APIPath, site, mac)
+
+	if deviceTypeID == 0 {
+		return c.doV2Request(ctx, http.MethodDelete, url,
+			map[string]any{"mac": mac, "dev_id_override": 0, "search_query": ""}, nil)
+	}
+
+	return c.doV2Request(ctx, http.MethodPut, url,
+		map[string]any{"mac": mac, "dev_id_override": deviceTypeID, "search_query": ""}, nil)
+}
+
 // buildClientDeviceRequest converts a *unifi.Client to a clientDeviceRequest,
 // deriving boolean enable flags from the presence of their associated values.
 func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {

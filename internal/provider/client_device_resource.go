@@ -46,6 +46,7 @@ type clientDeviceResourceModel struct {
 	NetworkOverrideID types.String `tfsdk:"network_override_id"`
 	LocalDNSRecord    types.String `tfsdk:"local_dns_record"`
 	ClientGroupIDs    types.Set    `tfsdk:"client_group_ids"`
+	DeviceTypeID      types.Int64  `tfsdk:"device_type_id"`
 	Blocked           types.Bool   `tfsdk:"blocked"`
 }
 
@@ -64,7 +65,7 @@ func (r *clientDeviceResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a client device on the UniFi controller. Use this resource to set " +
-			"aliases, notes, fixed IPs, VLAN overrides, local DNS records, and blocked status for known clients.",
+			"aliases, notes, fixed IPs, VLAN overrides, local DNS records, custom device icons, and blocked status for known clients.",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -149,6 +150,13 @@ func (r *clientDeviceResource) Schema(
 				Optional:    true,
 			},
 
+			"device_type_id": schema.Int64Attribute{
+				MarkdownDescription: "The device type ID (fingerprint override) to set a custom icon for this " +
+					"client device. Use `terrifi list-device-types` to list IDs as CSV, or " +
+					"`terrifi list-device-types --html` to generate a browsable page with icons and fuzzy search.",
+				Optional: true,
+			},
+
 			"blocked": schema.BoolAttribute{
 				MarkdownDescription: "Whether the client device is blocked from network access. Defaults to `false`.",
 				Optional:            true,
@@ -202,8 +210,10 @@ func (r *clientDeviceResource) Create(
 	// - client_group_ids: the API may not return network_members_group_ids in responses
 	// - network_id: when fixed_ip uses network_override_id as fallback, the
 	//   API returns network_id but the user didn't configure it
+	// - device_type_id: managed via a separate v2 API, not returned by v1
 	plannedGroupIDs := plan.ClientGroupIDs
 	plannedNetworkID := plan.NetworkID
+	plannedDeviceTypeID := plan.DeviceTypeID
 
 	site := r.client.SiteOrDefault(plan.Site)
 	apiObj := r.modelToAPI(ctx, &plan)
@@ -214,9 +224,19 @@ func (r *clientDeviceResource) Create(
 		return
 	}
 
+	// Set fingerprint override via the separate v2 API if configured.
+	if !plannedDeviceTypeID.IsNull() && !plannedDeviceTypeID.IsUnknown() {
+		mac := strings.ToLower(plan.MAC.ValueString())
+		if err := r.client.SetFingerprintOverride(ctx, site, mac, plannedDeviceTypeID.ValueInt64()); err != nil {
+			resp.Diagnostics.AddError("Error Setting Fingerprint Override", err.Error())
+			return
+		}
+	}
+
 	r.apiToModel(created, &plan, site)
 	plan.ClientGroupIDs = plannedGroupIDs
 	plan.NetworkID = plannedNetworkID
+	plan.DeviceTypeID = plannedDeviceTypeID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -234,6 +254,7 @@ func (r *clientDeviceResource) Read(
 	// Save fields before the API call that need to be restored after apiToModel.
 	priorGroupIDs := state.ClientGroupIDs
 	priorNetworkID := state.NetworkID
+	priorDeviceTypeID := state.DeviceTypeID
 
 	site := r.client.SiteOrDefault(state.Site)
 
@@ -253,6 +274,21 @@ func (r *clientDeviceResource) Read(
 	r.apiToModel(apiObj, &state, site)
 	state.ClientGroupIDs = priorGroupIDs
 	state.NetworkID = priorNetworkID
+
+	// Read fingerprint override via the v2 client info API. This may fail for
+	// clients that have never connected (404) — treat as no override. Other
+	// errors are non-fatal: preserve the prior state value if we can't read.
+	mac := strings.ToLower(state.MAC.ValueString())
+	devTypeID, err := r.client.GetFingerprintOverride(ctx, site, mac)
+	if err != nil {
+		// Non-fatal: keep prior device_type_id state rather than failing Read.
+		state.DeviceTypeID = priorDeviceTypeID
+	} else if devTypeID != 0 {
+		state.DeviceTypeID = types.Int64Value(devTypeID)
+	} else {
+		state.DeviceTypeID = types.Int64Null()
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -271,6 +307,7 @@ func (r *clientDeviceResource) Update(
 	// Save fields before the API call that need to be restored after apiToModel.
 	plannedGroupIDs := plan.ClientGroupIDs
 	plannedNetworkID := plan.NetworkID
+	plannedDeviceTypeID := plan.DeviceTypeID
 
 	r.applyPlanToState(&plan, &state)
 
@@ -297,9 +334,14 @@ func (r *clientDeviceResource) Update(
 				resp.Diagnostics.AddError("Error Updating Client Device (after MAC lookup)", err.Error())
 				return
 			}
+			if err := r.syncFingerprintOverride(ctx, site, mac, plannedDeviceTypeID); err != nil {
+				resp.Diagnostics.AddError("Error Setting Fingerprint Override", err.Error())
+				return
+			}
 			r.apiToModel(updated, &state, site)
 			state.ClientGroupIDs = plannedGroupIDs
 			state.NetworkID = plannedNetworkID
+			state.DeviceTypeID = plannedDeviceTypeID
 			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 			return
 		}
@@ -307,9 +349,16 @@ func (r *clientDeviceResource) Update(
 		return
 	}
 
+	mac := strings.ToLower(state.MAC.ValueString())
+	if err := r.syncFingerprintOverride(ctx, site, mac, plannedDeviceTypeID); err != nil {
+		resp.Diagnostics.AddError("Error Setting Fingerprint Override", err.Error())
+		return
+	}
+
 	r.apiToModel(updated, &state, site)
 	state.ClientGroupIDs = plannedGroupIDs
 	state.NetworkID = plannedNetworkID
+	state.DeviceTypeID = plannedDeviceTypeID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -325,6 +374,12 @@ func (r *clientDeviceResource) Delete(
 	}
 
 	site := r.client.SiteOrDefault(state.Site)
+
+	// Clear fingerprint override before deleting if one was set.
+	if !state.DeviceTypeID.IsNull() && !state.DeviceTypeID.IsUnknown() {
+		mac := strings.ToLower(state.MAC.ValueString())
+		_ = r.client.SetFingerprintOverride(ctx, site, mac, 0)
+	}
 
 	// Clear all network and group bindings before deleting. The controller
 	// retains DHCP reservations, DNS records, and group references even after
@@ -429,6 +484,17 @@ func (v clientDeviceFixedIPNetworkValidator) ValidateResource(ctx context.Contex
 // Helper methods
 // ---------------------------------------------------------------------------
 
+// syncFingerprintOverride sets or clears the fingerprint override based on the
+// planned device_type_id value. If the plan value is null (user removed the
+// attribute), the override is cleared. If set, the override is applied.
+func (r *clientDeviceResource) syncFingerprintOverride(ctx context.Context, site, mac string, planned types.Int64) error {
+	if !planned.IsNull() && !planned.IsUnknown() {
+		return r.client.SetFingerprintOverride(ctx, site, mac, planned.ValueInt64())
+	}
+	// Clear the override when the attribute is removed from config.
+	return r.client.SetFingerprintOverride(ctx, site, mac, 0)
+}
+
 func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourceModel) {
 	if !plan.MAC.IsNull() && !plan.MAC.IsUnknown() {
 		state.MAC = plan.MAC
@@ -467,6 +533,11 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 		state.ClientGroupIDs = plan.ClientGroupIDs
 	} else {
 		state.ClientGroupIDs = types.SetNull(types.StringType)
+	}
+	if !plan.DeviceTypeID.IsNull() && !plan.DeviceTypeID.IsUnknown() {
+		state.DeviceTypeID = plan.DeviceTypeID
+	} else {
+		state.DeviceTypeID = types.Int64Null()
 	}
 	if !plan.Blocked.IsNull() && !plan.Blocked.IsUnknown() {
 		state.Blocked = plan.Blocked

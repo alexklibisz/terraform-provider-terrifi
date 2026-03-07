@@ -7,7 +7,7 @@ description: |-
 
 # terrifi_client_device (Resource)
 
-Manages a client device on the UniFi controller. Use this resource to set aliases, notes, fixed IPs, VLAN overrides, local DNS records, and blocked status for known clients.
+Manages a client device on the UniFi controller. Use this resource to set aliases, notes, fixed IPs, VLAN overrides, local DNS records, custom device icons, and blocked status for known clients.
 
 ## Example Usage
 
@@ -86,6 +86,18 @@ resource "terrifi_client_device" "sensor" {
 }
 ```
 
+### Custom device icon
+
+Use `device_type_id` to set a custom icon for the device in the UniFi UI. Browse available IDs with `terrifi list-device-types` (CSV) or `terrifi list-device-types --html` to generate a browsable HTML page with icons, fuzzy search, and filterable dropdowns. See the [CLI docs](../index.md#list-device-types) for details.
+
+```terraform
+resource "terrifi_client_device" "server" {
+  mac            = "aa:bb:cc:11:22:33"
+  name           = "Proxmox Server"
+  device_type_id = 1084
+}
+```
+
 ### Block a client
 
 ```terraform
@@ -111,6 +123,7 @@ resource "terrifi_client_device" "blocked" {
 - `network_override_id` (String) — The network ID for VLAN/network override.
 - `local_dns_record` (String) — A local DNS hostname for this client device. Requires `fixed_ip`.
 - `client_group_ids` (Set of String) — Set of client group IDs to assign this device to. Use `terrifi_client_group` to manage groups.
+- `device_type_id` (Number) — The device type ID (fingerprint override) to set a custom icon. Use `terrifi list-device-types` to list IDs as CSV, or `terrifi list-device-types --html` to generate a browsable page with icons and fuzzy search.
 - `blocked` (Boolean) — Whether the client device is blocked from network access. Defaults to `false`.
 - `site` (String) — The site to associate the client device with. Defaults to the provider site. Changing this forces a new resource.
 

@@ -1,11 +1,14 @@
 package generate
 
 import (
+	"fmt"
+
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // ClientDeviceBlocks generates import + resource blocks for client devices.
-func ClientDeviceBlocks(clients []unifi.Client) []ResourceBlock {
+// The overrides map contains MAC→device_type_id mappings from the v2 fingerprint API.
+func ClientDeviceBlocks(clients []unifi.Client, overrides map[string]int64) []ResourceBlock {
 	blocks := make([]ResourceBlock, 0, len(clients))
 	for _, c := range clients {
 		name := c.Name
@@ -53,6 +56,13 @@ func ClientDeviceBlocks(clients []unifi.Client) []ResourceBlock {
 				Key:     "client_group_ids",
 				Value:   HCLStringList(c.NetworkMembersGroupIDs),
 				Comment: "TODO: find and reference corresponding terrifi_client_group resources",
+			})
+		}
+		if devTypeID, ok := overrides[c.MAC]; ok && devTypeID != 0 {
+			block.Attributes = append(block.Attributes, Attr{
+				Key:     "device_type_id",
+				Value:   fmt.Sprintf("%d", devTypeID),
+				Comment: "use 'terrifi list-device-types' to browse available IDs",
 			})
 		}
 		if c.Blocked != nil && *c.Blocked {
