@@ -38,8 +38,11 @@ jobs:
       - name: Download Go dependencies
         timeout-minutes: 10
         run: task deps
+      - name: Check Go module cache size
+        timeout-minutes: 1
+        run: du -sh /go/pkg/mod || echo "/go/pkg/mod not found"
       - name: Lint
-        timeout-minutes: 5
+        timeout-minutes: 1
         run: task lint
       - name: Build
         timeout-minutes: 10
