@@ -162,6 +162,40 @@ func (c *Client) doV1Request(ctx context.Context, method, url string, body any, 
 	return err
 }
 
+// GetFingerprintOverride reads the current fingerprint override for a client
+// device via the v2 API. Returns 0 if no override is set.
+func (c *Client) GetFingerprintOverride(ctx context.Context, site string, mac string) (int64, error) {
+	var respBody struct {
+		DevIdOverride int64 `json:"dev_id_override"`
+	}
+	err := c.doV2Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/v2/api/site/%s/station/%s/fingerprint_override", c.BaseURL, c.APIPath, site, mac),
+		nil, &respBody)
+	if err != nil {
+		// A 404 means no override is set — return 0.
+		if strings.Contains(err.Error(), "(404)") {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return respBody.DevIdOverride, nil
+}
+
+// SetFingerprintOverride sets or clears the fingerprint override for a client
+// device via the v2 API. Pass 0 to clear the override (sends DELETE), or a
+// positive device type ID to set it (sends PUT).
+func (c *Client) SetFingerprintOverride(ctx context.Context, site string, mac string, deviceTypeID int64) error {
+	url := fmt.Sprintf("%s%s/v2/api/site/%s/station/%s/fingerprint_override", c.BaseURL, c.APIPath, site, mac)
+
+	if deviceTypeID == 0 {
+		return c.doV2Request(ctx, http.MethodDelete, url,
+			map[string]any{"mac": mac, "dev_id_override": 0, "search_query": ""}, nil)
+	}
+
+	return c.doV2Request(ctx, http.MethodPut, url,
+		map[string]any{"mac": mac, "dev_id_override": deviceTypeID, "search_query": ""}, nil)
+}
+
 // buildClientDeviceRequest converts a *unifi.Client to a clientDeviceRequest,
 // deriving boolean enable flags from the presence of their associated values.
 func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {

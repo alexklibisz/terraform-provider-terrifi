@@ -1459,3 +1459,102 @@ resource "terrifi_client_device" "test" {
 		},
 	})
 }
+
+func TestAccClientDevice_deviceTypeID(t *testing.T) {
+	mac := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac            = %q
+  name           = "tfacc-devtype"
+  device_type_id = 1084
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-devtype"),
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "device_type_id", "1084"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_deviceTypeIDChange(t *testing.T) {
+	mac := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Set device_type_id
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac            = %q
+  name           = "tfacc-devtype-change"
+  device_type_id = 1084
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "device_type_id", "1084"),
+				),
+			},
+			// Step 2: Change device_type_id
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac            = %q
+  name           = "tfacc-devtype-change"
+  device_type_id = 1
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "device_type_id", "1"),
+				),
+			},
+			// Step 3: Remove device_type_id
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-devtype-change"
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "device_type_id"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_deviceTypeIDIdempotent(t *testing.T) {
+	mac := randomMAC()
+	config := fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac            = %q
+  name           = "tfacc-devtype-idempotent"
+  device_type_id = 1084
+}
+`, mac)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "device_type_id", "1084"),
+				),
+			},
+			{
+				// Apply the same config again — should produce no diff.
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
