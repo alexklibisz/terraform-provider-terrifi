@@ -49,12 +49,12 @@ jobs:
           du -sh "$(go env GOMODCACHE)" || echo "GOMODCACHE not found"
           du -sh "$(go env GOCACHE)" || echo "GOCACHE not found"
           du -sh /root/.cache/go-build 2>/dev/null || echo "/root/.cache/go-build not found"
-      - name: Lint
-        timeout-minutes: 1
-        run: task lint
       - name: Build
         timeout-minutes: 10
         run: task build
+      - name: Lint
+        timeout-minutes: 1
+        run: task lint
       - name: Unit tests
         timeout-minutes: 1
         run: task test:unit
