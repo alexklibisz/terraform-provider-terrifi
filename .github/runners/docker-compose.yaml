@@ -30,6 +30,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner-1-work:/tmp/runner
+      - /tmp/terrifi-go-cache/mod:/go/pkg/mod
+      - /tmp/terrifi-go-cache/build:/root/.cache/go-build
 
   runner-2:
     <<: *runner-common
@@ -44,6 +46,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner-2-work:/tmp/runner
+      - /tmp/terrifi-go-cache/mod:/go/pkg/mod
+      - /tmp/terrifi-go-cache/build:/root/.cache/go-build
 
 volumes:
   runner-1-work:

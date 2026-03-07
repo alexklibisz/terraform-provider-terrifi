@@ -24,17 +24,6 @@ jobs:
       - name: Checkout
         timeout-minutes: 1
         uses: actions/checkout@v4
-      - name: Cache Go modules and build cache
-        timeout-minutes: 5
-        uses: actions/cache@v4
-        with:
-          path: |
-            /go/pkg/mod
-            /root/.cache/go-build
-          key: go-${{ hashFiles('go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-${{ hashFiles('go.sum') }}-
-            go-
       - name: Download Go dependencies
         timeout-minutes: 10
         run: task deps
