@@ -14,30 +14,16 @@ on:
 jobs:
   main:
     name: Main
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - terrifi
+    env:
+      TF_ACC_TERRAFORM_PATH: /usr/bin/tofu
+      TF_ACC_PROVIDER_HOST: registry.opentofu.org
     steps:
       - name: Checkout
         timeout-minutes: 1
         uses: actions/checkout@v4
-      - name: Set up Go
-        timeout-minutes: 1
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: Set up OpenTofu
-        timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_wrapper: false
-      - name: Configure OpenTofu for acceptance tests
-        run: |
-          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
-          echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
-      - name: Install Taskfile
-        timeout-minutes: 1
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
       - name: Download Go dependencies
         timeout-minutes: 10
         run: task deps

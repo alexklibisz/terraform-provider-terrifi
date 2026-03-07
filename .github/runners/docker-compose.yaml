@@ -1,0 +1,70 @@
+# GitHub Actions self-hosted runners (Ubuntu-based).
+#
+# Each runner registers itself with GitHub on startup and deregisters cleanly
+# on shutdown. Docker socket is mounted so jobs can use Docker (e.g. testcontainers).
+#
+# Three runners are defined:
+#   - runner-1: general-purpose CI runner
+#   - runner-2: general-purpose CI runner
+#   - runner-hil: hardware-in-the-loop runner for acceptance tests against real UniFi hardware
+#
+# Quick start:
+#   1. Copy .env.example to .env and fill in the values
+#   2. docker compose up -d --build
+
+x-runner-common: &runner-common
+  build: .
+  image: terrifi-github-runner
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  restart: unless-stopped
+  # Prevent the runner from being force-killed mid-job.
+  stop_grace_period: 5m
+
+services:
+  runner-1:
+    <<: *runner-common
+    environment:
+      REPO_URL: ${REPO_URL}
+      ACCESS_TOKEN: ${ACCESS_TOKEN}
+      RUNNER_NAME: terrifi-runner-1
+      RUNNER_WORKDIR: /tmp/runner/work
+      LABELS: self-hosted,terrifi
+      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
+      EPHEMERAL: ${EPHEMERAL:-true}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner-1-work:/tmp/runner
+
+  runner-2:
+    <<: *runner-common
+    environment:
+      REPO_URL: ${REPO_URL}
+      ACCESS_TOKEN: ${ACCESS_TOKEN}
+      RUNNER_NAME: terrifi-runner-2
+      RUNNER_WORKDIR: /tmp/runner/work
+      LABELS: self-hosted,terrifi
+      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
+      EPHEMERAL: ${EPHEMERAL:-true}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner-2-work:/tmp/runner
+
+  runner-hil:
+    <<: *runner-common
+    environment:
+      REPO_URL: ${REPO_URL}
+      ACCESS_TOKEN: ${ACCESS_TOKEN}
+      RUNNER_NAME: terrifi-runner-hil
+      RUNNER_WORKDIR: /tmp/runner/work
+      LABELS: self-hosted,terrifi,terrifi-hil
+      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
+      EPHEMERAL: ${EPHEMERAL:-true}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner-hil-work:/tmp/runner
+
+volumes:
+  runner-1-work:
+  runner-2-work:
+  runner-hil-work:
