@@ -12,19 +12,19 @@ import (
 // fingerprint database. The ID is used with dev_id_override to set custom
 // icons on client devices.
 type FingerprintDevice struct {
-	ID       int64
-	Name     string
-	DevType  string
-	Family   string
-	Vendor   string
+	ID      int64
+	Name    string
+	DevType string
+	Family  string
+	Vendor  string
 }
 
 // fingerprintAPIResponse is the response from GET v2/api/fingerprint_devices/{version}.
 type fingerprintAPIResponse struct {
 	DevIDs     map[string]fingerprintDevEntry `json:"dev_ids"`
-	DevTypeIDs map[string]string             `json:"dev_type_ids"`
-	FamilyIDs  map[string]string             `json:"family_ids"`
-	VendorIDs  map[string]string             `json:"vendor_ids"`
+	DevTypeIDs map[string]string              `json:"dev_type_ids"`
+	FamilyIDs  map[string]string              `json:"family_ids"`
+	VendorIDs  map[string]string              `json:"vendor_ids"`
 }
 
 type fingerprintDevEntry struct {
@@ -75,4 +75,3 @@ func (c *Client) ListFingerprintDevices(ctx context.Context, version int) ([]Fin
 
 	return devices, nil
 }
-
