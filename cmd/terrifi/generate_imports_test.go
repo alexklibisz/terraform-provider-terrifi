@@ -149,6 +149,36 @@ resource "terrifi_client_device" "test" {
 	})
 }
 
+func TestAccGenerateImports_ClientGroup(t *testing.T) {
+	requireHardware(t)
+	name := fmt.Sprintf("terrifi-test-group-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_group" "test" {
+  name = %q
+}
+`, name),
+				Check: func(s *terraform.State) error {
+					id, err := resourceID(s, "terrifi_client_group.test")
+					if err != nil {
+						return err
+					}
+					tfName := strings.ReplaceAll(name, "-", "_")
+					return assertCLIOutput(t, "terrifi_client_group",
+						fmt.Sprintf(`id = "%s"`, id),
+						fmt.Sprintf(`terrifi_client_group.%s`, tfName),
+						fmt.Sprintf(`name = "%s"`, name),
+					)
+				},
+			},
+		},
+	})
+}
+
 func TestAccGenerateImports_DNSRecord(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()

@@ -1,10 +1,12 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -29,6 +31,7 @@ func randomVLAN() int {
 // ---------------------------------------------------------------------------
 
 func TestClientDeviceModelToAPI(t *testing.T) {
+	ctx := context.Background()
 	r := &clientDeviceResource{}
 
 	t.Run("mac only", func(t *testing.T) {
@@ -36,7 +39,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			MAC: types.StringValue("AA:BB:CC:DD:EE:FF"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", c.MAC, "MAC should be lowercased")
 		assert.Empty(t, c.Name)
@@ -48,6 +51,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.False(t, c.LocalDNSRecordEnabled)
 		assert.Nil(t, c.VirtualNetworkOverrideEnabled)
 		assert.Empty(t, c.VirtualNetworkOverrideID)
+		assert.Nil(t, c.NetworkMembersGroupIDs)
 		assert.Nil(t, c.Blocked)
 	})
 
@@ -60,10 +64,13 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkID:         types.StringValue("net-123"),
 			NetworkOverrideID: types.StringValue("vlan-456"),
 			LocalDNSRecord:    types.StringValue("mydevice.local"),
-			Blocked:           types.BoolValue(true),
+			ClientGroupIDs: types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("group-789"),
+			}),
+			Blocked: types.BoolValue(true),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", c.MAC)
 		assert.Equal(t, "My Device", c.Name)
@@ -76,8 +83,25 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.True(t, *c.VirtualNetworkOverrideEnabled)
 		assert.Equal(t, "mydevice.local", c.LocalDNSRecord)
 		assert.True(t, c.LocalDNSRecordEnabled)
+		assert.Equal(t, []string{"group-789"}, c.NetworkMembersGroupIDs)
 		assert.NotNil(t, c.Blocked)
 		assert.True(t, *c.Blocked)
+	})
+
+	t.Run("multiple client group IDs", func(t *testing.T) {
+		model := &clientDeviceResourceModel{
+			MAC: types.StringValue("aa:bb:cc:dd:ee:ff"),
+			ClientGroupIDs: types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("group-aaa"),
+				types.StringValue("group-bbb"),
+			}),
+		}
+
+		c := r.modelToAPI(ctx, model)
+
+		assert.Len(t, c.NetworkMembersGroupIDs, 2)
+		assert.Contains(t, c.NetworkMembersGroupIDs, "group-aaa")
+		assert.Contains(t, c.NetworkMembersGroupIDs, "group-bbb")
 	})
 
 	t.Run("fixed_ip sets use_fixedip and network_id", func(t *testing.T) {
@@ -87,7 +111,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkID: types.StringValue("net-abc"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "10.0.0.50", c.FixedIP)
 		assert.True(t, c.UseFixedIP)
@@ -100,7 +124,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			LocalDNSRecord: types.StringValue("host.local"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "host.local", c.LocalDNSRecord)
 		assert.True(t, c.LocalDNSRecordEnabled)
@@ -112,7 +136,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			NetworkOverrideID: types.StringValue("override-789"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "override-789", c.VirtualNetworkOverrideID)
 		assert.NotNil(t, c.VirtualNetworkOverrideEnabled)
@@ -125,7 +149,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			Blocked: types.BoolValue(true),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.NotNil(t, c.Blocked)
 		assert.True(t, *c.Blocked)
@@ -137,7 +161,7 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			Blocked: types.BoolValue(false),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.NotNil(t, c.Blocked)
 		assert.False(t, *c.Blocked)
@@ -148,9 +172,192 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			MAC: types.StringValue("AA:BB:CC:DD:EE:FF"),
 		}
 
-		c := r.modelToAPI(model)
+		c := r.modelToAPI(ctx, model)
 
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", c.MAC)
+	})
+
+	t.Run("fixed_ip without network_id or override does not set use_fixedip", func(t *testing.T) {
+		model := &clientDeviceResourceModel{
+			MAC:       types.StringValue("aa:bb:cc:dd:ee:ff"),
+			FixedIP:   types.StringValue("192.168.1.100"),
+			NetworkID: types.StringValue(""),
+		}
+
+		c := r.modelToAPI(ctx, model)
+
+		// FixedIP is set on the intermediate struct, but UseFixedIP should
+		// only be true when NetworkID is also present.
+		assert.Equal(t, "192.168.1.100", c.FixedIP)
+		assert.True(t, c.UseFixedIP, "modelToAPI sets UseFixedIP from FixedIP presence")
+		assert.Empty(t, c.NetworkID)
+
+		// buildClientDeviceRequest is the safety net that prevents the invalid
+		// API call: it should NOT set use_fixedip=true without a network.
+		req := buildClientDeviceRequest(c)
+		assert.NotNil(t, req.UseFixedIP)
+		assert.False(t, *req.UseFixedIP, "buildClientDeviceRequest should not enable use_fixedip without any network")
+		assert.Empty(t, req.FixedIP, "fixed_ip should not be sent without any network")
+		assert.Empty(t, req.NetworkID)
+	})
+
+	t.Run("fixed_ip with network_override_id but no network_id", func(t *testing.T) {
+		model := &clientDeviceResourceModel{
+			MAC:               types.StringValue("aa:bb:cc:dd:ee:ff"),
+			FixedIP:           types.StringValue("10.0.0.50"),
+			NetworkOverrideID: types.StringValue("override-123"),
+		}
+
+		c := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "10.0.0.50", c.FixedIP)
+		assert.True(t, c.UseFixedIP)
+		assert.Empty(t, c.NetworkID, "NetworkID should be empty when only network_override_id is set")
+		assert.Equal(t, "override-123", c.VirtualNetworkOverrideID)
+		assert.NotNil(t, c.VirtualNetworkOverrideEnabled)
+		assert.True(t, *c.VirtualNetworkOverrideEnabled)
+
+		// buildClientDeviceRequest should fall back to override ID as network_id.
+		req := buildClientDeviceRequest(c)
+		assert.NotNil(t, req.UseFixedIP)
+		assert.True(t, *req.UseFixedIP, "use_fixedip should be true when override provides the network")
+		assert.Equal(t, "10.0.0.50", req.FixedIP)
+		assert.Equal(t, "override-123", req.NetworkID, "should fall back to override ID as network_id")
+	})
+}
+
+func TestBuildClientDeviceRequest(t *testing.T) {
+	t.Run("fixed_ip and network_id both set", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC:       "aa:bb:cc:dd:ee:ff",
+			FixedIP:   "10.0.0.50",
+			NetworkID: "net-123",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, "10.0.0.50", req.FixedIP)
+		assert.Equal(t, "net-123", req.NetworkID)
+		assert.NotNil(t, req.UseFixedIP)
+		assert.True(t, *req.UseFixedIP)
+	})
+
+	t.Run("fixed_ip without any network", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC:     "aa:bb:cc:dd:ee:ff",
+			FixedIP: "10.0.0.50",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Empty(t, req.FixedIP, "fixed_ip should not be sent without any network")
+		assert.Empty(t, req.NetworkID)
+		assert.NotNil(t, req.UseFixedIP)
+		assert.False(t, *req.UseFixedIP)
+	})
+
+	t.Run("fixed_ip falls back to override_id as network_id", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC:                      "aa:bb:cc:dd:ee:ff",
+			FixedIP:                  "10.0.0.50",
+			VirtualNetworkOverrideID: "override-123",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, "10.0.0.50", req.FixedIP)
+		assert.Equal(t, "override-123", req.NetworkID, "should fall back to override ID")
+		assert.NotNil(t, req.UseFixedIP)
+		assert.True(t, *req.UseFixedIP)
+	})
+
+	t.Run("fixed_ip prefers explicit network_id over override_id", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC:                      "aa:bb:cc:dd:ee:ff",
+			FixedIP:                  "10.0.0.50",
+			NetworkID:                "net-explicit",
+			VirtualNetworkOverrideID: "override-123",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, "10.0.0.50", req.FixedIP)
+		assert.Equal(t, "net-explicit", req.NetworkID, "should prefer explicit network_id")
+		assert.NotNil(t, req.UseFixedIP)
+		assert.True(t, *req.UseFixedIP)
+	})
+
+	t.Run("network_id without fixed_ip", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC:       "aa:bb:cc:dd:ee:ff",
+			NetworkID: "net-123",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Empty(t, req.FixedIP)
+		assert.Empty(t, req.NetworkID)
+		assert.NotNil(t, req.UseFixedIP)
+		assert.False(t, *req.UseFixedIP)
+	})
+
+	t.Run("virtual_network_override", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC:                      "aa:bb:cc:dd:ee:ff",
+			VirtualNetworkOverrideID: "vlan-456",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, "vlan-456", req.VirtualNetworkOverrideID)
+		assert.NotNil(t, req.VirtualNetworkOverrideEnabled)
+		assert.True(t, *req.VirtualNetworkOverrideEnabled)
+	})
+
+	t.Run("all fields together", func(t *testing.T) {
+		blocked := true
+		c := &unifi.Client{
+			MAC:                      "aa:bb:cc:dd:ee:ff",
+			Name:                     "Test Device",
+			Note:                     "A note",
+			FixedIP:                  "10.0.0.50",
+			NetworkID:                "net-123",
+			VirtualNetworkOverrideID: "vlan-456",
+			LocalDNSRecord:           "test.local",
+			NetworkMembersGroupIDs:   []string{"group-789", "group-abc"},
+			Blocked:                  &blocked,
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, "aa:bb:cc:dd:ee:ff", req.MAC)
+		assert.Equal(t, "Test Device", req.Name)
+		assert.Equal(t, "A note", req.Note)
+		assert.NotNil(t, req.Noted)
+		assert.True(t, *req.Noted)
+		assert.Equal(t, "10.0.0.50", req.FixedIP)
+		assert.Equal(t, "net-123", req.NetworkID)
+		assert.NotNil(t, req.UseFixedIP)
+		assert.True(t, *req.UseFixedIP)
+		assert.Equal(t, "vlan-456", req.VirtualNetworkOverrideID)
+		assert.NotNil(t, req.VirtualNetworkOverrideEnabled)
+		assert.True(t, *req.VirtualNetworkOverrideEnabled)
+		assert.Equal(t, "test.local", req.LocalDNSRecord)
+		assert.NotNil(t, req.LocalDNSRecordEnabled)
+		assert.True(t, *req.LocalDNSRecordEnabled)
+		assert.Equal(t, []string{"group-789", "group-abc"}, req.NetworkMembersGroupIDs)
+		assert.NotNil(t, req.Blocked)
+		assert.True(t, *req.Blocked)
+	})
+
+	t.Run("nil network_members_group_ids sends empty slice", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC: "aa:bb:cc:dd:ee:ff",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, []string{}, req.NetworkMembersGroupIDs)
 	})
 }
 
@@ -175,7 +382,8 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.True(t, model.NetworkID.IsNull(), "NetworkID should be null")
 		assert.True(t, model.NetworkOverrideID.IsNull(), "NetworkOverrideID should be null")
 		assert.True(t, model.LocalDNSRecord.IsNull(), "LocalDNSRecord should be null")
-		assert.True(t, model.Blocked.IsNull(), "Blocked should be null")
+		assert.True(t, model.ClientGroupIDs.IsNull(), "ClientGroupIDs should be null")
+		assert.False(t, model.Blocked.ValueBool(), "Blocked should default to false")
 	})
 
 	t.Run("full client", func(t *testing.T) {
@@ -193,6 +401,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 			VirtualNetworkOverrideID:      "vlan-abc",
 			LocalDNSRecord:                "mydevice.local",
 			LocalDNSRecordEnabled:         true,
+			NetworkMembersGroupIDs:        []string{"group-xyz"},
 			Blocked:                       &blocked,
 		}
 
@@ -208,7 +417,27 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.Equal(t, "net-789", model.NetworkID.ValueString())
 		assert.Equal(t, "vlan-abc", model.NetworkOverrideID.ValueString())
 		assert.Equal(t, "mydevice.local", model.LocalDNSRecord.ValueString())
+		expected := types.SetValueMust(types.StringType, []attr.Value{types.StringValue("group-xyz")})
+		assert.True(t, model.ClientGroupIDs.Equal(expected), "ClientGroupIDs should contain group-xyz")
 		assert.True(t, model.Blocked.ValueBool())
+	})
+
+	t.Run("multiple client group IDs", func(t *testing.T) {
+		c := &unifi.Client{
+			ID:                     "client-multi",
+			MAC:                    "aa:bb:cc:dd:ee:ff",
+			NetworkMembersGroupIDs: []string{"group-aaa", "group-bbb"},
+		}
+
+		var model clientDeviceResourceModel
+		r.apiToModel(c, &model, "default")
+
+		assert.False(t, model.ClientGroupIDs.IsNull())
+		expected := types.SetValueMust(types.StringType, []attr.Value{
+			types.StringValue("group-aaa"),
+			types.StringValue("group-bbb"),
+		})
+		assert.True(t, model.ClientGroupIDs.Equal(expected))
 	})
 
 	t.Run("use_fixedip false with stale fixed_ip", func(t *testing.T) {
@@ -251,7 +480,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		var model clientDeviceResourceModel
 		r.apiToModel(c, &model, "default")
 
-		assert.True(t, model.Blocked.IsNull(), "Blocked should be null when nil")
+		assert.False(t, model.Blocked.ValueBool(), "Blocked should be false when nil")
 	})
 
 	t.Run("blocked false", func(t *testing.T) {
@@ -426,6 +655,261 @@ resource "terrifi_client_device" "test" {
 `, netName, vlan, third, third, third, mac),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_networkOverrideWithFixedIP(t *testing.T) {
+	mac := randomMAC()
+	netName := fmt.Sprintf("tfacc-ovfip-%s", randomSuffix())
+	vlan := randomVLAN()
+	third := vlan % 256
+	netConfig := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name         = %q
+  purpose      = "corporate"
+  vlan_id      = %d
+  subnet       = "10.%d.6.1/24"
+  dhcp_enabled = true
+  dhcp_start   = "10.%d.6.6"
+  dhcp_stop    = "10.%d.6.254"
+}
+`, netName, vlan, third, third, third)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with both fixed_ip + network_id and network_override_id
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac                 = %q
+  name                = "tfacc-ovfip"
+  fixed_ip            = "10.%d.6.42"
+  network_id          = terrifi_network.test.id
+  network_override_id = terrifi_network.test.id
+}
+`, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.6.42", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_id"),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+				),
+			},
+			// Step 2: Remove network_override_id, keep fixed_ip
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac        = %q
+  name       = "tfacc-ovfip"
+  fixed_ip   = "10.%d.6.42"
+  network_id = terrifi_network.test.id
+}
+`, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.6.42", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_id"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "network_override_id"),
+				),
+			},
+			// Step 3: Add network_override_id back
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac                 = %q
+  name                = "tfacc-ovfip"
+  fixed_ip            = "10.%d.6.42"
+  network_id          = terrifi_network.test.id
+  network_override_id = terrifi_network.test.id
+}
+`, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.6.42", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_id"),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_networkOverrideOnly(t *testing.T) {
+	mac := randomMAC()
+	netName := fmt.Sprintf("tfacc-ovonly-%s", randomSuffix())
+	vlan := randomVLAN()
+	third := vlan % 256
+	netConfig := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name         = %q
+  purpose      = "corporate"
+  vlan_id      = %d
+  subnet       = "10.%d.7.1/24"
+  dhcp_enabled = true
+  dhcp_start   = "10.%d.7.6"
+  dhcp_stop    = "10.%d.7.254"
+}
+`, netName, vlan, third, third, third)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with only network_override_id (no fixed_ip)
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac                 = %q
+  name                = "tfacc-ovonly"
+  network_override_id = terrifi_network.test.id
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "fixed_ip"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "network_id"),
+				),
+			},
+			// Step 2: Add fixed_ip + network_id while keeping override
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac                 = %q
+  name                = "tfacc-ovonly"
+  fixed_ip            = "10.%d.7.50"
+  network_id          = terrifi_network.test.id
+  network_override_id = terrifi_network.test.id
+}
+`, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.7.50", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_id"),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+				),
+			},
+			// Step 3: Remove fixed_ip + network_id, keep only override
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac                 = %q
+  name                = "tfacc-ovonly"
+  network_override_id = terrifi_network.test.id
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "fixed_ip"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "network_id"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_fixedIPWithNetworkOverride(t *testing.T) {
+	mac := randomMAC()
+	netName := fmt.Sprintf("tfacc-fipovr-%s", randomSuffix())
+	vlan := randomVLAN()
+	third := vlan % 256
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name         = %q
+  purpose      = "corporate"
+  vlan_id      = %d
+  subnet       = "10.%d.8.1/24"
+  dhcp_enabled = true
+  dhcp_start   = "10.%d.8.6"
+  dhcp_stop    = "10.%d.8.254"
+}
+
+resource "terrifi_client_device" "test" {
+  mac                 = %q
+  name                = "tfacc-fixedip-override"
+  fixed_ip            = "10.%d.8.100"
+  network_override_id = terrifi_network.test.id
+}
+`, netName, vlan, third, third, third, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.8.100", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "network_id"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_updateFixedIPNetworkToOverride(t *testing.T) {
+	mac := randomMAC()
+	netName := fmt.Sprintf("tfacc-fipswitch-%s", randomSuffix())
+	vlan := randomVLAN()
+	third := vlan % 256
+	netConfig := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name         = %q
+  purpose      = "corporate"
+  vlan_id      = %d
+  subnet       = "10.%d.9.1/24"
+  dhcp_enabled = true
+  dhcp_start   = "10.%d.9.6"
+  dhcp_stop    = "10.%d.9.254"
+}
+`, netName, vlan, third, third, third)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: fixed_ip + network_id
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac        = %q
+  name       = "tfacc-fipswitch"
+  fixed_ip   = "10.%d.9.100"
+  network_id = terrifi_network.test.id
+}
+`, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.9.100", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_id"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "network_override_id"),
+				),
+			},
+			// Step 2: switch to fixed_ip + network_override_id (drop network_id)
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac                 = %q
+  name                = "tfacc-fipswitch"
+  fixed_ip            = "10.%d.9.100"
+  network_override_id = terrifi_network.test.id
+}
+`, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.9.100", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_override_id"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "network_id"),
+				),
+			},
+			// Step 3: switch back to fixed_ip + network_id
+			{
+				Config: netConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac        = %q
+  name       = "tfacc-fipswitch"
+  fixed_ip   = "10.%d.9.100"
+  network_id = terrifi_network.test.id
+}
+`, mac, third),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fmt.Sprintf("10.%d.9.100", third)),
+					resource.TestCheckResourceAttrSet("terrifi_client_device.test", "network_id"),
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "network_override_id"),
 				),
 			},
 		},
@@ -702,6 +1186,95 @@ resource "terrifi_client_device" "test" {
 	})
 }
 
+func TestAccClientDevice_blockedAddRemove(t *testing.T) {
+	mac := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with blocked = true
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac     = %q
+  name    = "tfacc-blocked-ar"
+  blocked = true
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "blocked", "true"),
+				),
+			},
+			// Step 2: Update to blocked = false
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac     = %q
+  name    = "tfacc-blocked-ar"
+  blocked = false
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "blocked", "false"),
+				),
+			},
+			// Step 3: Remove blocked from config entirely — should default to false, no diff
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-blocked-ar"
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "blocked", "false"),
+				),
+			},
+			// Step 4: Add blocked = true back
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac     = %q
+  name    = "tfacc-blocked-ar"
+  blocked = true
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "blocked", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_blockedDefaultFalse(t *testing.T) {
+	mac := randomMAC()
+	config := fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-blocked-default"
+}
+`, mac)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create without blocked — should default to false
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "blocked", "false"),
+				),
+			},
+			// Step 2: Same config again — should produce no diff
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 func TestAccClientDevice_import(t *testing.T) {
 	mac := randomMAC()
 	resource.Test(t, resource.TestCase{
@@ -771,6 +1344,111 @@ resource "terrifi_client_device" "test" {
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-idempotent"),
+				),
+			},
+			{
+				// Apply the same config again — should produce no diff.
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_clientGroupIDs(t *testing.T) {
+	mac := randomMAC()
+	groupName1 := fmt.Sprintf("tfacc-grp1-%s", randomSuffix())
+	groupName2 := fmt.Sprintf("tfacc-grp2-%s", randomSuffix())
+	groupConfig := fmt.Sprintf(`
+resource "terrifi_client_group" "grp1" {
+  name = %q
+}
+
+resource "terrifi_client_group" "grp2" {
+  name = %q
+}
+`, groupName1, groupName2)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with one client group
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-clientgroups"
+  client_group_ids = [terrifi_client_group.grp1.id]
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "1"),
+				),
+			},
+			// Step 2: Add a second client group
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-clientgroups"
+  client_group_ids = [terrifi_client_group.grp1.id, terrifi_client_group.grp2.id]
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "2"),
+				),
+			},
+			// Step 3: Remove the first group, keeping only the second
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-clientgroups"
+  client_group_ids = [terrifi_client_group.grp2.id]
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "1"),
+				),
+			},
+			// Step 4: Remove all groups
+			{
+				Config: groupConfig + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-clientgroups"
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "client_group_ids"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_clientGroupIDs_idempotent(t *testing.T) {
+	mac := randomMAC()
+	groupName := fmt.Sprintf("tfacc-grpidem-%s", randomSuffix())
+	config := fmt.Sprintf(`
+resource "terrifi_client_group" "test" {
+  name = %q
+}
+
+resource "terrifi_client_device" "test" {
+  mac              = %q
+  name             = "tfacc-grp-idempotent"
+  client_group_ids = [terrifi_client_group.test.id]
+}
+`, groupName, mac)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "client_group_ids.#", "1"),
 				),
 			},
 			{

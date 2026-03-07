@@ -54,12 +54,11 @@ Default site is `default`.
 To view recent logs from the UniFi controller (useful for diagnosing 500 errors, Java stack traces, etc.):
 
 ```bash
-hardware-testing/show_logs.sh 90s    # logs from last 90 seconds
-hardware-testing/show_logs.sh 5m     # logs from last 5 minutes
-hardware-testing/show_logs.sh        # default: last 60 seconds
+ssh terrifi-unifi-os-server './logs.sh'           # tail server.log (default)
+ssh terrifi-unifi-os-server './logs.sh mongod'     # tail mongod.log
 ```
 
-This SSHs to the hardware controller and runs `docker compose logs`. Use this when API calls return 500 errors to see the server-side Java stack trace.
+This SSHs to the UOS Server host and tails logs from inside the podman container. Use this when API calls return 500 errors to see the server-side Java stack trace. The command streams continuously — kill it with Ctrl+C once you've captured what you need.
 
 ## Output Guidelines
 

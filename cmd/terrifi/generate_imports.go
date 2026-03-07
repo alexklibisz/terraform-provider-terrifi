@@ -12,9 +12,12 @@ import (
 
 var validResourceTypes = []string{
 	"terrifi_client_device",
+	"terrifi_client_group",
 	"terrifi_dns_record",
+	"terrifi_firewall_group",
 	"terrifi_firewall_zone",
 	"terrifi_firewall_policy",
+	"terrifi_firewall_policy_order",
 	"terrifi_network",
 	"terrifi_wlan",
 }
@@ -52,12 +55,26 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 		}
 		blocks = generate.ClientDeviceBlocks(clients)
 
+	case "terrifi_client_group":
+		groups, err := client.ListClientGroup(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing client groups: %w", err)
+		}
+		blocks = generate.ClientGroupBlocks(groups)
+
 	case "terrifi_dns_record":
 		records, err := client.ListDNSRecord(ctx, site)
 		if err != nil {
 			return fmt.Errorf("listing DNS records: %w", err)
 		}
 		blocks = generate.DNSRecordBlocks(records)
+
+	case "terrifi_firewall_group":
+		groups, err := client.ListFirewallGroup(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing firewall groups: %w", err)
+		}
+		blocks = generate.FirewallGroupBlocks(groups)
 
 	case "terrifi_firewall_zone":
 		zones, err := client.ListFirewallZone(ctx, site)
@@ -72,6 +89,13 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("listing firewall policies: %w", err)
 		}
 		blocks = generate.FirewallPolicyBlocks(policies)
+
+	case "terrifi_firewall_policy_order":
+		policies, err := client.ListFirewallPolicies(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing firewall policies: %w", err)
+		}
+		blocks = generate.FirewallPolicyOrderBlocks(policies)
 
 	case "terrifi_network":
 		networks, err := client.ListNetwork(ctx, site)

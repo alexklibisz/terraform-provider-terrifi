@@ -23,18 +23,19 @@ import (
 // clientDeviceRequest is the payload for POST/PUT to api/s/{site}/rest/user.
 // Uses *bool + omitempty for boolean fields so we only send fields we manage.
 type clientDeviceRequest struct {
-	MAC                           string `json:"mac"`
-	Name                          string `json:"name,omitempty"`
-	Note                          string `json:"note,omitempty"`
-	Noted                         *bool  `json:"noted,omitempty"`
-	FixedIP                       string `json:"fixed_ip,omitempty"`
-	NetworkID                     string `json:"network_id,omitempty"`
-	UseFixedIP                    *bool  `json:"use_fixedip,omitempty"`
-	LocalDNSRecord                string `json:"local_dns_record,omitempty"`
-	LocalDNSRecordEnabled         *bool  `json:"local_dns_record_enabled,omitempty"`
-	VirtualNetworkOverrideEnabled *bool  `json:"virtual_network_override_enabled,omitempty"`
-	VirtualNetworkOverrideID      string `json:"virtual_network_override_id,omitempty"`
-	Blocked                       *bool  `json:"blocked,omitempty"`
+	MAC                           string   `json:"mac"`
+	Name                          string   `json:"name,omitempty"`
+	Note                          string   `json:"note,omitempty"`
+	Noted                         *bool    `json:"noted,omitempty"`
+	FixedIP                       string   `json:"fixed_ip,omitempty"`
+	NetworkID                     string   `json:"network_id,omitempty"`
+	UseFixedIP                    *bool    `json:"use_fixedip,omitempty"`
+	LocalDNSRecord                string   `json:"local_dns_record,omitempty"`
+	LocalDNSRecordEnabled         *bool    `json:"local_dns_record_enabled,omitempty"`
+	VirtualNetworkOverrideEnabled *bool    `json:"virtual_network_override_enabled,omitempty"`
+	VirtualNetworkOverrideID      string   `json:"virtual_network_override_id,omitempty"`
+	NetworkMembersGroupIDs        []string `json:"network_members_group_ids"`
+	Blocked                       *bool    `json:"blocked,omitempty"`
 }
 
 // clientDeviceUpdateRequest adds _id to the request for PUT operations.
@@ -123,6 +124,26 @@ func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Cl
 	return respBody.Data, nil
 }
 
+// GetClientDeviceByMAC looks up a client device by MAC address. This is needed
+// when the controller auto-cleans a user record (common for non-connected MACs)
+// but the MAC still exists in the client table with a different ID.
+func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac string) (*unifi.Client, error) {
+	var respBody struct {
+		Meta json.RawMessage `json:"meta"`
+		Data []unifi.Client  `json:"data"`
+	}
+	err := c.doV1Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/api/s/%s/rest/user?mac=%s", c.BaseURL, c.APIPath, site, mac),
+		nil, &respBody)
+	if err != nil {
+		return nil, err
+	}
+	if len(respBody.Data) != 1 {
+		return nil, &unifi.NotFoundError{}
+	}
+	return &respBody.Data[0], nil
+}
+
 // DeleteClientDevice deletes a client device via the v1 REST API.
 func (c *Client) DeleteClientDevice(ctx context.Context, site string, id string) error {
 	return c.doV1Request(ctx, http.MethodDelete,
@@ -155,11 +176,23 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		req.Noted = boolPtr(true)
 	}
 
-	// Fixed IP: derive use_fixedip from whether fixed_ip is set
+	// Fixed IP: the controller requires a valid network_id to resolve the
+	// DHCP scope; sending use_fixedip=true without one returns "not found:
+	// type=". When no explicit network_id is provided, fall back to the
+	// virtual_network_override_id so that fixed_ip + network_override_id
+	// works without requiring the user to duplicate the ID into network_id.
 	if d.FixedIP != "" {
-		req.FixedIP = d.FixedIP
-		req.NetworkID = d.NetworkID
-		req.UseFixedIP = boolPtr(true)
+		netID := d.NetworkID
+		if netID == "" {
+			netID = d.VirtualNetworkOverrideID
+		}
+		if netID != "" {
+			req.FixedIP = d.FixedIP
+			req.NetworkID = netID
+			req.UseFixedIP = boolPtr(true)
+		} else {
+			req.UseFixedIP = boolPtr(false)
+		}
 	} else {
 		req.UseFixedIP = boolPtr(false)
 	}
@@ -178,6 +211,15 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		req.VirtualNetworkOverrideEnabled = boolPtr(true)
 	} else {
 		req.VirtualNetworkOverrideEnabled = boolPtr(false)
+	}
+
+	// Client group assignment — always set the slice so that an empty slice
+	// explicitly clears group references (needed during Delete to remove
+	// references before deleting the groups themselves).
+	if d.NetworkMembersGroupIDs != nil {
+		req.NetworkMembersGroupIDs = d.NetworkMembersGroupIDs
+	} else {
+		req.NetworkMembersGroupIDs = []string{}
 	}
 
 	// Blocked: pass through as-is

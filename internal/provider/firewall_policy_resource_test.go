@@ -24,24 +24,28 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 	t.Run("minimal block rule", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-src"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-dst"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -87,22 +91,26 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 				types.StringValue("10.0.0.1"),
 				types.StringValue("10.0.0.2"),
 			}),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("SPECIFIC"),
-			"port":               types.Int64Value(443),
-			"port_group_id":      types.StringNull(),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("SPECIFIC"),
+			"port":                 types.Int64Value(443),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-dst"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -139,24 +147,28 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 	t.Run("with schedule", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-src"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-dst"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		schedObj := types.ObjectValueMust(scheduleAttrTypes, map[string]attr.Value{
 			"mode":             types.StringValue("EVERY_WEEK"),
@@ -200,24 +212,28 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 	t.Run("disabled rule", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-src"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-dst"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -246,24 +262,28 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 	t.Run("with connection states", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-src"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-dst"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -300,21 +320,25 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 			"mac_addresses": types.SetValueMust(types.StringType, []attr.Value{
 				types.StringValue("aa:bb:cc:dd:ee:ff"),
 			}),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-dst"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -343,6 +367,61 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 		assert.Nil(t, policy.Destination.IPs)
 	})
 
+	t.Run("with device IDs", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":       types.StringValue("zone-src"),
+			"ips":           types.SetNull(types.StringType),
+			"mac_addresses": types.SetNull(types.StringType),
+			"network_ids":   types.SetNull(types.StringType),
+			"device_ids": types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("02:aa:bb:cc:dd:01"),
+				types.StringValue("02:aa:bb:cc:dd:02"),
+			}),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Device Rule"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "CLIENT", policy.Source.MatchingTarget)
+		assert.ElementsMatch(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, policy.Source.IPs)
+		assert.Equal(t, "ANY", policy.Destination.MatchingTarget)
+		assert.Nil(t, policy.Destination.IPs)
+	})
+
 	t.Run("with network IDs", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":       types.StringValue("zone-src"),
@@ -352,20 +431,24 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 				types.StringValue("net-001"),
 				types.StringValue("net-002"),
 			}),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
-			"zone_id":            types.StringValue("zone-dst"),
-			"ips":                types.SetNull(types.StringType),
-			"mac_addresses":      types.SetNull(types.StringType),
-			"network_ids":        types.SetNull(types.StringType),
-			"device_ids":         types.SetNull(types.StringType),
-			"port_matching_type": types.StringValue("ANY"),
-			"port":               types.Int64Null(),
-			"port_group_id":      types.StringNull(),
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -390,6 +473,108 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 
 		assert.Equal(t, "NETWORK", policy.Source.MatchingTarget)
 		assert.ElementsMatch(t, []string{"net-001", "net-002"}, policy.Source.IPs)
+	})
+
+	t.Run("with match opposite ports and IPs", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("SPECIFIC"),
+			"port":                 types.Int64Value(443),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolValue(true),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolValue(true),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Match Opposite"),
+			Action:              types.StringValue("ALLOW"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("tcp"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.True(t, policy.Source.MatchOppositePorts)
+		assert.False(t, policy.Source.MatchOppositeIPs)
+		assert.False(t, policy.Destination.MatchOppositePorts)
+		assert.True(t, policy.Destination.MatchOppositeIPs)
+	})
+
+	t.Run("with port group ID and match opposite ports", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringValue("pg-001"),
+			"match_opposite_ports": types.BoolValue(true),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Port Group Rule"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "pg-001", policy.Destination.PortGroupID)
+		assert.True(t, policy.Destination.MatchOppositePorts)
 	})
 }
 
@@ -616,6 +801,35 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, macs)
 	})
 
+	t.Run("IID matching target also populates mac_addresses", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-008b",
+			Name:   "IID MAC Rule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "IID",
+				IPs:            []string{"aa:bb:cc:dd:ee:ff"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.IPs.IsNull())
+		assert.False(t, srcModel.MACAddresses.IsNull())
+
+		var macs []string
+		srcModel.MACAddresses.ElementsAs(context.Background(), &macs, false)
+		assert.ElementsMatch(t, []string{"aa:bb:cc:dd:ee:ff"}, macs)
+	})
+
 	t.Run("NETWORK matching target populates network_ids", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:     "pol-009",
@@ -645,6 +859,126 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		var networks []string
 		srcModel.NetworkIDs.ElementsAs(context.Background(), &networks, false)
 		assert.ElementsMatch(t, []string{"net-001"}, networks)
+	})
+
+	t.Run("CLIENT matching target populates device_ids", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-010",
+			Name:   "Device Rule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "CLIENT",
+				IPs:            []string{"02:aa:bb:cc:dd:01"},
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.IPs.IsNull())
+		assert.True(t, srcModel.MACAddresses.IsNull())
+		assert.True(t, srcModel.NetworkIDs.IsNull())
+		assert.False(t, srcModel.DeviceIDs.IsNull())
+
+		var devices []string
+		srcModel.DeviceIDs.ElementsAs(context.Background(), &devices, false)
+		assert.ElementsMatch(t, []string{"02:aa:bb:cc:dd:01"}, devices)
+	})
+
+	t.Run("match_opposite_ports and match_opposite_ips populated", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-011",
+			Name:   "Opposite Rule",
+			Action: "ALLOW",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:             "zone-src",
+				MatchingTarget:     "ANY",
+				MatchOppositePorts: true,
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:           "zone-dst",
+				MatchingTarget:   "ANY",
+				MatchOppositeIPs: true,
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.MatchOppositePorts.ValueBool())
+		assert.True(t, srcModel.MatchOppositeIPs.IsNull())
+
+		var dstModel firewallPolicyEndpointModel
+		model.Destination.As(context.Background(), &dstModel, basetypes.ObjectAsOptions{})
+		assert.True(t, dstModel.MatchOppositePorts.IsNull())
+		assert.True(t, dstModel.MatchOppositeIPs.ValueBool())
+	})
+
+	t.Run("match_opposite booleans null when false", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-012",
+			Name:   "No Opposite",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var srcModel firewallPolicyEndpointModel
+		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
+		assert.True(t, srcModel.MatchOppositePorts.IsNull())
+		assert.True(t, srcModel.MatchOppositeIPs.IsNull())
+
+		var dstModel firewallPolicyEndpointModel
+		model.Destination.As(context.Background(), &dstModel, basetypes.ObjectAsOptions{})
+		assert.True(t, dstModel.MatchOppositePorts.IsNull())
+		assert.True(t, dstModel.MatchOppositeIPs.IsNull())
+	})
+
+	t.Run("port_group_id and OBJECT port_matching_type round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-013",
+			Name:   "Port Group Rule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:             "zone-dst",
+				MatchingTarget:     "ANY",
+				PortMatchingType:   "OBJECT",
+				PortGroupID:        "pg-001",
+				MatchOppositePorts: true,
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		var dstModel firewallPolicyEndpointModel
+		model.Destination.As(context.Background(), &dstModel, basetypes.ObjectAsOptions{})
+		assert.Equal(t, "OBJECT", dstModel.PortMatchingType.ValueString())
+		assert.Equal(t, "pg-001", dstModel.PortGroupID.ValueString())
+		assert.True(t, dstModel.MatchOppositePorts.ValueBool())
+		assert.True(t, dstModel.Port.IsNull())
 	})
 }
 
@@ -683,6 +1017,158 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 		assert.False(t, state.Enabled.ValueBool())
 		assert.Equal(t, "IPV4", state.IPVersion.ValueString())
 		assert.Equal(t, "tcp", state.Protocol.ValueString())
+	})
+}
+
+func TestBuildEndpointRequest(t *testing.T) {
+	t.Run("MAC matching sends values in macs field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "MAC", []string{"aa:bb:cc:dd:ee:ff"}, "ANY", nil, "", false, false)
+		assert.Equal(t, "MAC", ep.MatchingTarget)
+		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.MACs)
+		assert.Nil(t, ep.IPs)
+	})
+
+	t.Run("CLIENT matching sends values in client_macs field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "CLIENT", []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, "ANY", nil, "", false, false)
+		assert.Equal(t, "CLIENT", ep.MatchingTarget)
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.ClientMACs)
+		assert.Nil(t, ep.IPs)
+		assert.Nil(t, ep.MACs)
+	})
+
+	t.Run("IP matching sends values in ips field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "IP", []string{"10.0.0.1"}, "ANY", nil, "", false, false)
+		assert.Equal(t, "IP", ep.MatchingTarget)
+		assert.Equal(t, []string{"10.0.0.1"}, ep.IPs)
+		assert.Nil(t, ep.MACs)
+	})
+
+	t.Run("NETWORK matching sends values in ips field", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "NETWORK", []string{"net-001"}, "ANY", nil, "", false, false)
+		assert.Equal(t, "NETWORK", ep.MatchingTarget)
+		assert.Equal(t, []string{"net-001"}, ep.IPs)
+		assert.Nil(t, ep.MACs)
+	})
+
+	t.Run("match_opposite_ports set when true", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "ANY", nil, "SPECIFIC", nil, "", true, false)
+		assert.NotNil(t, ep.MatchOppositePorts)
+		assert.True(t, *ep.MatchOppositePorts)
+		assert.Nil(t, ep.MatchOppositeIPs)
+	})
+
+	t.Run("match_opposite_ips set when true", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "IP", []string{"10.0.0.1"}, "ANY", nil, "", false, true)
+		assert.Nil(t, ep.MatchOppositePorts)
+		assert.NotNil(t, ep.MatchOppositeIPs)
+		assert.True(t, *ep.MatchOppositeIPs)
+	})
+
+	t.Run("match_opposite fields nil when false", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "", false, false)
+		assert.Nil(t, ep.MatchOppositePorts)
+		assert.Nil(t, ep.MatchOppositeIPs)
+	})
+
+	t.Run("port_group_id sets port_matching_type to OBJECT", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "pg-001", true, false)
+		assert.Equal(t, "OBJECT", ep.PortMatchingType)
+		assert.Equal(t, "pg-001", ep.PortGroupID)
+		assert.NotNil(t, ep.MatchOppositePorts)
+		assert.True(t, *ep.MatchOppositePorts)
+	})
+
+	t.Run("port sets port_matching_type to SPECIFIC", func(t *testing.T) {
+		port := int64(443)
+		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", &port, "", false, false)
+		assert.Equal(t, "SPECIFIC", ep.PortMatchingType)
+		assert.Equal(t, int64(443), *ep.Port)
+	})
+
+	t.Run("port_matching_type preserved when no port or port_group_id", func(t *testing.T) {
+		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "", false, false)
+		assert.Equal(t, "ANY", ep.PortMatchingType)
+	})
+}
+
+func TestResolvePortMatchingType(t *testing.T) {
+	t.Run("port_group_id takes precedence", func(t *testing.T) {
+		port := int64(443)
+		result := resolvePortMatchingType("ANY", &port, "pg-001")
+		assert.Equal(t, "OBJECT", result)
+	})
+
+	t.Run("port sets SPECIFIC", func(t *testing.T) {
+		port := int64(80)
+		result := resolvePortMatchingType("ANY", &port, "")
+		assert.Equal(t, "SPECIFIC", result)
+	})
+
+	t.Run("neither falls through", func(t *testing.T) {
+		result := resolvePortMatchingType("ANY", nil, "")
+		assert.Equal(t, "ANY", result)
+	})
+
+	t.Run("explicit OBJECT preserved", func(t *testing.T) {
+		result := resolvePortMatchingType("OBJECT", nil, "pg-001")
+		assert.Equal(t, "OBJECT", result)
+	})
+}
+
+func TestResolveIPs(t *testing.T) {
+	t.Run("MAC matching returns macs", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "MAC",
+			MACs:           []string{"aa:bb:cc:dd:ee:ff"},
+		}
+		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
+	})
+
+	t.Run("IID matching also returns macs", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "MAC",
+			MACs:           []string{"aa:bb:cc:dd:ee:ff"},
+		}
+		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
+	})
+
+	t.Run("CLIENT matching returns client_macs", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "CLIENT",
+			ClientMACs:     []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"},
+		}
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.resolveIPs())
+	})
+
+	t.Run("IP matching returns ips", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "IP",
+			IPs:            []string{"10.0.0.1"},
+		}
+		assert.Equal(t, []string{"10.0.0.1"}, ep.resolveIPs())
+	})
+
+	t.Run("NETWORK matching returns ips", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "NETWORK",
+			IPs:            []string{"net-001"},
+		}
+		assert.Equal(t, []string{"net-001"}, ep.resolveIPs())
+	})
+
+	t.Run("ANY matching returns ips", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "ANY",
+		}
+		assert.Nil(t, ep.resolveIPs())
+	})
+
+	t.Run("CLIENT matching falls back to ips when client_macs empty", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "CLIENT",
+			IPs:            []string{"02:aa:bb:cc:dd:01"},
+		}
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01"}, ep.resolveIPs())
 	})
 }
 
@@ -765,7 +1251,7 @@ resource "terrifi_firewall_policy" "test" {
 	})
 }
 
-func TestAccFirewallPolicy_macAddress(t *testing.T) {
+func TestAccFirewallPolicy_macAddressSource(t *testing.T) {
 	zone1Name := fmt.Sprintf("tfacc-pol-mac-z1-%s", randomSuffix())
 	zone2Name := fmt.Sprintf("tfacc-pol-mac-z2-%s", randomSuffix())
 	policyName := fmt.Sprintf("tfacc-pol-mac-%s", randomSuffix())
@@ -793,6 +1279,57 @@ resource "terrifi_firewall_policy" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "BLOCK"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.mac_addresses.#", "1"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.mac_addresses.0", "aa:bb:cc:dd:ee:ff"),
+				),
+			},
+		},
+	})
+}
+
+// NOTE: No acceptance test for mac_addresses in the destination endpoint.
+// The UniFi v2 API uses different enum classes for source and destination
+// matching_target. The source enum includes "MAC" but the destination enum
+// does not (it lists IID instead, which causes HTTP 500). This is a firmware
+// bug (#69). mac_addresses works correctly in source.
+
+func TestAccFirewallPolicy_deviceIDs(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-dev-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-dev-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-dev-%s", randomSuffix())
+	mac := randomMAC()
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-pol-device"
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id    = terrifi_firewall_zone.zone1.id
+    device_ids = [terrifi_client_device.test.mac]
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, mac, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "BLOCK"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.device_ids.#", "1"),
+					resource.TestCheckResourceAttrPair(
+						"terrifi_firewall_policy.test", "source.device_ids.0",
+						"terrifi_client_device.test", "mac",
+					),
 				),
 			},
 		},
@@ -1285,6 +1822,568 @@ resource "terrifi_firewall_policy" "test" {
 			},
 			{
 				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_indexComputed(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-idx-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-idx-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-idx-%s", randomSuffix())
+
+	config := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "name", policyName),
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "index"),
+				),
+			},
+			// Verify the controller-assigned index is stable (no drift).
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_createAllowRespond(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-car-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-car-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-car-%s", randomSuffix())
+
+	config := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                 = %q
+  action               = "ALLOW"
+  create_allow_respond = true
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+    ips     = ["192.168.1.100"]
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "name", policyName),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "ALLOW"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "create_allow_respond", "true"),
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "index"),
+				),
+			},
+			// Verify no drift after refresh — this was the exact scenario
+			// from issue #70 that triggered the "inconsistent result" error.
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_matchOppositePorts(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-mop-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-mop-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-mop-%s", randomSuffix())
+
+	config := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "ALLOW"
+  protocol = "tcp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.zone2.id
+    port_matching_type   = "SPECIFIC"
+    port                 = 443
+    match_opposite_ports = true
+  }
+}
+`, policyName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ports", "true"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.port", "443"),
+				),
+			},
+			// Verify no drift on second apply.
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_matchOppositeIPs(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-moi-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-moi-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-moi-%s", randomSuffix())
+
+	config := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id            = terrifi_firewall_zone.zone1.id
+    ips                = ["10.0.0.0/24"]
+    match_opposite_ips = true
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips", "true"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.ips.#", "1"),
+				),
+			},
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_matchOppositeUpdate(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-mou-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-mou-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-mou-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create without match_opposite.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "ALLOW"
+  protocol = "tcp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id            = terrifi_firewall_zone.zone2.id
+    port_matching_type = "SPECIFIC"
+    port               = 80
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.port", "80"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ports"),
+				),
+			},
+			// Step 2: Enable match_opposite_ports.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "ALLOW"
+  protocol = "tcp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.zone2.id
+    port_matching_type   = "SPECIFIC"
+    port                 = 80
+    match_opposite_ports = true
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ports", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_portGroupID(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-pg-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-pg-z2-%s", randomSuffix())
+	groupName := fmt.Sprintf("tfacc-pol-pg-grp-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-pg-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create policy with port_group_id on destination.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "BLOCK"
+  protocol = "udp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id            = terrifi_firewall_zone.zone2.id
+    port_matching_type = "OBJECT"
+    port_group_id      = terrifi_firewall_group.test_ports.id
+  }
+}
+`, groupName, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "destination.port_group_id"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.port_matching_type", "OBJECT"),
+				),
+			},
+			// Step 2: No drift on re-apply.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "BLOCK"
+  protocol = "udp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id            = terrifi_firewall_zone.zone2.id
+    port_matching_type = "OBJECT"
+    port_group_id      = terrifi_firewall_group.test_ports.id
+  }
+}
+`, groupName, policyName),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_portGroupIDWithMatchOpposite(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-pgmo-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-pgmo-z2-%s", randomSuffix())
+	groupName := fmt.Sprintf("tfacc-pol-pgmo-grp-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-pgmo-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with port_group_id + match_opposite_ports (the issue #84 scenario).
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "BLOCK"
+  protocol = "udp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.zone2.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.test_ports.id
+    match_opposite_ports = true
+  }
+}
+`, groupName, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "destination.port_group_id"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.port_matching_type", "OBJECT"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ports", "true"),
+				),
+			},
+			// Step 2: No drift on re-apply.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "BLOCK"
+  protocol = "udp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.zone2.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.test_ports.id
+    match_opposite_ports = true
+  }
+}
+`, groupName, policyName),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_portGroupIDUpdate(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-pgu-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-pgu-z2-%s", randomSuffix())
+	groupName := fmt.Sprintf("tfacc-pol-pgu-grp-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-pgu-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with specific port.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "BLOCK"
+  protocol = "udp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id            = terrifi_firewall_zone.zone2.id
+    port_matching_type = "SPECIFIC"
+    port               = 123
+  }
+}
+`, groupName, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.port", "123"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.port_matching_type", "SPECIFIC"),
+				),
+			},
+			// Step 2: Update to use port group instead.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "BLOCK"
+  protocol = "udp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.zone2.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.test_ports.id
+    match_opposite_ports = true
+  }
+}
+`, groupName, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "destination.port_group_id"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.port_matching_type", "OBJECT"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ports", "true"),
+				),
+			},
+			// Step 3: No drift on re-apply.
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "BLOCK"
+  protocol = "udp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.zone2.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.test_ports.id
+    match_opposite_ports = true
+  }
+}
+`, groupName, policyName),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_portGroupIDOnSource(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-pgs-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-pgs-z2-%s", randomSuffix())
+	groupName := fmt.Sprintf("tfacc-pol-pgs-grp-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-pgs-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["80", "443"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "ALLOW"
+  protocol = "tcp"
+
+  source {
+    zone_id              = terrifi_firewall_zone.zone1.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.test_ports.id
+    match_opposite_ports = true
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, groupName, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("terrifi_firewall_policy.test", "source.port_group_id"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.port_matching_type", "OBJECT"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ports", "true"),
+				),
+			},
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_group" "test_ports" {
+  name    = %q
+  type    = "port-group"
+  members = ["80", "443"]
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name     = %q
+  action   = "ALLOW"
+  protocol = "tcp"
+
+  source {
+    zone_id              = terrifi_firewall_zone.zone1.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.test_ports.id
+    match_opposite_ports = true
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, groupName, policyName),
 				PlanOnly: true,
 			},
 		},

@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -193,6 +195,25 @@ func (r *firewallZoneResource) Update(
 		return
 	}
 
+	// The UniFi controller has a race condition when multiple zones are
+	// updated concurrently (e.g., moving a network between zones). Each PUT
+	// response claims success, but the final persisted state may be wrong
+	// because the concurrent PUTs interfere with each other. We verify the
+	// result via the list endpoint and retry the PUT if needed.
+	for attempt := 0; attempt < 5; attempt++ {
+		time.Sleep(1 * time.Second)
+		readBack, readErr := r.client.GetFirewallZone(ctx, site, zone.ID)
+		if readErr == nil && networkIDsMatch(readBack.NetworkIDs, zone.NetworkIDs) {
+			break
+		}
+		// Re-issue the PUT to overcome the race.
+		retryUpdated, retryErr := r.client.UpdateFirewallZone(ctx, site, zone)
+		if retryErr == nil {
+			updated = retryUpdated
+		}
+	}
+
+	// Save state from the PUT response, which reflects the intended changes.
 	r.apiToModel(updated, &state, site)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -243,6 +264,29 @@ func (r *firewallZoneResource) applyPlanToState(plan, state *firewallZoneResourc
 	if !plan.NetworkIDs.IsNull() && !plan.NetworkIDs.IsUnknown() {
 		state.NetworkIDs = plan.NetworkIDs
 	}
+}
+
+// networkIDsMatch reports whether two network ID slices contain the same elements
+// (order-independent). Both nil and empty are treated as equivalent.
+func networkIDsMatch(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if len(a) == 0 {
+		return true
+	}
+	aSorted := make([]string, len(a))
+	bSorted := make([]string, len(b))
+	copy(aSorted, a)
+	copy(bSorted, b)
+	sort.Strings(aSorted)
+	sort.Strings(bSorted)
+	for i := range aSorted {
+		if aSorted[i] != bSorted[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *firewallZoneResource) modelToAPI(ctx context.Context, m *firewallZoneResourceModel) *unifi.FirewallZone {

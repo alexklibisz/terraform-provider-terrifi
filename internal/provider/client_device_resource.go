@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -20,8 +22,9 @@ import (
 var macRegexp = regexp.MustCompile(`^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$`)
 
 var (
-	_ resource.Resource                = &clientDeviceResource{}
-	_ resource.ResourceWithImportState = &clientDeviceResource{}
+	_ resource.Resource                     = &clientDeviceResource{}
+	_ resource.ResourceWithImportState      = &clientDeviceResource{}
+	_ resource.ResourceWithConfigValidators = &clientDeviceResource{}
 )
 
 func NewClientDeviceResource() resource.Resource {
@@ -42,6 +45,7 @@ type clientDeviceResourceModel struct {
 	NetworkID         types.String `tfsdk:"network_id"`
 	NetworkOverrideID types.String `tfsdk:"network_override_id"`
 	LocalDNSRecord    types.String `tfsdk:"local_dns_record"`
+	ClientGroupIDs    types.Set    `tfsdk:"client_group_ids"`
 	Blocked           types.Bool   `tfsdk:"blocked"`
 }
 
@@ -107,22 +111,26 @@ func (r *clientDeviceResource) Schema(
 
 			"fixed_ip": schema.StringAttribute{
 				MarkdownDescription: "A fixed IP address to assign to this client via DHCP reservation. " +
-					"Requires `network_id` to also be set.",
+					"Requires `network_id` or `network_override_id` to also be set.",
 				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.AlsoRequires(path.MatchRoot("network_id")),
-				},
 			},
 
 			"network_id": schema.StringAttribute{
-				MarkdownDescription: "The network ID for fixed IP assignment. Required when `fixed_ip` is set.",
-				Optional:            true,
+				MarkdownDescription: "The network ID for fixed IP assignment. " +
+					"Required when `fixed_ip` is set unless `network_override_id` provides the network context.",
+				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 
 			"network_override_id": schema.StringAttribute{
 				MarkdownDescription: "The network ID for VLAN/network override. When set, the client " +
 					"will be placed on this network regardless of the SSID or port profile it connects to.",
 				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 
 			"local_dns_record": schema.StringAttribute{
@@ -134,11 +142,26 @@ func (r *clientDeviceResource) Schema(
 				},
 			},
 
+			"client_group_ids": schema.SetAttribute{
+				MarkdownDescription: "Set of client group IDs to assign this device to. " +
+					"Use `terrifi_client_group` to manage groups.",
+				ElementType: types.StringType,
+				Optional:    true,
+			},
+
 			"blocked": schema.BoolAttribute{
-				MarkdownDescription: "Whether the client device is blocked from network access.",
+				MarkdownDescription: "Whether the client device is blocked from network access. Defaults to `false`.",
 				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 		},
+	}
+}
+
+func (r *clientDeviceResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		clientDeviceFixedIPNetworkValidator{},
 	}
 }
 
@@ -174,8 +197,16 @@ func (r *clientDeviceResource) Create(
 		return
 	}
 
+	// Save fields before the API call that need to be restored after
+	// apiToModel because the API response may differ from the user's config:
+	// - client_group_ids: the API may not return network_members_group_ids in responses
+	// - network_id: when fixed_ip uses network_override_id as fallback, the
+	//   API returns network_id but the user didn't configure it
+	plannedGroupIDs := plan.ClientGroupIDs
+	plannedNetworkID := plan.NetworkID
+
 	site := r.client.SiteOrDefault(plan.Site)
-	apiObj := r.modelToAPI(&plan)
+	apiObj := r.modelToAPI(ctx, &plan)
 
 	created, err := r.client.CreateClientDevice(ctx, site, apiObj)
 	if err != nil {
@@ -184,6 +215,8 @@ func (r *clientDeviceResource) Create(
 	}
 
 	r.apiToModel(created, &plan, site)
+	plan.ClientGroupIDs = plannedGroupIDs
+	plan.NetworkID = plannedNetworkID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -197,6 +230,10 @@ func (r *clientDeviceResource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Save fields before the API call that need to be restored after apiToModel.
+	priorGroupIDs := state.ClientGroupIDs
+	priorNetworkID := state.NetworkID
 
 	site := r.client.SiteOrDefault(state.Site)
 
@@ -214,6 +251,8 @@ func (r *clientDeviceResource) Read(
 	}
 
 	r.apiToModel(apiObj, &state, site)
+	state.ClientGroupIDs = priorGroupIDs
+	state.NetworkID = priorNetworkID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -229,19 +268,48 @@ func (r *clientDeviceResource) Update(
 		return
 	}
 
+	// Save fields before the API call that need to be restored after apiToModel.
+	plannedGroupIDs := plan.ClientGroupIDs
+	plannedNetworkID := plan.NetworkID
+
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
-	apiObj := r.modelToAPI(&state)
+	apiObj := r.modelToAPI(ctx, &state)
 	apiObj.ID = state.ID.ValueString()
 
 	updated, err := r.client.UpdateClientDevice(ctx, site, apiObj)
 	if err != nil {
+		if _, ok := err.(*unifi.NotFoundError); ok {
+			// Controller auto-cleaned the user record (common for non-connected
+			// MACs). Look up the client by MAC to get its current ID, then retry.
+			mac := strings.ToLower(state.MAC.ValueString())
+			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
+			if lookupErr != nil {
+				resp.Diagnostics.AddError("Error Looking Up Client Device by MAC",
+					fmt.Sprintf("Update returned not-found for ID %s and MAC lookup also failed: %s",
+						apiObj.ID, lookupErr.Error()))
+				return
+			}
+			apiObj.ID = found.ID
+			updated, err = r.client.UpdateClientDevice(ctx, site, apiObj)
+			if err != nil {
+				resp.Diagnostics.AddError("Error Updating Client Device (after MAC lookup)", err.Error())
+				return
+			}
+			r.apiToModel(updated, &state, site)
+			state.ClientGroupIDs = plannedGroupIDs
+			state.NetworkID = plannedNetworkID
+			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+			return
+		}
 		resp.Diagnostics.AddError("Error Updating Client Device", err.Error())
 		return
 	}
 
 	r.apiToModel(updated, &state, site)
+	state.ClientGroupIDs = plannedGroupIDs
+	state.NetworkID = plannedNetworkID
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -258,10 +326,10 @@ func (r *clientDeviceResource) Delete(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	// Clear all network bindings before deleting. The controller retains DHCP
-	// reservations and DNS records even after the user record is removed, which
-	// prevents referenced networks from being deleted. Sending an update with
-	// all bindings cleared fixes this.
+	// Clear all network and group bindings before deleting. The controller
+	// retains DHCP reservations, DNS records, and group references even after
+	// the user record is removed. Sending an update with all bindings cleared
+	// ensures dependent resources (networks, client groups) can be deleted.
 	mac := strings.ToLower(state.MAC.ValueString())
 	clearObj := &unifi.Client{
 		ID:  state.ID.ValueString(),
@@ -271,14 +339,19 @@ func (r *clientDeviceResource) Delete(
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			// Controller auto-cleaned the user record (common for non-connected
-			// MACs), but network references may persist. Re-create a temporary
-			// record with cleared bindings so the controller releases them.
-			created, createErr := r.client.CreateClientDevice(ctx, site, &unifi.Client{MAC: mac})
-			if createErr == nil {
-				_ = r.client.DeleteClientDevice(ctx, site, created.ID)
+			// MACs), but network references may persist. Look up by MAC and
+			// clear bindings on the current record.
+			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
+			if lookupErr == nil {
+				clearObj.ID = found.ID
+				_, _ = r.client.UpdateClientDevice(ctx, site, clearObj)
+				_ = r.client.DeleteClientDevice(ctx, site, found.ID)
 			}
 			return
 		}
+		// Non-404 errors clearing bindings are not fatal — proceed to delete.
+		// The delete itself may still succeed, and dependent resource deletes
+		// (e.g., client groups) have retry logic for stale references.
 	}
 
 	err = r.client.DeleteClientDevice(ctx, site, state.ID.ValueString())
@@ -305,6 +378,51 @@ func (r *clientDeviceResource) ImportState(
 	}
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// ---------------------------------------------------------------------------
+// Config validators
+// ---------------------------------------------------------------------------
+
+// clientDeviceFixedIPNetworkValidator ensures that when fixed_ip is specified,
+// at least one of network_id or network_override_id is also specified.
+type clientDeviceFixedIPNetworkValidator struct{}
+
+func (v clientDeviceFixedIPNetworkValidator) Description(_ context.Context) string {
+	return "When fixed_ip is specified, either network_id or network_override_id must also be specified."
+}
+
+func (v clientDeviceFixedIPNetworkValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v clientDeviceFixedIPNetworkValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var fixedIP, networkID, networkOverrideID types.String
+
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("fixed_ip"), &fixedIP)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("network_id"), &networkID)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("network_override_id"), &networkOverrideID)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if fixedIP.IsNull() || fixedIP.IsUnknown() {
+		return
+	}
+
+	// Treat unknown values (e.g. references to other resources) as "set" —
+	// the user configured the attribute, the value is just not resolved yet.
+	networkIDSet := !networkID.IsNull()
+	networkOverrideIDSet := !networkOverrideID.IsNull()
+
+	if !networkIDSet && !networkOverrideIDSet {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("fixed_ip"),
+			"Missing Network Attribute",
+			"Attribute \"network_id\" or \"network_override_id\" must be specified when \"fixed_ip\" is specified.",
+		)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -345,6 +463,11 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	} else {
 		state.LocalDNSRecord = types.StringNull()
 	}
+	if !plan.ClientGroupIDs.IsNull() && !plan.ClientGroupIDs.IsUnknown() {
+		state.ClientGroupIDs = plan.ClientGroupIDs
+	} else {
+		state.ClientGroupIDs = types.SetNull(types.StringType)
+	}
 	if !plan.Blocked.IsNull() && !plan.Blocked.IsUnknown() {
 		state.Blocked = plan.Blocked
 	} else {
@@ -352,7 +475,7 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	}
 }
 
-func (r *clientDeviceResource) modelToAPI(m *clientDeviceResourceModel) *unifi.Client {
+func (r *clientDeviceResource) modelToAPI(ctx context.Context, m *clientDeviceResourceModel) *unifi.Client {
 	c := &unifi.Client{
 		MAC: strings.ToLower(m.MAC.ValueString()),
 	}
@@ -381,6 +504,12 @@ func (r *clientDeviceResource) modelToAPI(m *clientDeviceResourceModel) *unifi.C
 	if !m.LocalDNSRecord.IsNull() && !m.LocalDNSRecord.IsUnknown() {
 		c.LocalDNSRecord = m.LocalDNSRecord.ValueString()
 		c.LocalDNSRecordEnabled = true
+	}
+
+	if !m.ClientGroupIDs.IsNull() && !m.ClientGroupIDs.IsUnknown() {
+		var ids []string
+		m.ClientGroupIDs.ElementsAs(ctx, &ids, false)
+		c.NetworkMembersGroupIDs = ids
 	}
 
 	if !m.Blocked.IsNull() && !m.Blocked.IsUnknown() {
@@ -422,11 +551,21 @@ func (r *clientDeviceResource) apiToModel(c *unifi.Client, m *clientDeviceResour
 		m.LocalDNSRecord = types.StringNull()
 	}
 
-	// Preserve blocked state faithfully: true or false when explicitly set by
-	// the API, null when the API doesn't return the field at all.
+	if c.NetworkMembersGroupIDs != nil {
+		vals := make([]attr.Value, len(c.NetworkMembersGroupIDs))
+		for i, id := range c.NetworkMembersGroupIDs {
+			vals[i] = types.StringValue(id)
+		}
+		m.ClientGroupIDs = types.SetValueMust(types.StringType, vals)
+	} else {
+		m.ClientGroupIDs = types.SetNull(types.StringType)
+	}
+
+	// Treat nil Blocked as false — the absence of the field in the API
+	// response means the device is not blocked.
 	if c.Blocked != nil {
 		m.Blocked = types.BoolValue(*c.Blocked)
 	} else {
-		m.Blocked = types.BoolNull()
+		m.Blocked = types.BoolValue(false)
 	}
 }

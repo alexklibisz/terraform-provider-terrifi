@@ -70,9 +70,12 @@ type firewallPolicyEndpointRequest struct {
 	MatchingTargetType string   `json:"matching_target_type,omitempty"`
 	IPs                []string `json:"ips,omitempty"`
 	MACs               []string `json:"macs,omitempty"`
+	ClientMACs         []string `json:"client_macs,omitempty"`
 	PortMatchingType   string   `json:"port_matching_type,omitempty"`
 	Port               *int64   `json:"port,omitempty"`
 	PortGroupID        string   `json:"port_group_id,omitempty"`
+	MatchOppositePorts *bool    `json:"match_opposite_ports,omitempty"`
+	MatchOppositeIPs   *bool    `json:"match_opposite_ips,omitempty"`
 }
 
 // firewallPolicyScheduleRequest is the schedule nested object.
@@ -184,6 +187,7 @@ type firewallPolicyResponse struct {
 	CreateAllowRespond  bool                            `json:"create_allow_respond"`
 	Logging             bool                            `json:"logging"`
 	MatchIPSec          bool                            `json:"match_ip_sec"`
+	Predefined          bool                            `json:"predefined"`
 	Index               *int64                          `json:"index"`
 	Source              *firewallPolicyEndpointResponse `json:"source"`
 	Destination         *firewallPolicyEndpointResponse `json:"destination"`
@@ -191,13 +195,16 @@ type firewallPolicyResponse struct {
 }
 
 type firewallPolicyEndpointResponse struct {
-	ZoneID           string          `json:"zone_id"`
-	MatchingTarget   string          `json:"matching_target"`
-	IPs              []string        `json:"ips"`
-	MACs             []string        `json:"macs"`
-	PortMatchingType string          `json:"port_matching_type"`
-	Port             json.RawMessage `json:"port"`
-	PortGroupID      string          `json:"port_group_id"`
+	ZoneID             string          `json:"zone_id"`
+	MatchingTarget     string          `json:"matching_target"`
+	IPs                []string        `json:"ips"`
+	MACs               []string        `json:"macs"`
+	ClientMACs         []string        `json:"client_macs"`
+	PortMatchingType   string          `json:"port_matching_type"`
+	Port               json.RawMessage `json:"port"`
+	PortGroupID        string          `json:"port_group_id"`
+	MatchOppositePorts bool            `json:"match_opposite_ports"`
+	MatchOppositeIPs   bool            `json:"match_opposite_ips"`
 }
 
 func (r *firewallPolicyResponse) toSDK() *unifi.FirewallPolicy {
@@ -214,6 +221,7 @@ func (r *firewallPolicyResponse) toSDK() *unifi.FirewallPolicy {
 		CreateAllowRespond:  r.CreateAllowRespond,
 		Logging:             r.Logging,
 		MatchIPSec:          r.MatchIPSec,
+		Predefined:          r.Predefined,
 		Index:               r.Index,
 	}
 
@@ -259,32 +267,42 @@ func (ep *firewallPolicyEndpointResponse) parsePort() *int64 {
 
 func (ep *firewallPolicyEndpointResponse) toSDKSource() *unifi.FirewallPolicySource {
 	return &unifi.FirewallPolicySource{
-		ZoneID:           ep.ZoneID,
-		MatchingTarget:   ep.MatchingTarget,
-		IPs:              ep.resolveIPs(),
-		PortMatchingType: ep.PortMatchingType,
-		Port:             ep.parsePort(),
-		PortGroupID:      ep.PortGroupID,
+		ZoneID:             ep.ZoneID,
+		MatchingTarget:     ep.MatchingTarget,
+		IPs:                ep.resolveIPs(),
+		PortMatchingType:   ep.PortMatchingType,
+		Port:               ep.parsePort(),
+		PortGroupID:        ep.PortGroupID,
+		MatchOppositePorts: ep.MatchOppositePorts,
+		MatchOppositeIPs:   ep.MatchOppositeIPs,
 	}
 }
 
 func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPolicyDestination {
 	return &unifi.FirewallPolicyDestination{
-		ZoneID:           ep.ZoneID,
-		MatchingTarget:   ep.MatchingTarget,
-		IPs:              ep.resolveIPs(),
-		PortMatchingType: ep.PortMatchingType,
-		Port:             ep.parsePort(),
-		PortGroupID:      ep.PortGroupID,
+		ZoneID:             ep.ZoneID,
+		MatchingTarget:     ep.MatchingTarget,
+		IPs:                ep.resolveIPs(),
+		PortMatchingType:   ep.PortMatchingType,
+		Port:               ep.parsePort(),
+		PortGroupID:        ep.PortGroupID,
+		MatchOppositePorts: ep.MatchOppositePorts,
+		MatchOppositeIPs:   ep.MatchOppositeIPs,
 	}
 }
 
-// resolveIPs returns the endpoint values, merging the "macs" field back into
-// a single slice so the resource layer can handle all target types uniformly
-// via the IPs field on the SDK struct.
+// resolveIPs returns the endpoint values, merging the "macs" or "client_macs"
+// field back into a single slice so the resource layer can handle all target
+// types uniformly via the IPs field on the SDK struct.
 func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
-	if ep.MatchingTarget == "MAC" && len(ep.MACs) > 0 {
-		return ep.MACs
+	switch ep.MatchingTarget {
+	case "IID", "MAC", "CLIENT":
+		if len(ep.MACs) > 0 {
+			return ep.MACs
+		}
+	}
+	if ep.MatchingTarget == "CLIENT" && len(ep.ClientMACs) > 0 {
+		return ep.ClientMACs
 	}
 	return ep.IPs
 }
@@ -316,11 +334,11 @@ func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCre
 	}
 
 	if d.Source != nil {
-		req.Source = buildEndpointRequest(d.Source.ZoneID, d.Source.MatchingTarget, d.Source.IPs, d.Source.PortMatchingType, d.Source.Port, d.Source.PortGroupID)
+		req.Source = buildEndpointRequest(d.Source.ZoneID, d.Source.MatchingTarget, d.Source.IPs, d.Source.PortMatchingType, d.Source.Port, d.Source.PortGroupID, d.Source.MatchOppositePorts, d.Source.MatchOppositeIPs)
 	}
 
 	if d.Destination != nil {
-		req.Destination = buildEndpointRequest(d.Destination.ZoneID, d.Destination.MatchingTarget, d.Destination.IPs, d.Destination.PortMatchingType, d.Destination.Port, d.Destination.PortGroupID)
+		req.Destination = buildEndpointRequest(d.Destination.ZoneID, d.Destination.MatchingTarget, d.Destination.IPs, d.Destination.PortMatchingType, d.Destination.Port, d.Destination.PortGroupID, d.Destination.MatchOppositePorts, d.Destination.MatchOppositeIPs)
 	}
 
 	if d.Schedule != nil {
@@ -345,18 +363,27 @@ func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCre
 	return req
 }
 
-func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatchingType string, port *int64, portGroupID string) *firewallPolicyEndpointRequest {
+func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatchingType string, port *int64, portGroupID string, matchOppositePorts, matchOppositeIPs bool) *firewallPolicyEndpointRequest {
 	ep := &firewallPolicyEndpointRequest{
 		ZoneID:             zoneID,
 		MatchingTarget:     matchingTarget,
 		MatchingTargetType: matchingTargetType(matchingTarget),
-		PortMatchingType:   portMatchingType,
+		PortMatchingType:   resolvePortMatchingType(portMatchingType, port, portGroupID),
 		Port:               port,
 		PortGroupID:        portGroupID,
 	}
-	// The API expects MAC values in the "macs" field, not "ips".
+	if matchOppositePorts {
+		ep.MatchOppositePorts = boolPtr(true)
+	}
+	if matchOppositeIPs {
+		ep.MatchOppositeIPs = boolPtr(true)
+	}
+	// The API expects MAC values in the "macs" field and device values in
+	// the "client_macs" field, not "ips".
 	if matchingTarget == "MAC" {
 		ep.MACs = ips
+	} else if matchingTarget == "CLIENT" {
+		ep.ClientMACs = ips
 	} else {
 		ep.IPs = ips
 	}
@@ -365,15 +392,30 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 
 func boolPtr(b bool) *bool { return &b }
 
-// matchingTargetType derives matching_target_type from matching_target.
-// The v2 API requires both fields: matching_target identifies WHAT to match
-// (IP, NETWORK, etc.) and matching_target_type indicates how (ANY vs SPECIFIC).
+// resolvePortMatchingType derives the correct port_matching_type for the API.
+// The v2 API accepts SPECIFIC (when a port number is set), OBJECT (when a port
+// group ID is set), or ANY (no port filter). This function auto-derives the
+// value from what's set, so users don't need to specify port_matching_type
+// explicitly.
+func resolvePortMatchingType(portMatchingType string, port *int64, portGroupID string) string {
+	if portGroupID != "" {
+		return "OBJECT"
+	}
+	if port != nil {
+		return "SPECIFIC"
+	}
+	return portMatchingType
+}
+
 // matchingTargetType derives matching_target_type from matching_target.
 // The v2 API requires this field when matching_target is not ANY. The enum
 // only accepts SPECIFIC or OBJECT (not ANY), so we omit it for ANY targets.
 func matchingTargetType(matchingTarget string) string {
 	if matchingTarget == "" || matchingTarget == "ANY" {
 		return "" // omitempty will exclude it from the JSON
+	}
+	if matchingTarget == "CLIENT" {
+		return "OBJECT"
 	}
 	return "SPECIFIC"
 }

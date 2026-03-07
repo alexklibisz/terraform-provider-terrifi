@@ -59,6 +59,32 @@ resource "terrifi_firewall_policy" "allow_https" {
 }
 ```
 
+### Block with port group exception
+
+```terraform
+resource "terrifi_firewall_group" "ntp_ports" {
+  name    = "NTP Ports"
+  type    = "port-group"
+  members = ["123"]
+}
+
+resource "terrifi_firewall_policy" "block_except_ntp" {
+  name   = "Block except NTP"
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.iot.id
+  }
+
+  destination {
+    zone_id              = terrifi_firewall_zone.external.id
+    port_matching_type   = "OBJECT"
+    port_group_id        = terrifi_firewall_group.ntp_ports.id
+    match_opposite_ports = true
+  }
+}
+```
+
 ### Block by MAC address
 
 ```terraform
@@ -121,24 +147,26 @@ resource "terrifi_firewall_policy" "weekday_block" {
 - `match_ipsec` (Boolean) — Whether to match IPsec traffic.
 - `logging` (Boolean) — Whether to enable syslog logging for matched traffic.
 - `create_allow_respond` (Boolean) — Whether to create a corresponding allow-respond rule.
-- `index` (Number) — Ordering index. Assigned by the controller if not specified.
 - `schedule` (Block) — Schedule configuration. See [Schedule](#schedule) below.
 - `site` (String) — The site. Defaults to the provider site. Changing this forces a new resource.
 
 ### Read-Only
 
 - `id` (String) — The ID of the firewall policy.
+- `index` (Number) — The ordering index of the policy, assigned by the controller.
 
 ### Source/Destination
 
 - `zone_id` (String, Required) — The firewall zone ID.
 - `ips` (Set of String) — IP addresses or CIDR ranges to match.
-- `mac_addresses` (Set of String) — MAC addresses to match.
+- `mac_addresses` (Set of String) — MAC addresses to match. **Note:** Currently only supported in the `source` block. The UniFi v2 API uses different enum types for source vs. destination matching targets, and the destination enum does not include `MAC` (see [#69](https://github.com/alexklibisz/terraform-provider-terrifi/issues/69)).
 - `network_ids` (Set of String) — Network IDs to match.
-- `device_ids` (Set of String) — Device IDs to match.
-- `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `LIST`. Default: `ANY`.
+- `device_ids` (Set of String) — Client device MAC addresses to match. Use the `mac` attribute from `terrifi_client_device` resources.
+- `port_matching_type` (String) — Port matching type. Valid values: `ANY`, `SPECIFIC`, `OBJECT`. Default: `ANY`. Automatically derived when `port` or `port_group_id` is set.
 - `port` (Number) — Specific port number (when `port_matching_type` is `SPECIFIC`).
-- `port_group_id` (String) — Port group ID (when `port_matching_type` is `LIST`).
+- `port_group_id` (String) — Port group ID (when `port_matching_type` is `OBJECT`).
+- `match_opposite_ports` (Boolean) — Inverts the port matching. When `true` and action is `ALLOW`, all ports _except_ the specified ones are allowed. When `true` and action is `BLOCK`, all ports _except_ the specified ones are blocked.
+- `match_opposite_ips` (Boolean) — Inverts the IP matching. When `true` and action is `ALLOW`, all IPs _except_ the specified ones are allowed. When `true` and action is `BLOCK`, all IPs _except_ the specified ones are blocked.
 
 At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set. When none is set, the endpoint matches any target.
 
@@ -163,4 +191,10 @@ To import from a non-default site, use the `site:id` format:
 
 ```shell
 terraform import terrifi_firewall_policy.example <site>:<id>
+```
+
+You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks for all firewall policies automatically:
+
+```shell
+terrifi generate-imports terrifi_firewall_policy
 ```

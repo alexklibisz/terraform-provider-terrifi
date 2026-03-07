@@ -46,15 +46,11 @@ func FirewallPolicyBlocks(policies []*unifi.FirewallPolicy) []ResourceBlock {
 		if p.CreateAllowRespond {
 			block.Attributes = append(block.Attributes, Attr{Key: "create_allow_respond", Value: HCLBool(true)})
 		}
-		if p.Index != nil {
-			block.Attributes = append(block.Attributes, Attr{Key: "index", Value: HCLInt64(*p.Index)})
-		}
-
 		if p.Source != nil {
-			block.Blocks = append(block.Blocks, buildEndpointBlock("source", p.Source.ZoneID, p.Source.MatchingTarget, p.Source.IPs, p.Source.PortMatchingType, p.Source.Port, p.Source.PortGroupID))
+			block.Blocks = append(block.Blocks, buildEndpointBlock("source", p.Source.ZoneID, p.Source.MatchingTarget, p.Source.IPs, p.Source.PortMatchingType, p.Source.Port, p.Source.PortGroupID, p.Source.MatchOppositePorts, p.Source.MatchOppositeIPs))
 		}
 		if p.Destination != nil {
-			block.Blocks = append(block.Blocks, buildEndpointBlock("destination", p.Destination.ZoneID, p.Destination.MatchingTarget, p.Destination.IPs, p.Destination.PortMatchingType, p.Destination.Port, p.Destination.PortGroupID))
+			block.Blocks = append(block.Blocks, buildEndpointBlock("destination", p.Destination.ZoneID, p.Destination.MatchingTarget, p.Destination.IPs, p.Destination.PortMatchingType, p.Destination.Port, p.Destination.PortGroupID, p.Destination.MatchOppositePorts, p.Destination.MatchOppositeIPs))
 		}
 
 		if p.Schedule != nil && p.Schedule.Mode != "" && p.Schedule.Mode != "ALWAYS" {
@@ -67,7 +63,7 @@ func FirewallPolicyBlocks(policies []*unifi.FirewallPolicy) []ResourceBlock {
 	return blocks
 }
 
-func buildEndpointBlock(name, zoneID, matchingTarget string, ips []string, portMatchingType string, port *int64, portGroupID string) NestedBlock {
+func buildEndpointBlock(name, zoneID, matchingTarget string, ips []string, portMatchingType string, port *int64, portGroupID string, matchOppositePorts, matchOppositeIPs bool) NestedBlock {
 	nb := NestedBlock{Name: name}
 
 	nb.Attributes = append(nb.Attributes, Attr{
@@ -80,7 +76,7 @@ func buildEndpointBlock(name, zoneID, matchingTarget string, ips []string, portM
 		switch matchingTarget {
 		case "IP":
 			nb.Attributes = append(nb.Attributes, Attr{Key: "ips", Value: HCLStringList(ips)})
-		case "MAC":
+		case "IID", "MAC":
 			nb.Attributes = append(nb.Attributes, Attr{Key: "mac_addresses", Value: HCLStringList(ips)})
 		case "NETWORK":
 			nb.Attributes = append(nb.Attributes, Attr{
@@ -88,7 +84,7 @@ func buildEndpointBlock(name, zoneID, matchingTarget string, ips []string, portM
 				Value:   HCLStringList(ips),
 				Comment: "TODO: find and reference corresponding terrifi_network resources",
 			})
-		case "DEVICE":
+		case "CLIENT":
 			nb.Attributes = append(nb.Attributes, Attr{
 				Key:     "device_ids",
 				Value:   HCLStringList(ips),
@@ -105,6 +101,12 @@ func buildEndpointBlock(name, zoneID, matchingTarget string, ips []string, portM
 	}
 	if portGroupID != "" {
 		nb.Attributes = append(nb.Attributes, Attr{Key: "port_group_id", Value: HCLString(portGroupID)})
+	}
+	if matchOppositePorts {
+		nb.Attributes = append(nb.Attributes, Attr{Key: "match_opposite_ports", Value: HCLBool(true)})
+	}
+	if matchOppositeIPs {
+		nb.Attributes = append(nb.Attributes, Attr{Key: "match_opposite_ips", Value: HCLBool(true)})
 	}
 
 	return nb

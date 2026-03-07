@@ -1,10 +1,10 @@
 package provider
 
-// TODO(go-unifi): This entire file is a workaround for three bugs in the
-// go-unifi SDK (github.com/ubiquiti-community/go-unifi). When the upstream
-// SDK fixes these issues, this file can be deleted and the firewall zone
-// resource can use the SDK's built-in methods directly (c.ApiClient.Create/
-// Update/DeleteFirewallZone). The three upstream bugs are:
+// TODO(go-unifi): This entire file is a workaround for bugs in the go-unifi
+// SDK (github.com/ubiquiti-community/go-unifi). When the upstream SDK fixes
+// these issues, this file can be deleted and the firewall zone resource can
+// use the SDK's built-in methods directly (c.ApiClient.Get/Create/Update/
+// DeleteFirewallZone). The upstream bugs are:
 //
 //  1. unifi.FirewallZone serializes `"default_zone": false` (no omitempty),
 //     which the UniFi v2 API rejects with 400 Bad Request.
@@ -22,6 +22,13 @@ package provider
 //     the SDK misinterprets as an error.
 //     Fix needed in SDK: accept any 2xx status code as success, or
 //     specifically handle 204 for delete operations.
+//
+//  4. SDK's GetFirewallZone uses the v1 REST endpoint, which does not
+//     consistently return the `network_ids` field. Since Create and Update
+//     use the v2 endpoint (which does return network_ids), this mismatch
+//     causes Terraform to see empty network_ids on refresh, producing a
+//     non-empty plan diff and flaky acceptance tests.
+//     Fix needed in SDK: use the v2 GET endpoint for firewall zones.
 
 import (
 	"bytes"
@@ -48,6 +55,28 @@ type firewallZoneUpdateRequest struct {
 	ID         string   `json:"_id"`
 	Name       string   `json:"name,omitempty"`
 	NetworkIDs []string `json:"network_ids"`
+}
+
+// GetFirewallZone reads a firewall zone via the v2 API, bypassing the SDK
+// to avoid bug #4 (v1 endpoint doesn't return network_ids consistently).
+// The v2 API does not support GET on individual zones, so we list all zones
+// and filter by ID (same pattern as GetFirewallPolicy).
+// This method shadows the SDK's promoted GetFirewallZone on ApiClient.
+func (c *Client) GetFirewallZone(ctx context.Context, site string, id string) (*unifi.FirewallZone, error) {
+	var zones []unifi.FirewallZone
+	err := c.doV2Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", c.BaseURL, c.APIPath, site),
+		struct{}{}, &zones)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range zones {
+		if zones[i].ID == id {
+			return &zones[i], nil
+		}
+	}
+	return nil, &unifi.NotFoundError{}
 }
 
 // CreateFirewallZone creates a firewall zone via the v2 API, bypassing the
@@ -103,7 +132,24 @@ func (c *Client) DeleteFirewallZone(ctx context.Context, site string, id string)
 
 // doV2Request makes an authenticated HTTP request to the UniFi v2 API.
 // It is shared by firewall zone and firewall policy operations.
+//
+// When response caching is enabled (c.cache != nil), GET responses are cached
+// by URL and subsequent GETs return cached bytes without hitting the controller.
+// Any non-GET request (POST, PUT, DELETE) invalidates the entire cache to ensure
+// subsequent reads see fresh data.
 func (c *Client) doV2Request(ctx context.Context, method, url string, body any, result any) error {
+	// Cache hit path: return cached bytes for GET requests without making an HTTP call.
+	if method == http.MethodGet && c.cache != nil {
+		if cached, ok := c.cache.get(url); ok {
+			if result != nil && len(cached) > 0 {
+				if err := json.Unmarshal(cached, result); err != nil {
+					return fmt.Errorf("unmarshaling cached response: %w", err)
+				}
+			}
+			return nil
+		}
+	}
+
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshaling request body: %w", err)
@@ -118,8 +164,8 @@ func (c *Client) doV2Request(ctx context.Context, method, url string, body any, 
 	// Replicate the SDK's auth logic: API key takes precedence over CSRF token.
 	if c.APIKey != "" {
 		req.Header.Set("X-API-Key", c.APIKey)
-	} else if csrf := c.ApiClient.CSRFToken(); csrf != "" {
-		req.Header.Set("X-Csrf-Token", csrf)
+	} else if c.csrf != "" {
+		req.Header.Set("X-Csrf-Token", c.csrf)
 	}
 
 	resp, err := c.HTTP.Do(req)
@@ -135,6 +181,15 @@ func (c *Client) doV2Request(ctx context.Context, method, url string, body any, 
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("(%d) for %s %s\npayload: %s\nresponse: %s", resp.StatusCode, method, url, string(bodyBytes), string(respBytes))
+	}
+
+	// Cache management: store GET responses, invalidate on writes.
+	if c.cache != nil {
+		if method == http.MethodGet {
+			c.cache.set(url, respBytes)
+		} else {
+			c.cache.invalidateAll()
+		}
 	}
 
 	if result != nil && len(respBytes) > 0 {
