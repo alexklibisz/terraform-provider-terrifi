@@ -38,9 +38,17 @@ jobs:
       - name: Download Go dependencies
         timeout-minutes: 10
         run: task deps
-      - name: Check Go module cache size
+      - name: Debug Go cache paths
         timeout-minutes: 1
-        run: du -sh /go/pkg/mod || echo "/go/pkg/mod not found"
+        run: |
+          echo "GOPATH=$(go env GOPATH)"
+          echo "GOMODCACHE=$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)"
+          echo "HOME=$HOME"
+          echo "whoami=$(whoami)"
+          du -sh "$(go env GOMODCACHE)" || echo "GOMODCACHE not found"
+          du -sh "$(go env GOCACHE)" || echo "GOCACHE not found"
+          du -sh /root/.cache/go-build 2>/dev/null || echo "/root/.cache/go-build not found"
       - name: Lint
         timeout-minutes: 1
         run: task lint
