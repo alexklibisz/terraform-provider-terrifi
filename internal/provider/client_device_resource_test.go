@@ -1494,7 +1494,7 @@ func TestAccClientDevice_deviceTypeIDChange(t *testing.T) {
 				Config: fmt.Sprintf(`
 resource "terrifi_client_device" "test" {
   mac            = %q
-  name           = "tfacc-devtype-change"
+  name           = "tfacc-devtype-v1"
   device_type_id = 1084
 }
 `, mac),
@@ -1502,12 +1502,12 @@ resource "terrifi_client_device" "test" {
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "device_type_id", "1084"),
 				),
 			},
-			// Step 2: Change device_type_id
+			// Step 2: Change device_type_id (and name to force a v1 API update)
 			{
 				Config: fmt.Sprintf(`
 resource "terrifi_client_device" "test" {
   mac            = %q
-  name           = "tfacc-devtype-change"
+  name           = "tfacc-devtype-v2"
   device_type_id = 1
 }
 `, mac),
@@ -1520,7 +1520,7 @@ resource "terrifi_client_device" "test" {
 				Config: fmt.Sprintf(`
 resource "terrifi_client_device" "test" {
   mac  = %q
-  name = "tfacc-devtype-change"
+  name = "tfacc-devtype-v3"
 }
 `, mac),
 				Check: resource.ComposeTestCheckFunc(
