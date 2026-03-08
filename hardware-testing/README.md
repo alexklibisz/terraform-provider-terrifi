@@ -15,7 +15,7 @@ The simulation target exposes some but not all functionality of a real UniFi net
 For example, firewall zones, firewall policies, and WLANs all require real hardware to test.
 
 The HIL mode is a real UniFi OS Server with real UniFi hardware.
-So I can test almost all the functionality of the connected hardware.
+This lets me test almost all the functionality of the connected hardware.
 The only functionality I can't test is some aspects of the initial setup, e.g., resetting and adopting devices.
 
 ## Background
