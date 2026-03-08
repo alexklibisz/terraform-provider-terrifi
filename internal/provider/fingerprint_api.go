@@ -8,6 +8,26 @@ import (
 	"strconv"
 )
 
+// GetControllerVersion returns the UniFi Network Application version string
+// (e.g. "9.0.114") by querying the sysinfo endpoint.
+func (c *Client) GetControllerVersion(ctx context.Context, site string) (string, error) {
+	var resp struct {
+		Data []struct {
+			Version string `json:"version"`
+		} `json:"data"`
+	}
+	err := c.doV1Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/api/s/%s/stat/sysinfo", c.BaseURL, c.APIPath, site),
+		nil, &resp)
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Data) > 0 && resp.Data[0].Version != "" {
+		return resp.Data[0].Version, nil
+	}
+	return "unknown", nil
+}
+
 // FingerprintDevice represents a device type entry from the UniFi controller's
 // fingerprint database. The ID is used with dev_id_override to set custom
 // icons on client devices.

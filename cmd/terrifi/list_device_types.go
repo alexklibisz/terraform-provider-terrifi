@@ -3,11 +3,15 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
-	"html"
+	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"sync"
 
 	"github.com/alexklibisz/terrifi/internal/provider"
 	"github.com/spf13/cobra"
@@ -26,7 +30,7 @@ func listDeviceTypesCmd() *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: runListDeviceTypes,
 	}
-	cmd.Flags().Bool("html", false, "Generate a self-contained HTML page (unifi-device-types.html) with icons and fuzzy search")
+	cmd.Flags().Bool("html", false, "Generate a browsable directory (unifi-device-types/) with icons and fuzzy search")
 	return cmd
 }
 
@@ -53,7 +57,15 @@ func runListDeviceTypes(cmd *cobra.Command, args []string) error {
 
 	htmlFlag, _ := cmd.Flags().GetBool("html")
 	if htmlFlag {
-		return writeDeviceTypesHTML(devices)
+		site := cfg.Site
+		if site == "" {
+			site = "default"
+		}
+		version, err := client.GetControllerVersion(ctx, site)
+		if err != nil {
+			version = "unknown"
+		}
+		return writeDeviceTypesHTML(devices, version)
 	}
 
 	return writeDeviceTypesCSV(devices)
@@ -87,7 +99,75 @@ func writeDeviceTypesCSV(devices []provider.FingerprintDevice) error {
 	return nil
 }
 
-func writeDeviceTypesHTML(devices []provider.FingerprintDevice) error {
+// downloadIcons downloads device icons into imgDir, skipping any that already
+// exist on disk. Uses concurrent downloads with progress reporting.
+func downloadIcons(devices []provider.FingerprintDevice, imgDir string) {
+	const concurrency = 50
+	sem := make(chan struct{}, concurrency)
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	done := 0
+	skipped := 0
+	total := len(devices)
+
+	for _, d := range devices {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(id int64) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			path := filepath.Join(imgDir, fmt.Sprintf("%d.png", id))
+
+			// Skip if already downloaded.
+			if _, err := os.Stat(path); err == nil {
+				mu.Lock()
+				done++
+				skipped++
+				mu.Unlock()
+				return
+			}
+
+			url := fmt.Sprintf("https://static.ui.com/fingerprint/0/%d_51x51.png", id)
+			resp, err := http.Get(url)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				return
+			}
+			data, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return
+			}
+
+			os.WriteFile(path, data, 0o644)
+
+			mu.Lock()
+			done++
+			if done%200 == 0 || done == total {
+				fmt.Fprintf(os.Stderr, "Icons: %d / %d (%d already existed)...\n", done, total, skipped)
+			}
+			mu.Unlock()
+		}(d.ID)
+	}
+
+	wg.Wait()
+	fmt.Fprintf(os.Stderr, "Icons: %d / %d (%d downloaded, %d already existed).\n", done, total, done-skipped, skipped)
+}
+
+func writeDeviceTypesHTML(devices []provider.FingerprintDevice, controllerVersion string) error {
+	const outputDir = "unifi-device-types"
+	imgDir := filepath.Join(outputDir, "img")
+	if err := os.MkdirAll(imgDir, 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", imgDir, err)
+	}
+
+	// Download icons into img/ directory (skips existing files).
+	downloadIcons(devices, imgDir)
+
 	// Collect unique types and vendors for the filter dropdowns.
 	typeSet := map[string]bool{}
 	vendorSet := map[string]bool{}
@@ -102,13 +182,36 @@ func writeDeviceTypesHTML(devices []provider.FingerprintDevice) error {
 	types := sortedKeys(typeSet)
 	vendors := sortedKeys(vendorSet)
 
-	const outputFile = "unifi-device-types.html"
+	// Build JSON data for devices.
+	type deviceJSON struct {
+		ID      int64  `json:"id"`
+		Name    string `json:"name"`
+		Type    string `json:"type"`
+		Vendor  string `json:"vendor"`
+	}
+	jsonDevices := make([]deviceJSON, len(devices))
+	for i, d := range devices {
+		jsonDevices[i] = deviceJSON{
+			ID:     d.ID,
+			Name:   d.Name,
+			Type:   d.DevType,
+			Vendor: d.Vendor,
+		}
+	}
+	jsonData, err := json.Marshal(jsonDevices)
+	if err != nil {
+		return fmt.Errorf("marshaling device data: %w", err)
+	}
+
+	outputFile := filepath.Join(outputDir, "index.html")
 	f, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", outputFile, err)
 	}
 	defer f.Close()
 
+	// Write the static HTML shell with embedded JSON data.
+	// The JS renders rows on demand instead of parsing thousands of DOM nodes.
 	fmt.Fprint(f, `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -120,7 +223,10 @@ func writeDeviceTypesHTML(devices []provider.FingerprintDevice) error {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
   .header { background: #1a1a2e; color: #fff; padding: 24px; position: sticky; top: 0; z-index: 10; }
-  .header h1 { font-size: 20px; margin-bottom: 12px; }
+  .header h1 { font-size: 20px; margin-bottom: 4px; }
+  .header .subtitle { font-size: 14px; color: #bbb; margin-bottom: 8px; line-height: 1.4; }
+  .header .subtitle a { color: #ccc; text-decoration: underline; }
+  .header .version { font-size: 13px; color: #888; margin-bottom: 12px; }
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   .controls input {
     flex: 1; min-width: 200px; max-width: 500px; padding: 10px 14px; font-size: 16px;
@@ -131,77 +237,125 @@ func writeDeviceTypesHTML(devices []provider.FingerprintDevice) error {
     background: #fff; color: #333; cursor: pointer; outline: none;
   }
   .header .stats { font-size: 13px; color: #aaa; margin-top: 8px; }
-  table { width: 100%; border-collapse: collapse; background: #fff; }
-  th { background: #e8e8e8; position: sticky; top: 130px; text-align: left; padding: 10px 14px; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; table-layout: fixed; }
+  col.c-icon { width: 64px; }
+  col.c-id { width: 100px; }
+  col.c-name { width: 30%; }
+  col.c-meta { }
+  col.c-action { width: 80px; }
+  th { background: #e8e8e8; position: sticky; text-align: left; padding: 10px 14px; font-size: 13px; z-index: 5; }
   td { padding: 8px 14px; border-bottom: 1px solid #eee; vertical-align: middle; }
-  tr.hidden { display: none; }
+  .icon-cell { width: 48px; height: 48px; background: #f0f0f0; border-radius: 6px; }
   .icon { width: 48px; height: 48px; object-fit: contain; }
+  .icon:not([src]) { visibility: hidden; }
+  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  .icon-cell:has(.icon:not([src]))::after {
+    content: ''; display: block; width: 24px; height: 24px; margin: -36px auto 0;
+    border-radius: 50%; background: #ddd; animation: pulse 1.2s ease-in-out infinite;
+  }
   .id { font-family: monospace; font-size: 14px; color: #666; }
   .name { font-weight: 500; }
   .meta { font-size: 12px; color: #888; }
+  .copy-btn {
+    background: #e8e8e8; border: none; border-radius: 4px; padding: 4px 10px;
+    font-size: 12px; cursor: pointer; color: #555; white-space: nowrap;
+  }
+  .copy-btn:hover { background: #ddd; }
+  .copy-btn.copied { background: #4caf50; color: #fff; }
 </style>
 </head>
 <body>
 <div class="header">
   <h1>UniFi Device Types</h1>
-  <div class="controls">
-    <input type="text" id="search" placeholder="Fuzzy search by name..." autofocus>
-    <select id="filter-type"><option value="">All Types</option>
+  <p class="subtitle">Browse the UniFi controller fingerprint database to find device type IDs for use with <a href="https://github.com/alexklibisz/terraform-provider-terrifi">Terrifi</a>, a Terraform provider for UniFi.</p>
 `)
-
+	fmt.Fprintf(f, "  <div class=\"version\">Generated from controller version %s</div>\n", controllerVersion)
+	fmt.Fprint(f, `  <div class="controls">
+    <input type="text" id="search" placeholder="Search by name or ID..." autofocus>
+`)
+	fmt.Fprintf(f, "    <select id=\"filter-type\"><option value=\"\">All Types (%d)</option>\n", len(types))
 	for _, t := range types {
-		fmt.Fprintf(f, "    <option value=\"%s\">%s</option>\n", html.EscapeString(t), html.EscapeString(t))
+		fmt.Fprintf(f, "    <option>%s</option>\n", t)
 	}
-
-	fmt.Fprint(f, `    </select>
-    <select id="filter-vendor"><option value="">All Vendors</option>
-`)
-
+	fmt.Fprint(f, "    </select>\n")
+	fmt.Fprintf(f, "    <select id=\"filter-vendor\"><option value=\"\">All Vendors (%d)</option>\n", len(vendors))
 	for _, v := range vendors {
-		fmt.Fprintf(f, "    <option value=\"%s\">%s</option>\n", html.EscapeString(v), html.EscapeString(v))
+		fmt.Fprintf(f, "    <option>%s</option>\n", v)
 	}
-
 	fmt.Fprint(f, `    </select>
   </div>
-  <div class="stats" id="stats"></div>
-</div>
-<table>
-<thead><tr><th>Icon</th><th>ID</th><th>Name</th><th>Type / Vendor</th></tr></thead>
-<tbody id="tbody">
 `)
-
-	for _, d := range devices {
-		fmt.Fprintf(f, `<tr data-id="%d" data-type="%s" data-vendor="%s"><td><img class="icon" src="%s" alt="%s" loading="lazy"></td><td class="id">%d</td><td class="name">%s</td><td class="meta">%s · %s</td></tr>
-`,
-			d.ID,
-			html.EscapeString(d.DevType),
-			html.EscapeString(d.Vendor),
-			iconURL(d.ID),
-			html.EscapeString(d.Name),
-			d.ID,
-			html.EscapeString(d.Name),
-			html.EscapeString(d.DevType),
-			html.EscapeString(d.Vendor),
-		)
-	}
-
-	fmt.Fprint(f, `</tbody>
+	fmt.Fprintf(f, "  <div class=\"stats\" id=\"stats\">%d device types</div>\n", len(devices))
+	fmt.Fprint(f, `</div>
+<table>
+<colgroup><col class="c-icon"><col class="c-id"><col class="c-name"><col class="c-meta"><col class="c-action"></colgroup>
+<thead><tr><th>Icon</th><th>ID</th><th>Name</th><th>Type / Vendor</th><th></th></tr></thead>
+<tbody id="tbody"></tbody>
 </table>
 <script>
+const DATA = `)
+	f.Write(jsonData)
+	fmt.Fprint(f, `;
+
 const tbody = document.getElementById('tbody');
-const rows = Array.from(tbody.querySelectorAll('tr'));
-const totalCount = rows.length;
+const totalCount = DATA.length;
+
+// Pre-build a DOM row for each device and index by string ID.
 const rowById = {};
-rows.forEach(r => rowById[r.dataset.id] = r);
+const rows = [];
+const frag = document.createDocumentFragment();
+for (const d of DATA) {
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td class="icon-cell"><img class="icon" data-src="img/' + d.id + '.png" alt="' + d.name + '"></td>' +
+    '<td class="id">' + d.id + '</td>' +
+    '<td class="name">' + d.name + '</td>' +
+    '<td class="meta">' + d.type + ' \u00b7 ' + d.vendor + '</td>' +
+    '<td><button class="copy-btn">Copy</button></td>';
+  tr._d = d;
+  tr._copyText = 'device_type_id = ' + d.id + ' # ' + d.name;
+  rowById[String(d.id)] = tr;
+  rows.push(tr);
+  frag.appendChild(tr);
+}
+tbody.appendChild(frag);
 
-const items = rows.map(row => ({
-  id: row.dataset.id,
-  name: row.querySelector('.name')?.textContent || '',
-  meta: row.querySelector('.meta')?.textContent || '',
-}));
+// Pin table header row just below the sticky page header.
+const header = document.querySelector('.header');
+const ths = document.querySelectorAll('th');
+new ResizeObserver(() => {
+  const h = header.offsetHeight + 'px';
+  ths.forEach(th => th.style.top = h);
+}).observe(header);
 
-const fuse = new Fuse(items, {
-  keys: ['name', 'meta'],
+// Lazy load images when they scroll into view.
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const img = entry.target;
+      if (!img.src && img.dataset.src) {
+        img.src = img.dataset.src;
+        observer.unobserve(img);
+      }
+    }
+  });
+}, { rootMargin: '200px' });
+rows.forEach(r => observer.observe(r.querySelector('.icon')));
+
+// Copy button handler.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  navigator.clipboard.writeText(tr._copyText).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+});
+
+const fuse = new Fuse(DATA, {
+  keys: [{name: 'id', getFn: d => String(d.id)}, 'name', 'type', 'vendor'],
   threshold: 0.3,
   ignoreLocation: true,
 });
@@ -211,31 +365,26 @@ const filterType = document.getElementById('filter-type');
 const filterVendor = document.getElementById('filter-vendor');
 const stats = document.getElementById('stats');
 
-function updateSelectOptions(select, attr, allLabel, visibleRows) {
-  const current = select.value;
-  const available = new Set();
-  visibleRows.forEach(r => {
-    const v = r.dataset[attr];
-    if (v) available.add(v);
-  });
+function updateSelectOptions(sel, allLabel, available) {
+  const current = sel.value;
   const sorted = Array.from(available).sort();
 
-  select.innerHTML = '';
+  sel.innerHTML = '';
   const allOpt = document.createElement('option');
   allOpt.value = '';
   allOpt.textContent = allLabel + ' (' + sorted.length + ')';
-  select.appendChild(allOpt);
+  sel.appendChild(allOpt);
 
   for (const val of sorted) {
     const opt = document.createElement('option');
     opt.value = val;
     opt.textContent = val;
     if (val === current) opt.selected = true;
-    select.appendChild(opt);
+    sel.appendChild(opt);
   }
 
   if (current && !available.has(current)) {
-    select.value = '';
+    sel.value = '';
   }
 }
 
@@ -244,65 +393,57 @@ function applyFilters() {
   const selectedType = filterType.value;
   const selectedVendor = filterVendor.value;
 
-  let orderedIds;
+  let orderedIds = null;
+  let matchIdSet = null;
   if (query) {
-    orderedIds = fuse.search(query).map(r => r.item.id);
-  } else {
-    orderedIds = rows.map(r => r.dataset.id);
+    orderedIds = fuse.search(query).map(r => String(r.item.id));
+    matchIdSet = new Set(orderedIds);
   }
 
-  const matchIdSet = query ? new Set(orderedIds) : null;
-
-  let shown = 0;
+  const typesForVendor = new Set();
+  const vendorsForType = new Set();
+  const visibleSet = new Set();
   rows.forEach(r => {
-    const passSearch = !matchIdSet || matchIdSet.has(r.dataset.id);
-    const passType = !selectedType || r.dataset.type === selectedType;
-    const passVendor = !selectedVendor || r.dataset.vendor === selectedVendor;
-
-    if (passSearch && passType && passVendor) {
-      r.classList.remove('hidden');
-      shown++;
-    } else {
-      r.classList.add('hidden');
-    }
+    const d = r._d;
+    const passSearch = !matchIdSet || matchIdSet.has(String(d.id));
+    const passType = !selectedType || d.type === selectedType;
+    const passVendor = !selectedVendor || d.vendor === selectedVendor;
+    if (passSearch && passType && passVendor) visibleSet.add(r);
+    if (passSearch && passVendor && d.type) typesForVendor.add(d.type);
+    if (passSearch && passType && d.vendor) vendorsForType.add(d.vendor);
   });
 
-  if (query) {
+  const fragment = document.createDocumentFragment();
+  if (orderedIds) {
     for (const id of orderedIds) {
       const row = rowById[id];
-      if (!row.classList.contains('hidden')) {
-        tbody.appendChild(row);
-      }
+      if (visibleSet.has(row)) fragment.appendChild(row);
     }
   } else {
-    rows.forEach(r => tbody.appendChild(r));
+    rows.forEach(r => {
+      if (visibleSet.has(r)) fragment.appendChild(r);
+    });
   }
+  tbody.textContent = '';
+  tbody.appendChild(fragment);
 
-  const rowsForType = rows.filter(r => {
-    const passSearch = !matchIdSet || matchIdSet.has(r.dataset.id);
-    const passVendor = !selectedVendor || r.dataset.vendor === selectedVendor;
-    return passSearch && passVendor;
-  });
-  const rowsForVendor = rows.filter(r => {
-    const passSearch = !matchIdSet || matchIdSet.has(r.dataset.id);
-    const passType = !selectedType || r.dataset.type === selectedType;
-    return passSearch && passType;
-  });
-
-  updateSelectOptions(filterType, 'type', 'All Types', rowsForType);
-  updateSelectOptions(filterVendor, 'vendor', 'All Vendors', rowsForVendor);
+  updateSelectOptions(filterType, 'All Types', typesForVendor);
+  updateSelectOptions(filterVendor, 'All Vendors', vendorsForType);
 
   if (!query && !selectedType && !selectedVendor) {
     stats.textContent = totalCount + ' device types';
   } else {
-    stats.textContent = shown + ' / ' + totalCount + ' device types';
+    stats.textContent = visibleSet.size + ' / ' + totalCount + ' device types';
   }
 }
 
-searchInput.addEventListener('input', applyFilters);
+let debounceTimer;
+searchInput.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(applyFilters, 150);
+});
 filterType.addEventListener('change', applyFilters);
 filterVendor.addEventListener('change', applyFilters);
-applyFilters();
 </script>
 </body>
 </html>

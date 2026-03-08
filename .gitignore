@@ -37,3 +37,8 @@ go.work.sum
 
 # Scratch
 scratch
+
+# Generated CLI output
+/terrifi
+/unifi-device-types/
+/unifi-device-types.html
