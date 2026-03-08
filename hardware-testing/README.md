@@ -1,6 +1,6 @@
 # Hardware Testing
 
-![Image of the hardware-in-the-loop testing setup](hardware.png)
+![Image of the hardware-in-the-loop testing setup](hardware.jpg)
 
 ## Overview
 
