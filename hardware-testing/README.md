@@ -1,7 +1,5 @@
 # Hardware Testing
 
-<img src="hardware.jpg" alt="Image of the hardware-in-the-loop testing setup" height="420">
-
 ## Overview
 
 Terrifi uses hardware testing (aka hardware-in-the-loop testing or HIL testing) to ensure all features work with real UniFi hardware.
@@ -41,19 +39,17 @@ I also didn't see an option to enable Zone-based firewalls in the Network Applic
 The way it's packaged is a bit atypical.
 It seems that the installer contains an embedded Podman container (~800MB size), extracts the Podman container, and runs it on the host.
 
-## Setup
+## Hardware
 
-This section describes the hardware and software that I've deployed to support hardware testing.
-
-### Hardware
+<img src="hardware.jpg" alt="Image of the hardware-in-the-loop testing setup" height="420">
 
 1. [A Gl.iNet Opal travel router](https://www.amazon.com/GL-iNet-GL-SFT1200-Secure-Travel-Router/dp/B09N72FMH5). I use this to connect the HIL setup to my home WiFi. It's analogous to an ISP modem in a typical home network. I did it this way so that the test harness is fully isolated from my actual UniFi network, and so I can place the test harness in the corner of my office where I don't have an Ethernet connection.
 2. [A UniFi Gateway Lite](https://www.amazon.com/Ubiquiti-Networks-Gateway-Lite-UXG-Lite/dp/B0CW2DZZ3Z). I purchased this specifically for this project. I also happen to use a Gateway Lite for my home network.
 3. A generic gigabit 5-port switch. This is analogous to an unmanaged switch in a typical network.
 4. [A UniFi AC Pro access point](https://store.ui.com/us/en/products/uap-ac-pro). I purchased it used on eBay specifically for this project. I use some newer access points in my actual network, but this is good enough for testing.
-5. A Beelink Mini PC running Proxmox. I run two VMs here: one for the self-hosted UniFi OS Server and one for the Github Actions runner that runs the HIL test suite.
+5. A Beelink Mini PC running Proxmox. I run two VMs here: one for the self-hosted UniFi OS Server and one for the GitHub Actions runner that runs the HIL test suite.
 
-### Software
+## Software
 
 The Beelink Mini PC runs [Proxmox](https://www.proxmox.com/) as the hypervisor, hosting two Ubuntu VMs:
 
