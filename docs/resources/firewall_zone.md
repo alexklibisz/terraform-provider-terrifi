@@ -45,7 +45,7 @@ resource "terrifi_firewall_zone" "iot" {
 
 ### Optional
 
-- `network_ids` (List of String) — List of network IDs to associate with this firewall zone.
+- `network_ids` (Set of String) — Set of network IDs to associate with this firewall zone.
 - `site` (String) — The site to associate the firewall zone with. Defaults to the provider site. Changing this forces a new resource.
 
 ### Read-Only
