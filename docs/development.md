@@ -83,3 +83,10 @@ task test:acc -- -run TestAccDNSRecord_basic
 ```sh
 task lint
 ```
+
+## Releasing
+
+1. Go to the [Tag workflow](../../actions/workflows/tag.yml) in GitHub Actions.
+2. Click "Run workflow", enter the version tag (e.g., `v0.1.0`), and run it.
+3. The tag workflow creates and pushes the tag, which triggers the [Release workflow](../../actions/workflows/release.yml).
+4. The release workflow builds binaries for linux/darwin (amd64/arm64) and publishes them as a GitHub Release.
