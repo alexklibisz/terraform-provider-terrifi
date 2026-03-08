@@ -5,13 +5,10 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
-	"sync"
 
 	"github.com/alexklibisz/terrifi/internal/provider"
 	"github.com/spf13/cobra"
@@ -99,74 +96,11 @@ func writeDeviceTypesCSV(devices []provider.FingerprintDevice) error {
 	return nil
 }
 
-// downloadIcons downloads device icons into imgDir, skipping any that already
-// exist on disk. Uses concurrent downloads with progress reporting.
-func downloadIcons(devices []provider.FingerprintDevice, imgDir string) {
-	const concurrency = 50
-	sem := make(chan struct{}, concurrency)
-
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	done := 0
-	skipped := 0
-	total := len(devices)
-
-	for _, d := range devices {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(id int64) {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			path := filepath.Join(imgDir, fmt.Sprintf("%d.png", id))
-
-			// Skip if already downloaded.
-			if _, err := os.Stat(path); err == nil {
-				mu.Lock()
-				done++
-				skipped++
-				mu.Unlock()
-				return
-			}
-
-			url := fmt.Sprintf("https://static.ui.com/fingerprint/0/%d_51x51.png", id)
-			resp, err := http.Get(url)
-			if err != nil {
-				return
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				return
-			}
-			data, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return
-			}
-
-			os.WriteFile(path, data, 0o644)
-
-			mu.Lock()
-			done++
-			if done%200 == 0 || done == total {
-				fmt.Fprintf(os.Stderr, "Icons: %d / %d (%d already existed)...\n", done, total, skipped)
-			}
-			mu.Unlock()
-		}(d.ID)
-	}
-
-	wg.Wait()
-	fmt.Fprintf(os.Stderr, "Icons: %d / %d (%d downloaded, %d already existed).\n", done, total, done-skipped, skipped)
-}
-
 func writeDeviceTypesHTML(devices []provider.FingerprintDevice, controllerVersion string) error {
 	const outputDir = "unifi-device-types"
-	imgDir := filepath.Join(outputDir, "img")
-	if err := os.MkdirAll(imgDir, 0o755); err != nil {
-		return fmt.Errorf("creating %s: %w", imgDir, err)
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", outputDir, err)
 	}
-
-	// Download icons into img/ directory (skips existing files).
-	downloadIcons(devices, imgDir)
 
 	// Collect unique types and vendors for the filter dropdowns.
 	typeSet := map[string]bool{}
@@ -307,7 +241,7 @@ const frag = document.createDocumentFragment();
 for (const d of DATA) {
   const tr = document.createElement('tr');
   tr.innerHTML =
-    '<td class="icon-cell"><img class="icon" data-src="img/' + d.id + '.png" alt="' + d.name + '"></td>' +
+    '<td class="icon-cell"><img class="icon" data-src="https://static.ui.com/fingerprint/0/' + d.id + '_257x257.png" alt="' + d.name + '"></td>' +
     '<td class="id">' + d.id + '</td>' +
     '<td class="name">' + d.name + '</td>' +
     '<td class="meta">' + d.type + ' \u00b7 ' + d.vendor + '</td>' +
