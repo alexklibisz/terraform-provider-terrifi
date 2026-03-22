@@ -54,6 +54,8 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.Nil(t, c.VirtualNetworkOverrideEnabled)
 		assert.Empty(t, c.VirtualNetworkOverrideID)
 		assert.Nil(t, c.NetworkMembersGroupIDs)
+		assert.Empty(t, c.FixedApMAC)
+		assert.False(t, c.FixedApEnabled)
 		assert.Nil(t, c.Blocked)
 	})
 
@@ -69,7 +71,8 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 			ClientGroupIDs: types.SetValueMust(types.StringType, []attr.Value{
 				types.StringValue("group-789"),
 			}),
-			Blocked: types.BoolValue(true),
+			FixedApMAC: types.StringValue("11:22:33:44:55:66"),
+			Blocked:    types.BoolValue(true),
 		}
 
 		c := r.modelToAPI(ctx, model)
@@ -86,6 +89,8 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.Equal(t, "mydevice.local", c.LocalDNSRecord)
 		assert.True(t, c.LocalDNSRecordEnabled)
 		assert.Equal(t, []string{"group-789"}, c.NetworkMembersGroupIDs)
+		assert.Equal(t, "11:22:33:44:55:66", c.FixedApMAC)
+		assert.True(t, c.FixedApEnabled)
 		assert.NotNil(t, c.Blocked)
 		assert.True(t, *c.Blocked)
 	})
@@ -143,6 +148,42 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.Equal(t, "override-789", c.VirtualNetworkOverrideID)
 		assert.NotNil(t, c.VirtualNetworkOverrideEnabled)
 		assert.True(t, *c.VirtualNetworkOverrideEnabled)
+	})
+
+	t.Run("fixed_ap_mac sets fixed_ap_enabled", func(t *testing.T) {
+		model := &clientDeviceResourceModel{
+			MAC:        types.StringValue("aa:bb:cc:dd:ee:ff"),
+			FixedApMAC: types.StringValue("11:22:33:44:55:66"),
+		}
+
+		c := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "11:22:33:44:55:66", c.FixedApMAC)
+		assert.True(t, c.FixedApEnabled)
+	})
+
+	t.Run("fixed_ap_mac uppercase normalized", func(t *testing.T) {
+		model := &clientDeviceResourceModel{
+			MAC:        types.StringValue("aa:bb:cc:dd:ee:ff"),
+			FixedApMAC: types.StringValue("AA:BB:CC:DD:EE:FF"),
+		}
+
+		c := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "aa:bb:cc:dd:ee:ff", c.FixedApMAC)
+		assert.True(t, c.FixedApEnabled)
+	})
+
+	t.Run("fixed_ap_mac null does not set fixed_ap_enabled", func(t *testing.T) {
+		model := &clientDeviceResourceModel{
+			MAC:        types.StringValue("aa:bb:cc:dd:ee:ff"),
+			FixedApMAC: types.StringNull(),
+		}
+
+		c := r.modelToAPI(ctx, model)
+
+		assert.Empty(t, c.FixedApMAC)
+		assert.False(t, c.FixedApEnabled)
 	})
 
 	t.Run("blocked true", func(t *testing.T) {
@@ -316,6 +357,32 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 		assert.True(t, *req.VirtualNetworkOverrideEnabled)
 	})
 
+	t.Run("fixed_ap_mac set", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC:            "aa:bb:cc:dd:ee:ff",
+			FixedApMAC:     "11:22:33:44:55:66",
+			FixedApEnabled: true,
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Equal(t, "11:22:33:44:55:66", req.FixedApMAC)
+		assert.NotNil(t, req.FixedApEnabled)
+		assert.True(t, *req.FixedApEnabled)
+	})
+
+	t.Run("fixed_ap_mac empty", func(t *testing.T) {
+		c := &unifi.Client{
+			MAC: "aa:bb:cc:dd:ee:ff",
+		}
+
+		req := buildClientDeviceRequest(c)
+
+		assert.Empty(t, req.FixedApMAC)
+		assert.NotNil(t, req.FixedApEnabled)
+		assert.False(t, *req.FixedApEnabled)
+	})
+
 	t.Run("all fields together", func(t *testing.T) {
 		blocked := true
 		c := &unifi.Client{
@@ -327,6 +394,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			VirtualNetworkOverrideID: "vlan-456",
 			LocalDNSRecord:           "test.local",
 			NetworkMembersGroupIDs:   []string{"group-789", "group-abc"},
+			FixedApMAC:               "11:22:33:44:55:66",
 			Blocked:                  &blocked,
 		}
 
@@ -348,6 +416,9 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 		assert.NotNil(t, req.LocalDNSRecordEnabled)
 		assert.True(t, *req.LocalDNSRecordEnabled)
 		assert.Equal(t, []string{"group-789", "group-abc"}, req.NetworkMembersGroupIDs)
+		assert.Equal(t, "11:22:33:44:55:66", req.FixedApMAC)
+		assert.NotNil(t, req.FixedApEnabled)
+		assert.True(t, *req.FixedApEnabled)
 		assert.NotNil(t, req.Blocked)
 		assert.True(t, *req.Blocked)
 	})
@@ -411,6 +482,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.True(t, model.NetworkOverrideID.IsNull(), "NetworkOverrideID should be null")
 		assert.True(t, model.LocalDNSRecord.IsNull(), "LocalDNSRecord should be null")
 		assert.True(t, model.ClientGroupIDs.IsNull(), "ClientGroupIDs should be null")
+		assert.True(t, model.FixedApMAC.IsNull(), "FixedApMAC should be null")
 		assert.False(t, model.Blocked.ValueBool(), "Blocked should default to false")
 	})
 
@@ -430,6 +502,8 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 			LocalDNSRecord:                "mydevice.local",
 			LocalDNSRecordEnabled:         true,
 			NetworkMembersGroupIDs:        []string{"group-xyz"},
+			FixedApMAC:                    "aa:bb:cc:dd:ee:ff",
+			FixedApEnabled:                true,
 			Blocked:                       &blocked,
 		}
 
@@ -447,6 +521,7 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		assert.Equal(t, "mydevice.local", model.LocalDNSRecord.ValueString())
 		expected := types.SetValueMust(types.StringType, []attr.Value{types.StringValue("group-xyz")})
 		assert.True(t, model.ClientGroupIDs.Equal(expected), "ClientGroupIDs should contain group-xyz")
+		assert.Equal(t, "aa:bb:cc:dd:ee:ff", model.FixedApMAC.ValueString())
 		assert.True(t, model.Blocked.ValueBool())
 	})
 
@@ -496,6 +571,47 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 		r.apiToModel(c, &model, "default")
 
 		assert.True(t, model.LocalDNSRecord.IsNull(), "LocalDNSRecord should be null when disabled")
+	})
+
+	t.Run("fixed_ap_enabled true with MAC", func(t *testing.T) {
+		c := &unifi.Client{
+			ID:             "client-ap1",
+			MAC:            "aa:bb:cc:dd:ee:ff",
+			FixedApMAC:     "11:22:33:44:55:66",
+			FixedApEnabled: true,
+		}
+
+		var model clientDeviceResourceModel
+		r.apiToModel(c, &model, "default")
+
+		assert.Equal(t, "11:22:33:44:55:66", model.FixedApMAC.ValueString())
+	})
+
+	t.Run("fixed_ap_enabled false with stale MAC", func(t *testing.T) {
+		c := &unifi.Client{
+			ID:             "client-ap2",
+			MAC:            "aa:bb:cc:dd:ee:ff",
+			FixedApMAC:     "11:22:33:44:55:66",
+			FixedApEnabled: false,
+		}
+
+		var model clientDeviceResourceModel
+		r.apiToModel(c, &model, "default")
+
+		assert.True(t, model.FixedApMAC.IsNull(), "FixedApMAC should be null when disabled")
+	})
+
+	t.Run("fixed_ap_enabled true with empty MAC", func(t *testing.T) {
+		c := &unifi.Client{
+			ID:             "client-ap3",
+			MAC:            "aa:bb:cc:dd:ee:ff",
+			FixedApEnabled: true,
+		}
+
+		var model clientDeviceResourceModel
+		r.apiToModel(c, &model, "default")
+
+		assert.True(t, model.FixedApMAC.IsNull(), "FixedApMAC should be null when MAC is empty")
 	})
 
 	t.Run("blocked nil", func(t *testing.T) {
@@ -1672,6 +1788,170 @@ resource "terrifi_client_device" "test" {
 				// Apply the same config again — should produce no diff.
 				Config:   config,
 				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_fixedApMAC(t *testing.T) {
+	mac := randomMAC()
+	apMAC := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac          = %q
+  name         = "tfacc-fixedap"
+  fixed_ap_mac = %q
+}
+`, mac, apMAC),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-fixedap"),
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ap_mac", apMAC),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_fixedApMACAddRemove(t *testing.T) {
+	mac := randomMAC()
+	apMAC := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create without fixed_ap_mac
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-fixedap-toggle"
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "fixed_ap_mac"),
+				),
+			},
+			// Step 2: Add fixed_ap_mac
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac          = %q
+  name         = "tfacc-fixedap-toggle"
+  fixed_ap_mac = %q
+}
+`, mac, apMAC),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ap_mac", apMAC),
+				),
+			},
+			// Step 3: Remove fixed_ap_mac
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-fixedap-toggle"
+}
+`, mac),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "fixed_ap_mac"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_fixedApMACChange(t *testing.T) {
+	mac := randomMAC()
+	apMAC1 := randomMAC()
+	apMAC2 := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create with first AP MAC
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac          = %q
+  name         = "tfacc-fixedap-change"
+  fixed_ap_mac = %q
+}
+`, mac, apMAC1),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ap_mac", apMAC1),
+				),
+			},
+			// Step 2: Change to a different AP MAC
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac          = %q
+  name         = "tfacc-fixedap-change"
+  fixed_ap_mac = %q
+}
+`, mac, apMAC2),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ap_mac", apMAC2),
+				),
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_fixedApMACIdempotent(t *testing.T) {
+	mac := randomMAC()
+	apMAC := randomMAC()
+	config := fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac          = %q
+  name         = "tfacc-fixedap-idempotent"
+  fixed_ap_mac = %q
+}
+`, mac, apMAC)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ap_mac", apMAC),
+				),
+			},
+			{
+				// Apply the same config again — should produce no diff.
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccClientDevice_fixedApMACImport(t *testing.T) {
+	mac := randomMAC()
+	apMAC := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac          = %q
+  name         = "tfacc-fixedap-import"
+  fixed_ap_mac = %q
+}
+`, mac, apMAC),
+			},
+			{
+				ResourceName:      "terrifi_client_device.test",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})

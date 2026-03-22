@@ -65,6 +65,9 @@ func ClientDeviceBlocks(clients []unifi.Client, overrides map[string]int64) []Re
 				Comment: "use 'terrifi list-device-types' to browse available IDs",
 			})
 		}
+		if c.FixedApEnabled && c.FixedApMAC != "" {
+			block.Attributes = append(block.Attributes, Attr{Key: "fixed_ap_mac", Value: HCLString(c.FixedApMAC)})
+		}
 		if c.Blocked != nil && *c.Blocked {
 			block.Attributes = append(block.Attributes, Attr{Key: "blocked", Value: HCLBool(true)})
 		}
