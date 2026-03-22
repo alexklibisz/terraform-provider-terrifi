@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"testing"
 
@@ -92,11 +93,9 @@ func TestDeviceDataSourceAPIToModel(t *testing.T) {
 // resource first (which always works), then uses the data source to look up
 // the controller's own devices by listing them.
 func TestAccDeviceDataSource_byMAC(t *testing.T) {
-	// This test discovers a real device from the controller, so it uses a
-	// two-step approach: first list devices to find a MAC, then look it up.
-	// We use a config that references a data source with a known device.
-	// Since we can't predict which devices exist, we use a helper that
-	// finds the first adopted device.
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			preCheck(t)
@@ -120,6 +119,9 @@ func TestAccDeviceDataSource_byMAC(t *testing.T) {
 }
 
 func TestAccDeviceDataSource_byName(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			preCheck(t)
@@ -142,6 +144,9 @@ func TestAccDeviceDataSource_byName(t *testing.T) {
 }
 
 func TestAccDeviceDataSource_withClientDevice(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
 	mac := randomMAC()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
