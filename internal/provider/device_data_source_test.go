@@ -96,12 +96,9 @@ func TestAccDeviceDataSource_byMAC(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
 	}
+	preCheck(t)
+	requireAdoptedDevice(t)
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() {
-			preCheck(t)
-			// Ensure at least one device exists
-			requireAdoptedDevice(t)
-		},
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -122,11 +119,9 @@ func TestAccDeviceDataSource_byName(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
 	}
+	preCheck(t)
+	requireAdoptedDevice(t)
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() {
-			preCheck(t)
-			requireAdoptedDevice(t)
-		},
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -147,12 +142,10 @@ func TestAccDeviceDataSource_withClientDevice(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
 	}
+	preCheck(t)
+	requireAdoptedDevice(t)
 	mac := randomMAC()
 	resource.Test(t, resource.TestCase{
-		PreCheck: func() {
-			preCheck(t)
-			requireAdoptedDevice(t)
-		},
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
