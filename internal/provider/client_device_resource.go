@@ -47,6 +47,7 @@ type clientDeviceResourceModel struct {
 	LocalDNSRecord    types.String `tfsdk:"local_dns_record"`
 	ClientGroupIDs    types.Set    `tfsdk:"client_group_ids"`
 	DeviceTypeID      types.Int64  `tfsdk:"device_type_id"`
+	FixedApMAC        types.String `tfsdk:"fixed_ap_mac"`
 	Blocked           types.Bool   `tfsdk:"blocked"`
 }
 
@@ -65,7 +66,7 @@ func (r *clientDeviceResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a client device on the UniFi controller. Use this resource to set " +
-			"aliases, notes, fixed IPs, VLAN overrides, local DNS records, custom device icons, and blocked status for known clients.",
+			"aliases, notes, fixed IPs, VLAN overrides, local DNS records, custom device icons, AP locking, and blocked status for known clients.",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -155,6 +156,18 @@ func (r *clientDeviceResource) Schema(
 					"client device. Use `terrifi list-device-types` to list IDs as CSV, or " +
 					"`terrifi list-device-types --html` to generate a browsable page with icons and fuzzy search.",
 				Optional: true,
+			},
+
+			"fixed_ap_mac": schema.StringAttribute{
+				MarkdownDescription: "The MAC address of the access point to lock this client to " +
+					"(e.g. `aa:bb:cc:dd:ee:ff`). When set, the client will only connect to this AP.",
+				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						macRegexp,
+						"must be a valid MAC address (e.g. aa:bb:cc:dd:ee:ff)",
+					),
+				},
 			},
 
 			"blocked": schema.BoolAttribute{
@@ -530,6 +543,11 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	} else {
 		state.DeviceTypeID = types.Int64Null()
 	}
+	if !plan.FixedApMAC.IsNull() && !plan.FixedApMAC.IsUnknown() {
+		state.FixedApMAC = plan.FixedApMAC
+	} else {
+		state.FixedApMAC = types.StringNull()
+	}
 	if !plan.Blocked.IsNull() && !plan.Blocked.IsUnknown() {
 		state.Blocked = plan.Blocked
 	} else {
@@ -574,6 +592,11 @@ func (r *clientDeviceResource) modelToAPI(ctx context.Context, m *clientDeviceRe
 		c.NetworkMembersGroupIDs = ids
 	}
 
+	if !m.FixedApMAC.IsNull() && !m.FixedApMAC.IsUnknown() {
+		c.FixedApMAC = strings.ToLower(m.FixedApMAC.ValueString())
+		c.FixedApEnabled = true
+	}
+
 	if !m.Blocked.IsNull() && !m.Blocked.IsUnknown() {
 		v := m.Blocked.ValueBool()
 		c.Blocked = &v
@@ -611,6 +634,13 @@ func (r *clientDeviceResource) apiToModel(c *unifi.Client, m *clientDeviceResour
 		m.LocalDNSRecord = types.StringValue(c.LocalDNSRecord)
 	} else {
 		m.LocalDNSRecord = types.StringNull()
+	}
+
+	// Only populate fixed AP MAC when the controller says it's enabled and has a value.
+	if c.FixedApEnabled && c.FixedApMAC != "" {
+		m.FixedApMAC = types.StringValue(c.FixedApMAC)
+	} else {
+		m.FixedApMAC = types.StringNull()
 	}
 
 	if c.NetworkMembersGroupIDs != nil {

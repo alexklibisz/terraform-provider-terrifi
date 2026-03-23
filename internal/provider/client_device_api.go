@@ -35,6 +35,8 @@ type clientDeviceRequest struct {
 	VirtualNetworkOverrideEnabled *bool    `json:"virtual_network_override_enabled,omitempty"`
 	VirtualNetworkOverrideID      string   `json:"virtual_network_override_id,omitempty"`
 	NetworkMembersGroupIDs        []string `json:"network_members_group_ids"`
+	FixedApEnabled                *bool    `json:"fixed_ap_enabled,omitempty"`
+	FixedApMAC                    string   `json:"fixed_ap_mac,omitempty"`
 	Blocked                       *bool    `json:"blocked,omitempty"`
 }
 
@@ -303,6 +305,14 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		req.NetworkMembersGroupIDs = d.NetworkMembersGroupIDs
 	} else {
 		req.NetworkMembersGroupIDs = []string{}
+	}
+
+	// Fixed AP: derive enabled from whether MAC is set
+	if d.FixedApMAC != "" {
+		req.FixedApMAC = d.FixedApMAC
+		req.FixedApEnabled = boolPtr(true)
+	} else {
+		req.FixedApEnabled = boolPtr(false)
 	}
 
 	// Blocked: pass through as-is

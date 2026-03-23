@@ -246,7 +246,9 @@ func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resourc
 // DataSources returns the list of data source types. Empty for now — we'll add
 // data sources (read-only lookups) as needed.
 func (p *terrifiProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		NewDeviceDataSource,
+	}
 }
 
 // stringValueOrEnv returns the Terraform attribute value if non-empty, otherwise

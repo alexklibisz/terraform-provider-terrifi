@@ -7,7 +7,7 @@ description: |-
 
 # terrifi_client_device (Resource)
 
-Manages a client device on the UniFi controller. Use this resource to set aliases, notes, fixed IPs, VLAN overrides, local DNS records, custom device icons, and blocked status for known clients.
+Manages a client device on the UniFi controller. Use this resource to set aliases, notes, fixed IPs, VLAN overrides, local DNS records, custom device icons, AP locking, and blocked status for known clients.
 
 ## Example Usage
 
@@ -98,6 +98,16 @@ resource "terrifi_client_device" "server" {
 }
 ```
 
+### Lock to access point
+
+```terraform
+resource "terrifi_client_device" "laptop" {
+  mac          = "aa:bb:cc:dd:ee:ff"
+  name         = "Work Laptop"
+  fixed_ap_mac = "11:22:33:44:55:66"
+}
+```
+
 ### Block a client
 
 ```terraform
@@ -124,6 +134,7 @@ resource "terrifi_client_device" "blocked" {
 - `local_dns_record` (String) — A local DNS hostname for this client device. Requires `fixed_ip`.
 - `client_group_ids` (Set of String) — Set of client group IDs to assign this device to. Use `terrifi_client_group` to manage groups.
 - `device_type_id` (Number) — The device type ID (fingerprint override) to set a custom icon. Use `terrifi list-device-types` to list IDs as CSV, or `terrifi list-device-types --html` to generate a browsable page with icons and fuzzy search.
+- `fixed_ap_mac` (String) — The MAC address of the access point to lock this client to (e.g. `aa:bb:cc:dd:ee:ff`). When set, the client will only connect to this AP.
 - `blocked` (Boolean) — Whether the client device is blocked from network access. Defaults to `false`.
 - `site` (String) — The site to associate the client device with. Defaults to the provider site. Changing this forces a new resource.
 
