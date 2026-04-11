@@ -8,6 +8,9 @@ import (
 func FirewallPolicyBlocks(policies []*unifi.FirewallPolicy) []ResourceBlock {
 	blocks := make([]ResourceBlock, 0, len(policies))
 	for _, p := range policies {
+		if p.Predefined {
+			continue
+		}
 		block := ResourceBlock{
 			ResourceType: "terrifi_firewall_policy",
 			ResourceName: ToTerraformName(p.Name),
