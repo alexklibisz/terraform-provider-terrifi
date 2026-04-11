@@ -41,9 +41,9 @@ type deviceResourceModel struct {
 	Site                      types.String `tfsdk:"site"`
 	MAC                       types.String `tfsdk:"mac"`
 	Name                      types.String `tfsdk:"name"`
-	LedOverride               types.Bool   `tfsdk:"led_override"`
-	LedOverrideColor          types.String `tfsdk:"led_override_color"`
-	LedOverrideColorBrightness types.Int64  `tfsdk:"led_override_color_brightness"`
+	LedEnabled               types.Bool   `tfsdk:"led_enabled"`
+	LedColor          types.String `tfsdk:"led_color"`
+	LedBrightness types.Int64  `tfsdk:"led_brightness"`
 	OutdoorModeOverride       types.String `tfsdk:"outdoor_mode_override"`
 	Locked                    types.Bool   `tfsdk:"locked"`
 	Disabled                  types.Bool   `tfsdk:"disabled"`
@@ -116,14 +116,14 @@ func (r *deviceResource) Schema(
 				Optional:            true,
 			},
 
-			"led_override": schema.BoolAttribute{
-				MarkdownDescription: "LED override. `true` forces LEDs on, `false` forces LEDs off. " +
+			"led_enabled": schema.BoolAttribute{
+				MarkdownDescription: "Whether LEDs are enabled. `true` forces LEDs on, `false` forces LEDs off. " +
 					"Omit to follow the site default.",
 				Optional: true,
 			},
 
-			"led_override_color": schema.StringAttribute{
-				MarkdownDescription: "LED color override as a hex string (e.g. `#0000ff`).",
+			"led_color": schema.StringAttribute{
+				MarkdownDescription: "LED color as a hex string (e.g. `#0000ff`).",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
@@ -133,8 +133,8 @@ func (r *deviceResource) Schema(
 				},
 			},
 
-			"led_override_color_brightness": schema.Int64Attribute{
-				MarkdownDescription: "LED color brightness override (0–100).",
+			"led_brightness": schema.Int64Attribute{
+				MarkdownDescription: "LED brightness (0–100).",
 				Optional:            true,
 				Validators: []validator.Int64{
 					int64validator.Between(0, 100),
@@ -420,20 +420,20 @@ func (r *deviceResource) modelToAPI(m *deviceResourceModel) *unifi.Device {
 		d.Name = m.Name.ValueString()
 	}
 
-	if !m.LedOverride.IsNull() && !m.LedOverride.IsUnknown() {
-		if m.LedOverride.ValueBool() {
+	if !m.LedEnabled.IsNull() && !m.LedEnabled.IsUnknown() {
+		if m.LedEnabled.ValueBool() {
 			d.LedOverride = "on"
 		} else {
 			d.LedOverride = "off"
 		}
 	}
 
-	if !m.LedOverrideColor.IsNull() && !m.LedOverrideColor.IsUnknown() {
-		d.LedOverrideColor = m.LedOverrideColor.ValueString()
+	if !m.LedColor.IsNull() && !m.LedColor.IsUnknown() {
+		d.LedOverrideColor = m.LedColor.ValueString()
 	}
 
-	if !m.LedOverrideColorBrightness.IsNull() && !m.LedOverrideColorBrightness.IsUnknown() {
-		v := m.LedOverrideColorBrightness.ValueInt64()
+	if !m.LedBrightness.IsNull() && !m.LedBrightness.IsUnknown() {
+		v := m.LedBrightness.ValueInt64()
 		d.LedOverrideColorBrightness = &v
 	}
 
@@ -473,17 +473,17 @@ func (r *deviceResource) apiToModel(d *unifi.Device, m *deviceResourceModel, sit
 	m.Name = stringValueOrNull(d.Name)
 	switch d.LedOverride {
 	case "on":
-		m.LedOverride = types.BoolValue(true)
+		m.LedEnabled = types.BoolValue(true)
 	case "off":
-		m.LedOverride = types.BoolValue(false)
+		m.LedEnabled = types.BoolValue(false)
 	default:
-		m.LedOverride = types.BoolNull()
+		m.LedEnabled = types.BoolNull()
 	}
-	m.LedOverrideColor = stringValueOrNull(d.LedOverrideColor)
+	m.LedColor = stringValueOrNull(d.LedOverrideColor)
 	if d.LedOverrideColorBrightness != nil {
-		m.LedOverrideColorBrightness = types.Int64Value(*d.LedOverrideColorBrightness)
+		m.LedBrightness = types.Int64Value(*d.LedOverrideColorBrightness)
 	} else {
-		m.LedOverrideColorBrightness = types.Int64Null()
+		m.LedBrightness = types.Int64Null()
 	}
 	m.OutdoorModeOverride = stringValueOrNull(d.OutdoorModeOverride)
 	m.Locked = types.BoolValue(d.Locked)

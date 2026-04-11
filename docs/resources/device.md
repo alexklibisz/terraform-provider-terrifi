@@ -26,7 +26,7 @@ resource "terrifi_device" "living_room_ap" {
 resource "terrifi_device" "office_ap" {
   mac          = "aa:bb:cc:dd:ee:ff"
   name         = "Office AP"
-  led_override = "off"
+  led_enabled = false
 }
 ```
 
@@ -47,7 +47,7 @@ resource "terrifi_device" "core_switch" {
 resource "terrifi_device" "gateway" {
   mac           = "aa:bb:cc:11:22:33"
   name          = "Main Gateway"
-  led_override  = "on"
+  led_enabled  = "on"
   locked        = true
   snmp_contact  = "noc@example.com"
   snmp_location = "DC1"
@@ -64,7 +64,7 @@ data "terrifi_device" "ap" {
 resource "terrifi_device" "ap" {
   mac          = data.terrifi_device.ap.mac
   name         = "Living Room AP"
-  led_override = "off"
+  led_enabled = false
   locked       = true
 }
 ```
@@ -78,9 +78,9 @@ resource "terrifi_device" "ap" {
 ### Optional
 
 - `name` (String) — The display name for the device.
-- `led_override` (String) — LED behavior override: `default` (follows site setting), `on`, or `off`.
-- `led_override_color` (String) — LED color override as a hex string (e.g. `#0000ff`).
-- `led_override_color_brightness` (Number) — LED color brightness override (0–100).
+- `led_enabled` (Boolean) — Whether LEDs are enabled. `true` forces on, `false` forces off. Omit to follow site default.
+- `led_color` (String) — LED color as a hex string (e.g. `#0000ff`).
+- `led_brightness` (Number) — LED brightness (0–100).
 - `outdoor_mode_override` (String) — Outdoor mode override: `default`, `on`, or `off`.
 - `locked` (Boolean) — Whether the device is locked to prevent accidental removal.
 - `disabled` (Boolean) — Whether the device is administratively disabled.

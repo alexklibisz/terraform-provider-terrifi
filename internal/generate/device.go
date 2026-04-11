@@ -29,15 +29,15 @@ func DeviceBlocks(devices []unifi.Device) []ResourceBlock {
 		}
 		switch d.LedOverride {
 		case "on":
-			block.Attributes = append(block.Attributes, Attr{Key: "led_override", Value: HCLBool(true)})
+			block.Attributes = append(block.Attributes, Attr{Key: "led_enabled", Value: HCLBool(true)})
 		case "off":
-			block.Attributes = append(block.Attributes, Attr{Key: "led_override", Value: HCLBool(false)})
+			block.Attributes = append(block.Attributes, Attr{Key: "led_enabled", Value: HCLBool(false)})
 		}
 		if d.LedOverrideColor != "" {
-			block.Attributes = append(block.Attributes, Attr{Key: "led_override_color", Value: HCLString(d.LedOverrideColor)})
+			block.Attributes = append(block.Attributes, Attr{Key: "led_color", Value: HCLString(d.LedOverrideColor)})
 		}
 		if d.LedOverrideColorBrightness != nil {
-			block.Attributes = append(block.Attributes, Attr{Key: "led_override_color_brightness", Value: HCLInt64(*d.LedOverrideColorBrightness)})
+			block.Attributes = append(block.Attributes, Attr{Key: "led_brightness", Value: HCLInt64(*d.LedOverrideColorBrightness)})
 		}
 		if d.OutdoorModeOverride != "" {
 			block.Attributes = append(block.Attributes, Attr{Key: "outdoor_mode_override", Value: HCLString(d.OutdoorModeOverride)})
