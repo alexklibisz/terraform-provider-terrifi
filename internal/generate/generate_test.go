@@ -565,6 +565,28 @@ func TestFirewallPolicyBlocks_alwaysScheduleOmitted(t *testing.T) {
 	assert.Empty(t, blocks[0].Blocks)
 }
 
+func TestFirewallPolicyBlocks_predefinedSkipped(t *testing.T) {
+	policies := []*unifi.FirewallPolicy{
+		{
+			ID:         "pol1",
+			Name:       "Block Invalid Traffic",
+			Enabled:    true,
+			Action:     "BLOCK",
+			Predefined: true,
+		},
+		{
+			ID:      "pol2",
+			Name:    "User Policy",
+			Enabled: true,
+			Action:  "ALLOW",
+		},
+	}
+
+	blocks := FirewallPolicyBlocks(policies)
+	require.Len(t, blocks, 1)
+	assert.Equal(t, "user_policy", blocks[0].ResourceName)
+}
+
 func TestFirewallPolicyBlocks_customConnectionStateType(t *testing.T) {
 	policies := []*unifi.FirewallPolicy{
 		{
