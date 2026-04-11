@@ -349,15 +349,14 @@ func (r *deviceResource) ImportState(
 	resp *resource.ImportStateResponse,
 ) {
 	// Support "site:mac" or just "mac" format.
-	parts := strings.SplitN(req.ID, ":", 2)
-
+	// Check if the full string is a MAC first, since MACs contain colons.
 	var site, mac string
-	if len(parts) == 2 && !macRegexp.MatchString(parts[0]) {
-		// "site:mac" format — first part is not a MAC octet pair.
-		site = parts[0]
-		mac = strings.ToLower(parts[1])
+	if macRegexp.MatchString(req.ID) {
+		mac = strings.ToLower(req.ID)
+	} else if idx := strings.Index(req.ID, ":"); idx > 0 {
+		site = req.ID[:idx]
+		mac = strings.ToLower(req.ID[idx+1:])
 	} else {
-		// Plain MAC (may contain colons).
 		mac = strings.ToLower(req.ID)
 	}
 
