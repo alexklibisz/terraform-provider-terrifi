@@ -73,8 +73,10 @@ jobs:
         run: |
           docker compose -f docker-compose.yaml pull --quiet
           mkdir -p /tmp/docker-images
-          docker save mongo:8.2 -o /tmp/docker-images/mongo.tar
-          docker save lscr.io/linuxserver/unifi-network-application:version-10.1.85 -o /tmp/docker-images/unifi.tar
+          docker compose -f docker-compose.yaml config --images | while read -r img; do
+            name=$(echo "$img" | tr '/.:' '___')
+            docker save "$img" -o "/tmp/docker-images/${name}.tar"
+          done
       - name: Acceptance tests (Docker)
         timeout-minutes: 10
         run: task test:acc
