@@ -13,6 +13,7 @@ import (
 var validResourceTypes = []string{
 	"terrifi_client_device",
 	"terrifi_client_group",
+	"terrifi_device",
 	"terrifi_dns_record",
 	"terrifi_firewall_group",
 	"terrifi_firewall_zone",
@@ -73,6 +74,13 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("listing client groups: %w", err)
 		}
 		blocks = generate.ClientGroupBlocks(groups)
+
+	case "terrifi_device":
+		devices, err := client.ApiClient.ListDevice(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing devices: %w", err)
+		}
+		blocks = generate.DeviceBlocks(devices)
 
 	case "terrifi_dns_record":
 		records, err := client.ListDNSRecord(ctx, site)
