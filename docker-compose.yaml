@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
 
   unifi:
-    image: lscr.io/linuxserver/unifi-network-application:version-10.1.85  # pinned; dependabot updates this
+    image: lscr.io/linuxserver/unifi-network-application:version-10.1.89  # pinned; dependabot updates this
     environment:
       PUID: 1000
       PGID: 1000
