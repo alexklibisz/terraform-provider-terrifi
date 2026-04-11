@@ -27,8 +27,11 @@ func DeviceBlocks(devices []unifi.Device) []ResourceBlock {
 		if d.Name != "" {
 			block.Attributes = append(block.Attributes, Attr{Key: "name", Value: HCLString(d.Name)})
 		}
-		if d.LedOverride != "" {
-			block.Attributes = append(block.Attributes, Attr{Key: "led_override", Value: HCLString(d.LedOverride)})
+		switch d.LedOverride {
+		case "on":
+			block.Attributes = append(block.Attributes, Attr{Key: "led_override", Value: HCLBool(true)})
+		case "off":
+			block.Attributes = append(block.Attributes, Attr{Key: "led_override", Value: HCLBool(false)})
 		}
 		if d.LedOverrideColor != "" {
 			block.Attributes = append(block.Attributes, Attr{Key: "led_override_color", Value: HCLString(d.LedOverrideColor)})

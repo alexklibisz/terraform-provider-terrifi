@@ -41,7 +41,7 @@ type deviceResourceModel struct {
 	Site                      types.String `tfsdk:"site"`
 	MAC                       types.String `tfsdk:"mac"`
 	Name                      types.String `tfsdk:"name"`
-	LedOverride               types.String `tfsdk:"led_override"`
+	LedOverride               types.Bool   `tfsdk:"led_override"`
 	LedOverrideColor          types.String `tfsdk:"led_override_color"`
 	LedOverrideColorBrightness types.Int64  `tfsdk:"led_override_color_brightness"`
 	OutdoorModeOverride       types.String `tfsdk:"outdoor_mode_override"`
@@ -116,13 +116,10 @@ func (r *deviceResource) Schema(
 				Optional:            true,
 			},
 
-			"led_override": schema.StringAttribute{
-				MarkdownDescription: "LED behavior override. `default` follows the site setting, " +
-					"`on` forces LEDs on, `off` forces LEDs off.",
+			"led_override": schema.BoolAttribute{
+				MarkdownDescription: "LED override. `true` forces LEDs on, `false` forces LEDs off. " +
+					"Omit to follow the site default.",
 				Optional: true,
-				Validators: []validator.String{
-					stringvalidator.OneOf("default", "on", "off"),
-				},
 			},
 
 			"led_override_color": schema.StringAttribute{
@@ -424,7 +421,11 @@ func (r *deviceResource) modelToAPI(m *deviceResourceModel) *unifi.Device {
 	}
 
 	if !m.LedOverride.IsNull() && !m.LedOverride.IsUnknown() {
-		d.LedOverride = m.LedOverride.ValueString()
+		if m.LedOverride.ValueBool() {
+			d.LedOverride = "on"
+		} else {
+			d.LedOverride = "off"
+		}
 	}
 
 	if !m.LedOverrideColor.IsNull() && !m.LedOverrideColor.IsUnknown() {
@@ -470,7 +471,14 @@ func (r *deviceResource) apiToModel(d *unifi.Device, m *deviceResourceModel, sit
 	m.MAC = types.StringValue(d.MAC)
 
 	m.Name = stringValueOrNull(d.Name)
-	m.LedOverride = stringValueOrNull(d.LedOverride)
+	switch d.LedOverride {
+	case "on":
+		m.LedOverride = types.BoolValue(true)
+	case "off":
+		m.LedOverride = types.BoolValue(false)
+	default:
+		m.LedOverride = types.BoolNull()
+	}
 	m.LedOverrideColor = stringValueOrNull(d.LedOverrideColor)
 	if d.LedOverrideColorBrightness != nil {
 		m.LedOverrideColorBrightness = types.Int64Value(*d.LedOverrideColorBrightness)

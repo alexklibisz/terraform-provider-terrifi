@@ -24,7 +24,7 @@ func TestDeviceResourceModelToAPI(t *testing.T) {
 		volume := int64(50)
 		m := &deviceResourceModel{
 			Name:                       types.StringValue("Living Room AP"),
-			LedOverride:               types.StringValue("on"),
+			LedOverride:               types.BoolValue(true),
 			LedOverrideColor:          types.StringValue("#0000ff"),
 			LedOverrideColorBrightness: types.Int64Value(brightness),
 			OutdoorModeOverride:       types.StringValue("off"),
@@ -39,22 +39,30 @@ func TestDeviceResourceModelToAPI(t *testing.T) {
 
 		assert.Equal(t, "Living Room AP", d.Name)
 		assert.Equal(t, "on", d.LedOverride)
-		assert.Equal(t, "#0000ff", d.LedOverrideColor)
-		assert.NotNil(t, d.LedOverrideColorBrightness)
-		assert.Equal(t, int64(75), *d.LedOverrideColorBrightness)
-		assert.Equal(t, "off", d.OutdoorModeOverride)
-		assert.True(t, d.Locked)
-		assert.False(t, d.Disabled)
-		assert.Equal(t, "admin@example.com", d.SnmpContact)
-		assert.Equal(t, "Rack 1", d.SnmpLocation)
-		assert.NotNil(t, d.Volume)
-		assert.Equal(t, int64(50), *d.Volume)
+	})
+
+	t.Run("led_override false maps to off", func(t *testing.T) {
+		m := &deviceResourceModel{
+			Name:                       types.StringNull(),
+			LedOverride:               types.BoolValue(false),
+			LedOverrideColor:          types.StringNull(),
+			LedOverrideColorBrightness: types.Int64Null(),
+			OutdoorModeOverride:       types.StringNull(),
+			Locked:                    types.BoolNull(),
+			Disabled:                  types.BoolNull(),
+			SnmpContact:              types.StringNull(),
+			SnmpLocation:             types.StringNull(),
+			Volume:                   types.Int64Null(),
+		}
+
+		d := r.modelToAPI(m)
+		assert.Equal(t, "off", d.LedOverride)
 	})
 
 	t.Run("minimal model — all null", func(t *testing.T) {
 		m := &deviceResourceModel{
 			Name:                       types.StringNull(),
-			LedOverride:               types.StringNull(),
+			LedOverride:               types.BoolNull(),
 			LedOverrideColor:          types.StringNull(),
 			LedOverrideColorBrightness: types.Int64Null(),
 			OutdoorModeOverride:       types.StringNull(),
@@ -82,7 +90,7 @@ func TestDeviceResourceModelToAPI(t *testing.T) {
 	t.Run("unknown values treated as unset", func(t *testing.T) {
 		m := &deviceResourceModel{
 			Name:                       types.StringUnknown(),
-			LedOverride:               types.StringUnknown(),
+			LedOverride:               types.BoolUnknown(),
 			LedOverrideColor:          types.StringUnknown(),
 			LedOverrideColorBrightness: types.Int64Unknown(),
 			OutdoorModeOverride:       types.StringUnknown(),
@@ -135,7 +143,7 @@ func TestDeviceResourceAPIToModel(t *testing.T) {
 		assert.Equal(t, "default", m.Site.ValueString())
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", m.MAC.ValueString())
 		assert.Equal(t, "Office AP", m.Name.ValueString())
-		assert.Equal(t, "on", m.LedOverride.ValueString())
+		assert.True(t, m.LedOverride.ValueBool())
 		assert.Equal(t, "#ff0000", m.LedOverrideColor.ValueString())
 		assert.Equal(t, int64(80), m.LedOverrideColorBrightness.ValueInt64())
 		assert.Equal(t, "off", m.OutdoorModeOverride.ValueString())
@@ -166,7 +174,7 @@ func TestDeviceResourceAPIToModel(t *testing.T) {
 		assert.Equal(t, "mysite", m.Site.ValueString())
 		assert.Equal(t, "11:22:33:44:55:66", m.MAC.ValueString())
 		assert.True(t, m.Name.IsNull())
-		assert.True(t, m.LedOverride.IsNull())
+		assert.True(t, m.LedOverride.IsNull(), "led_override should be null for default/empty")
 		assert.True(t, m.LedOverrideColor.IsNull())
 		assert.True(t, m.LedOverrideColorBrightness.IsNull())
 		assert.True(t, m.OutdoorModeOverride.IsNull())
@@ -207,7 +215,7 @@ func TestDeviceResourceModelToAPIRoundTrip(t *testing.T) {
 		ID:                         "dev-rt",
 		MAC:                        "aa:bb:cc:dd:ee:ff",
 		Name:                       "Round Trip",
-		LedOverride:               "off",
+		LedOverride:               "on",
 		LedOverrideColor:          "#00ff00",
 		LedOverrideColorBrightness: &brightness,
 		OutdoorModeOverride:       "on",
@@ -310,41 +318,42 @@ func TestAccDeviceResource_ledOverride(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
+			// LEDs off.
 			{
 				Config: fmt.Sprintf(`
 resource "terrifi_device" "test" {
   mac          = %q
   name         = "tfacc-device-led"
-  led_override = "off"
+  led_override = false
 }
 `, dev.MAC),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "off"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "false"),
 				),
 			},
+			// LEDs on.
 			{
 				Config: fmt.Sprintf(`
 resource "terrifi_device" "test" {
   mac          = %q
   name         = "tfacc-device-led"
-  led_override = "on"
+  led_override = true
 }
 `, dev.MAC),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "on"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "true"),
 				),
 			},
-			// Reset to default.
+			// Reset to site default (omit attribute).
 			{
 				Config: fmt.Sprintf(`
 resource "terrifi_device" "test" {
-  mac          = %q
-  name         = "tfacc-device-led"
-  led_override = "default"
+  mac  = %q
+  name = "tfacc-device-led"
 }
 `, dev.MAC),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "default"),
+					resource.TestCheckNoResourceAttr("terrifi_device.test", "led_override"),
 				),
 			},
 		},
@@ -504,7 +513,7 @@ func TestAccDeviceResource_idempotent(t *testing.T) {
 resource "terrifi_device" "test" {
   mac          = %q
   name         = "tfacc-device-idempotent"
-  led_override = "on"
+  led_override = true
 }
 `, dev.MAC)
 
@@ -534,7 +543,7 @@ func TestAccDeviceResource_multipleFields(t *testing.T) {
 resource "terrifi_device" "test" {
   mac           = %q
   name          = "tfacc-device-multi"
-  led_override  = "off"
+  led_override  = false
   locked        = true
   snmp_contact  = "test@example.com"
   snmp_location = "Lab"
@@ -542,7 +551,7 @@ resource "terrifi_device" "test" {
 `, dev.MAC),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_device.test", "name", "tfacc-device-multi"),
-					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "off"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "false"),
 					resource.TestCheckResourceAttr("terrifi_device.test", "locked", "true"),
 					resource.TestCheckResourceAttr("terrifi_device.test", "snmp_contact", "test@example.com"),
 					resource.TestCheckResourceAttr("terrifi_device.test", "snmp_location", "Lab"),
@@ -554,7 +563,7 @@ resource "terrifi_device" "test" {
 resource "terrifi_device" "test" {
   mac           = %q
   name          = "tfacc-device-multi-v2"
-  led_override  = "on"
+  led_override  = true
   locked        = false
   snmp_contact  = "ops@example.com"
   snmp_location = "Production"
@@ -562,7 +571,7 @@ resource "terrifi_device" "test" {
 `, dev.MAC),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_device.test", "name", "tfacc-device-multi-v2"),
-					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "on"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "led_override", "true"),
 					resource.TestCheckResourceAttr("terrifi_device.test", "locked", "false"),
 					resource.TestCheckResourceAttr("terrifi_device.test", "snmp_contact", "ops@example.com"),
 					resource.TestCheckResourceAttr("terrifi_device.test", "snmp_location", "Production"),
@@ -593,23 +602,6 @@ resource "terrifi_device" "test" {
 	})
 }
 
-func TestAccDeviceResource_validationInvalidLedOverride(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: `
-resource "terrifi_device" "test" {
-  mac          = "aa:bb:cc:dd:ee:ff"
-  led_override = "blink"
-}
-`,
-				ExpectError: regexp.MustCompile(`must be one of`),
-			},
-		},
-	})
-}
 
 func TestAccDeviceResource_validationInvalidLedColor(t *testing.T) {
 	resource.Test(t, resource.TestCase{
