@@ -84,6 +84,35 @@ task test:acc -- -run TestAccDNSRecord_basic
 task lint
 ```
 
+## Installing a pre-release version
+
+Pre-release versions (e.g. `0.4.0-RC2`) are published to the OpenTofu/Terraform registry but may take time to appear. If the version isn't available yet, download the binary directly from the GitHub release and use `dev_overrides`:
+
+```sh
+VERSION="0.4.0-RC2"
+OS="linux"
+ARCH="amd64"
+PROVIDER="terraform-provider-terrifi"
+OWNER="alexklibisz"
+
+curl -L "https://github.com/${OWNER}/${PROVIDER}/releases/download/v${VERSION}/${PROVIDER}_${VERSION}_${OS}_${ARCH}.zip" \
+  -o /tmp/${PROVIDER}-${VERSION}.zip && \
+  unzip -o /tmp/${PROVIDER}-${VERSION}.zip -d ~/${PROVIDER}-${VERSION}/
+```
+
+Then add to `~/.tofurc` (or `~/.terraformrc`):
+
+```hcl
+provider_installation {
+  dev_overrides {
+    "alexklibisz/terrifi" = "/home/<you>/terraform-provider-terrifi-0.4.0-RC2"
+  }
+  direct {}
+}
+```
+
+With `dev_overrides` active, skip `tofu init` and run `tofu plan` directly.
+
 ## Releasing
 
 1. Go to the [Tag workflow](../../actions/workflows/tag.yml) in GitHub Actions.
