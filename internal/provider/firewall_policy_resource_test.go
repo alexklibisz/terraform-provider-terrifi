@@ -2568,6 +2568,226 @@ resource "terrifi_firewall_policy" "test" {
 	})
 }
 
+func TestAccFirewallPolicy_customConnectionStateType(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-cst-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-cst-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-custom-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                  = %q
+  action                = "BLOCK"
+  connection_state_type = "CUSTOM"
+  connection_states     = ["INVALID"]
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_states.#", "1"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "INVALID"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_customConnectionStateTypeMultiple(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-csm-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-csm-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-custm-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                  = %q
+  action                = "ALLOW"
+  connection_state_type = "CUSTOM"
+  connection_states     = ["NEW", "ESTABLISHED", "RELATED"]
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_states.#", "3"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "NEW"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "ESTABLISHED"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "RELATED"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_icmpv6Protocol(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-icmp6-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-icmp6-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-icmpv6-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name       = %q
+  action     = "ALLOW"
+  ip_version = "IPV6"
+  protocol   = "icmpv6"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "protocol", "icmpv6"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "ip_version", "IPV6"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_icmpProtocol(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-icmp-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-icmp-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-icmp-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name       = %q
+  action     = "ALLOW"
+  ip_version = "IPV4"
+  protocol   = "icmp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "protocol", "icmp"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "ip_version", "IPV4"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_updateConnectionStateType(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-ucst-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-ucst-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-ucst-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "ALL"),
+				),
+			},
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                  = %q
+  action                = "BLOCK"
+  connection_state_type = "CUSTOM"
+  connection_states     = ["INVALID"]
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_states.#", "1"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "INVALID"),
+				),
+			},
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "ALL"),
+				),
+			},
+		},
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
