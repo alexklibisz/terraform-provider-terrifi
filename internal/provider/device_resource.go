@@ -11,6 +11,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -151,13 +154,17 @@ func (r *deviceResource) Schema(
 			},
 
 			"locked": schema.BoolAttribute{
-				MarkdownDescription: "Whether the device is locked to prevent accidental removal.",
+				MarkdownDescription: "Whether the device is locked to prevent accidental removal. Defaults to `false`.",
 				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 
 			"disabled": schema.BoolAttribute{
-				MarkdownDescription: "Whether the device is administratively disabled.",
+				MarkdownDescription: "Whether the device is administratively disabled. Defaults to `false`.",
 				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 
 			"snmp_contact": schema.StringAttribute{
@@ -188,27 +195,42 @@ func (r *deviceResource) Schema(
 			"model": schema.StringAttribute{
 				MarkdownDescription: "The hardware model of the device (e.g. `U6-LR`, `US-16-XG`).",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 
 			"type": schema.StringAttribute{
 				MarkdownDescription: "The device type (e.g. `uap` for access point, `usw` for switch, `ugw` for gateway).",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 
 			"ip": schema.StringAttribute{
 				MarkdownDescription: "The current IP address of the device.",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 
 			"adopted": schema.BoolAttribute{
 				MarkdownDescription: "Whether the device has been adopted by the controller.",
 				Computed:            true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 
 			"state": schema.Int64Attribute{
 				MarkdownDescription: "The device state. 0 = unknown, 1 = connected, 2 = pending, " +
 					"4 = upgrading, 5 = provisioning, 6 = heartbeat missed.",
 				Computed: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
