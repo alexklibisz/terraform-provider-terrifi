@@ -313,6 +313,108 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 		assert.ElementsMatch(t, []string{"NEW", "ESTABLISHED"}, policy.ConnectionStates)
 	})
 
+	t.Run("CUSTOM connection state type with explicit states", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Block Invalid Traffic"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("CUSTOM"),
+			ConnectionStates: types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("INVALID"),
+			}),
+			Description:        types.StringNull(),
+			MatchIPSec:         types.BoolNull(),
+			Logging:            types.BoolNull(),
+			CreateAllowRespond: types.BoolNull(),
+			Index:              types.Int64Null(),
+			Source:             srcObj,
+			Destination:        dstObj,
+			Schedule:           types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "CUSTOM", policy.ConnectionStateType)
+		assert.ElementsMatch(t, []string{"INVALID"}, policy.ConnectionStates)
+	})
+
+	t.Run("icmpv6 protocol", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Allow Neighbor Solicitations"),
+			Action:              types.StringValue("ALLOW"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("IPV6"),
+			Protocol:            types.StringValue("icmpv6"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "icmpv6", policy.Protocol)
+		assert.Equal(t, "IPV6", policy.IPVersion)
+	})
+
 	t.Run("with MAC addresses", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id": types.StringValue("zone-src"),
@@ -743,6 +845,82 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.Equal(t, "BOTH", model.IPVersion.ValueString())
 		assert.Equal(t, "all", model.Protocol.ValueString())
 		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
+	})
+
+	t.Run("CUSTOM connection state type round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:                  "pol-020",
+			Name:                "Block Invalid Traffic",
+			Action:              "BLOCK",
+			Enabled:             true,
+			ConnectionStateType: "CUSTOM",
+			ConnectionStates:    []string{"INVALID"},
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "CUSTOM", model.ConnectionStateType.ValueString())
+		assert.False(t, model.ConnectionStates.IsNull())
+		var states []string
+		model.ConnectionStates.ElementsAs(context.Background(), &states, false)
+		assert.ElementsMatch(t, []string{"INVALID"}, states)
+	})
+
+	t.Run("icmpv6 protocol round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:        "pol-021",
+			Name:      "Allow Neighbor Solicitations",
+			Action:    "ALLOW",
+			Enabled:   true,
+			IPVersion: "IPV6",
+			Protocol:  "icmpv6",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "icmpv6", model.Protocol.ValueString())
+		assert.Equal(t, "IPV6", model.IPVersion.ValueString())
+	})
+
+	t.Run("icmp protocol round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:       "pol-022",
+			Name:     "ICMP Rule",
+			Action:   "ALLOW",
+			Enabled:  true,
+			Protocol: "icmp",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "icmp", model.Protocol.ValueString())
 	})
 
 	t.Run("with schedule", func(t *testing.T) {

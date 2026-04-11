@@ -565,6 +565,62 @@ func TestFirewallPolicyBlocks_alwaysScheduleOmitted(t *testing.T) {
 	assert.Empty(t, blocks[0].Blocks)
 }
 
+func TestFirewallPolicyBlocks_customConnectionStateType(t *testing.T) {
+	policies := []*unifi.FirewallPolicy{
+		{
+			ID:                  "pol1",
+			Name:                "Block Invalid Traffic",
+			Enabled:             true,
+			Action:              "BLOCK",
+			ConnectionStateType: "CUSTOM",
+			ConnectionStates:    []string{"INVALID"},
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone1",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone2",
+				MatchingTarget: "ANY",
+			},
+		},
+	}
+
+	blocks := FirewallPolicyBlocks(policies)
+	require.Len(t, blocks, 1)
+
+	attrs := attrMapFromBlock(blocks[0])
+	assert.Equal(t, `"CUSTOM"`, attrs["connection_state_type"])
+	assert.Equal(t, `["INVALID"]`, attrs["connection_states"])
+}
+
+func TestFirewallPolicyBlocks_icmpv6Protocol(t *testing.T) {
+	policies := []*unifi.FirewallPolicy{
+		{
+			ID:        "pol1",
+			Name:      "Allow Neighbor Solicitations",
+			Enabled:   true,
+			Action:    "ALLOW",
+			IPVersion: "IPV6",
+			Protocol:  "icmpv6",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone1",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone2",
+				MatchingTarget: "ANY",
+			},
+		},
+	}
+
+	blocks := FirewallPolicyBlocks(policies)
+	require.Len(t, blocks, 1)
+
+	attrs := attrMapFromBlock(blocks[0])
+	assert.Equal(t, `"icmpv6"`, attrs["protocol"])
+	assert.Equal(t, `"IPV6"`, attrs["ip_version"])
+}
+
 // ---------------------------------------------------------------------------
 // NetworkBlocks
 // ---------------------------------------------------------------------------

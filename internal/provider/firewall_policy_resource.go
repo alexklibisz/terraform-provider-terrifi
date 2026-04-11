@@ -222,22 +222,22 @@ func (r *firewallPolicyResource) Schema(
 			},
 
 			"protocol": schema.StringAttribute{
-				MarkdownDescription: "Protocol to match. Valid values: `all`, `tcp`, `udp`, `tcp_udp`. Default: `all`.",
+				MarkdownDescription: "Protocol to match. Valid values: `all`, `tcp`, `udp`, `tcp_udp`, `icmp`, `icmpv6`. Default: `all`.",
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString("all"),
 				Validators: []validator.String{
-					stringvalidator.OneOf("all", "tcp", "udp", "tcp_udp"),
+					stringvalidator.OneOf("all", "tcp", "udp", "tcp_udp", "icmp", "icmpv6"),
 				},
 			},
 
 			"connection_state_type": schema.StringAttribute{
-				MarkdownDescription: "Connection state type. Valid values: `ALL`, `RESPOND_ONLY`. Default: `ALL`.",
+				MarkdownDescription: "Connection state type. Valid values: `ALL`, `RESPOND_ONLY`, `CUSTOM`. When set to `CUSTOM`, specify individual states via `connection_states`. Default: `ALL`.",
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString("ALL"),
 				Validators: []validator.String{
-					stringvalidator.OneOf("ALL", "RESPOND_ONLY"),
+					stringvalidator.OneOf("ALL", "RESPOND_ONLY", "CUSTOM"),
 				},
 			},
 
