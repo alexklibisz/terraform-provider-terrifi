@@ -73,10 +73,10 @@ jobs:
         run: |
           docker compose -f docker-compose.yaml pull --quiet
           mkdir -p /tmp/docker-images
-          MONGO_IMAGE=$(grep -m1 'image: mongo' docker-compose.yaml | awk '{print $2}')
-          docker save "$MONGO_IMAGE" -o /tmp/docker-images/mongo.tar
-          UNIFI_IMAGE=$(grep 'unifi-network-application' docker-compose.yaml | awk '{print $2}')
-          docker save "$UNIFI_IMAGE" -o /tmp/docker-images/unifi.tar
+          docker compose -f docker-compose.yaml config --images | while read -r img; do
+            name=$(echo "$img" | tr '/.:' '___')
+            docker save "$img" -o "/tmp/docker-images/${name}.tar"
+          done
       - name: Acceptance tests (Docker)
         timeout-minutes: 10
         run: task test:acc
