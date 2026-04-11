@@ -141,8 +141,8 @@ resource "terrifi_firewall_policy" "weekday_block" {
 - `description` (String) — A description of the firewall policy.
 - `enabled` (Boolean) — Whether the policy is enabled. Default: `true`.
 - `ip_version` (String) — IP version to match. Valid values: `BOTH`, `IPV4`, `IPV6`. Default: `BOTH`.
-- `protocol` (String) — Protocol to match. Valid values: `all`, `tcp`, `udp`, `tcp_udp`. Default: `all`.
-- `connection_state_type` (String) — Connection state type. Valid values: `ALL`, `RESPOND_ONLY`. Default: `ALL`.
+- `protocol` (String) — Protocol to match. Valid values: `all`, `tcp`, `udp`, `tcp_udp`, `icmp`, `icmpv6`. Default: `all`.
+- `connection_state_type` (String) — Connection state type. Valid values: `ALL`, `RESPOND_ONLY`, `CUSTOM`. When set to `CUSTOM`, specify individual states via `connection_states`. Default: `ALL`.
 - `connection_states` (Set of String) — Connection states to match (e.g. `NEW`, `ESTABLISHED`, `RELATED`, `INVALID`).
 - `match_ipsec` (Boolean) — Whether to match IPsec traffic.
 - `logging` (Boolean) — Whether to enable syslog logging for matched traffic.

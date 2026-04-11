@@ -313,6 +313,108 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 		assert.ElementsMatch(t, []string{"NEW", "ESTABLISHED"}, policy.ConnectionStates)
 	})
 
+	t.Run("CUSTOM connection state type with explicit states", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Block Invalid Traffic"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("CUSTOM"),
+			ConnectionStates: types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("INVALID"),
+			}),
+			Description:        types.StringNull(),
+			MatchIPSec:         types.BoolNull(),
+			Logging:            types.BoolNull(),
+			CreateAllowRespond: types.BoolNull(),
+			Index:              types.Int64Null(),
+			Source:             srcObj,
+			Destination:        dstObj,
+			Schedule:           types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "CUSTOM", policy.ConnectionStateType)
+		assert.ElementsMatch(t, []string{"INVALID"}, policy.ConnectionStates)
+	})
+
+	t.Run("icmpv6 protocol", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Allow Neighbor Solicitations"),
+			Action:              types.StringValue("ALLOW"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("IPV6"),
+			Protocol:            types.StringValue("icmpv6"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            types.ObjectNull(scheduleAttrTypes),
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "icmpv6", policy.Protocol)
+		assert.Equal(t, "IPV6", policy.IPVersion)
+	})
+
 	t.Run("with MAC addresses", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id": types.StringValue("zone-src"),
@@ -743,6 +845,109 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.Equal(t, "BOTH", model.IPVersion.ValueString())
 		assert.Equal(t, "all", model.Protocol.ValueString())
 		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
+	})
+
+	t.Run("ALL connection state type discards stale states from API", func(t *testing.T) {
+		// API may return connection_states even when type is ALL (stale from prior CUSTOM config).
+		// Provider must discard them to avoid spurious diffs.
+		policy := &unifi.FirewallPolicy{
+			ID:                  "pol-019",
+			Name:                "Block All States",
+			Action:              "BLOCK",
+			Enabled:             true,
+			ConnectionStateType: "ALL",
+			ConnectionStates:    []string{"INVALID"}, // stale, should be discarded
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
+		assert.True(t, model.ConnectionStates.IsNull())
+	})
+
+	t.Run("CUSTOM connection state type round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:                  "pol-020",
+			Name:                "Block Invalid Traffic",
+			Action:              "BLOCK",
+			Enabled:             true,
+			ConnectionStateType: "CUSTOM",
+			ConnectionStates:    []string{"INVALID"},
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "CUSTOM", model.ConnectionStateType.ValueString())
+		assert.False(t, model.ConnectionStates.IsNull())
+		var states []string
+		model.ConnectionStates.ElementsAs(context.Background(), &states, false)
+		assert.ElementsMatch(t, []string{"INVALID"}, states)
+	})
+
+	t.Run("icmpv6 protocol round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:        "pol-021",
+			Name:      "Allow Neighbor Solicitations",
+			Action:    "ALLOW",
+			Enabled:   true,
+			IPVersion: "IPV6",
+			Protocol:  "icmpv6",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "icmpv6", model.Protocol.ValueString())
+		assert.Equal(t, "IPV6", model.IPVersion.ValueString())
+	})
+
+	t.Run("icmp protocol round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:       "pol-022",
+			Name:     "ICMP Rule",
+			Action:   "ALLOW",
+			Enabled:  true,
+			Protocol: "icmp",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "icmp", model.Protocol.ValueString())
 	})
 
 	t.Run("with schedule", func(t *testing.T) {
@@ -2385,6 +2590,226 @@ resource "terrifi_firewall_policy" "test" {
 }
 `, groupName, policyName),
 				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_customConnectionStateType(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-cst-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-cst-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-custom-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                  = %q
+  action                = "BLOCK"
+  connection_state_type = "CUSTOM"
+  connection_states     = ["INVALID"]
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_states.#", "1"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "INVALID"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_customConnectionStateTypeMultiple(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-csm-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-csm-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-custm-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                  = %q
+  action                = "ALLOW"
+  connection_state_type = "CUSTOM"
+  connection_states     = ["NEW", "ESTABLISHED", "RELATED"]
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_states.#", "3"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "NEW"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "ESTABLISHED"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "RELATED"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_icmpv6Protocol(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-icmp6-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-icmp6-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-icmpv6-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name       = %q
+  action     = "ALLOW"
+  ip_version = "IPV6"
+  protocol   = "icmpv6"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "protocol", "icmpv6"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "ip_version", "IPV6"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_icmpProtocol(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-icmp-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-icmp-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-icmp-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name       = %q
+  action     = "ALLOW"
+  ip_version = "IPV4"
+  protocol   = "icmp"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "protocol", "icmp"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "ip_version", "IPV4"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_updateConnectionStateType(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-ucst-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-ucst-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-ucst-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "ALL"),
+				),
+			},
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                  = %q
+  action                = "BLOCK"
+  connection_state_type = "CUSTOM"
+  connection_states     = ["INVALID"]
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_states.#", "1"),
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "connection_states.*", "INVALID"),
+				),
+			},
+			{
+				Config: zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "connection_state_type", "ALL"),
+				),
 			},
 		},
 	})
