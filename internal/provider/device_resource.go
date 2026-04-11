@@ -265,6 +265,10 @@ func (r *deviceResource) Create(
 		return
 	}
 
+	// Save which optional fields were configured so we can preserve nulls after
+	// apiToModel — the API returns all fields, but we only track what the user set.
+	planned := plan
+
 	site := r.client.SiteOrDefault(plan.Site)
 	mac := strings.ToLower(plan.MAC.ValueString())
 
@@ -285,13 +289,22 @@ func (r *deviceResource) Create(
 	apiObj.ID = existing.ID
 	apiObj.MAC = existing.MAC
 
-	updated, err := r.client.ApiClient.UpdateDevice(ctx, site, apiObj)
+	_, err = r.client.ApiClient.UpdateDevice(ctx, site, apiObj)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Device", err.Error())
 		return
 	}
 
-	r.apiToModel(updated, &plan, site)
+	// Re-read to get full state including runtime fields (state, ip, etc.)
+	// that the UpdateDevice response may not include.
+	device, err := r.client.ApiClient.GetDevice(ctx, site, existing.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Error Reading Device After Create", err.Error())
+		return
+	}
+
+	r.apiToModel(device, &plan, site)
+	r.preserveNullOptionals(&planned, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -305,6 +318,9 @@ func (r *deviceResource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Save prior state to preserve nulls for unmanaged optional fields.
+	prior := state
 
 	site := r.client.SiteOrDefault(state.Site)
 
@@ -322,6 +338,7 @@ func (r *deviceResource) Read(
 	}
 
 	r.apiToModel(device, &state, site)
+	r.preserveNullOptionals(&prior, &state)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -343,13 +360,21 @@ func (r *deviceResource) Update(
 	apiObj.ID = state.ID.ValueString()
 	apiObj.MAC = strings.ToLower(state.MAC.ValueString())
 
-	updated, err := r.client.ApiClient.UpdateDevice(ctx, site, apiObj)
+	_, err := r.client.ApiClient.UpdateDevice(ctx, site, apiObj)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Device", err.Error())
 		return
 	}
 
-	r.apiToModel(updated, &state, site)
+	// Re-read to get full state including runtime fields.
+	device, err := r.client.ApiClient.GetDevice(ctx, site, state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Error Reading Device After Update", err.Error())
+		return
+	}
+
+	r.apiToModel(device, &state, site)
+	r.preserveNullOptionals(&plan, &state)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -412,6 +437,36 @@ func (r *deviceResource) ImportState(
 // ---------------------------------------------------------------------------
 // Helper methods
 // ---------------------------------------------------------------------------
+
+// preserveNullOptionals ensures optional fields the user didn't configure stay
+// null in the state, even if the API returned values for them. This prevents
+// Terraform's "inconsistent result after apply" error.
+func (r *deviceResource) preserveNullOptionals(plan, state *deviceResourceModel) {
+	if plan.Name.IsNull() {
+		state.Name = types.StringNull()
+	}
+	if plan.LedEnabled.IsNull() {
+		state.LedEnabled = types.BoolNull()
+	}
+	if plan.LedColor.IsNull() {
+		state.LedColor = types.StringNull()
+	}
+	if plan.LedBrightness.IsNull() {
+		state.LedBrightness = types.Int64Null()
+	}
+	if plan.OutdoorModeOverride.IsNull() {
+		state.OutdoorModeOverride = types.StringNull()
+	}
+	if plan.SnmpContact.IsNull() {
+		state.SnmpContact = types.StringNull()
+	}
+	if plan.SnmpLocation.IsNull() {
+		state.SnmpLocation = types.StringNull()
+	}
+	if plan.Volume.IsNull() {
+		state.Volume = types.Int64Null()
+	}
+}
 
 func (r *deviceResource) modelToAPI(m *deviceResourceModel) *unifi.Device {
 	d := &unifi.Device{}
