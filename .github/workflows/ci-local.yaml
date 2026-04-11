@@ -74,7 +74,8 @@ jobs:
           docker compose -f docker-compose.yaml pull --quiet
           mkdir -p /tmp/docker-images
           docker save mongo:8.2 -o /tmp/docker-images/mongo.tar
-          docker save lscr.io/linuxserver/unifi-network-application:version-10.1.85 -o /tmp/docker-images/unifi.tar
+          UNIFI_IMAGE=$(grep 'unifi-network-application' docker-compose.yaml | awk '{print $2}')
+          docker save "$UNIFI_IMAGE" -o /tmp/docker-images/unifi.tar
       - name: Acceptance tests (Docker)
         timeout-minutes: 10
         run: task test:acc
