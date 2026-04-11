@@ -663,7 +663,10 @@ func (r *firewallPolicyResource) apiToModel(policy *unifi.FirewallPolicy, m *fir
 		m.ConnectionStateType = types.StringValue("ALL")
 	}
 
-	if len(policy.ConnectionStates) > 0 {
+	// Only propagate connection_states when the type is CUSTOM or RESPOND_ONLY.
+	// When ALL, the API may still return stale states from a prior config, so
+	// we discard them to avoid spurious diffs.
+	if m.ConnectionStateType.ValueString() != "ALL" && len(policy.ConnectionStates) > 0 {
 		vals := make([]attr.Value, len(policy.ConnectionStates))
 		for i, s := range policy.ConnectionStates {
 			vals[i] = types.StringValue(s)

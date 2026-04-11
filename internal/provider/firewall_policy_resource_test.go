@@ -847,6 +847,33 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
 	})
 
+	t.Run("ALL connection state type discards stale states from API", func(t *testing.T) {
+		// API may return connection_states even when type is ALL (stale from prior CUSTOM config).
+		// Provider must discard them to avoid spurious diffs.
+		policy := &unifi.FirewallPolicy{
+			ID:                  "pol-019",
+			Name:                "Block All States",
+			Action:              "BLOCK",
+			Enabled:             true,
+			ConnectionStateType: "ALL",
+			ConnectionStates:    []string{"INVALID"}, // stale, should be discarded
+			Source: &unifi.FirewallPolicySource{
+				ZoneID:         "zone-src",
+				MatchingTarget: "ANY",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID:         "zone-dst",
+				MatchingTarget: "ANY",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
+		assert.True(t, model.ConnectionStates.IsNull())
+	})
+
 	t.Run("CUSTOM connection state type round-trip", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:                  "pol-020",
