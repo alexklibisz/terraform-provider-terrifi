@@ -146,7 +146,7 @@ resource "terrifi_firewall_policy" "weekday_block" {
 - `connection_states` (Set of String) — Connection states to match (e.g. `NEW`, `ESTABLISHED`, `RELATED`, `INVALID`).
 - `match_ipsec` (Boolean) — Whether to match IPsec traffic.
 - `logging` (Boolean) — Whether to enable syslog logging for matched traffic.
-- `create_allow_respond` (Boolean) — Whether to create a corresponding allow-respond rule.
+- `create_allow_respond` (Boolean) — Whether to create a corresponding allow-respond rule. Not supported when the destination zone is the external zone — UniFi handles WAN return traffic at the stateful firewall level automatically. Setting this to `true` with an external zone destination will produce an error at plan time.
 - `schedule` (Block) — Schedule configuration. See [Schedule](#schedule) below.
 - `site` (String) — The site. Defaults to the provider site. Changing this forces a new resource.
 
