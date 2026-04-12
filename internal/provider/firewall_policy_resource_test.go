@@ -3,6 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -2815,9 +2818,141 @@ resource "terrifi_firewall_policy" "test" {
 	})
 }
 
+func TestAccFirewallPolicy_createAllowRespondExternalZone(t *testing.T) {
+	// The external zone is predefined on real controllers only. Guard TF_ACC
+	// first so the framework's own skip fires when running as unit tests, then
+	// validate env vars and hardware requirement before the API lookup.
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless env 'TF_ACC' set")
+	}
+	preCheck(t)
+	requireHardware(t)
+
+	externalZoneID := getExternalZoneID(t)
+	srcZoneName := fmt.Sprintf("tfacc-pol-car-src-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-car-ext-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				// create_allow_respond = true + external zone destination → plan-time error.
+				Config: fmt.Sprintf(`
+resource "terrifi_firewall_zone" "source" {
+  name = %q
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name                 = %q
+  action               = "ALLOW"
+  create_allow_respond = true
+
+  source {
+    zone_id = terrifi_firewall_zone.source.id
+  }
+
+  destination {
+    zone_id = %q
+  }
+}
+`, srcZoneName, policyName, externalZoneID),
+				ExpectError: regexp.MustCompile(`create_allow_respond is not supported`),
+			},
+			{
+				// Same config without create_allow_respond succeeds.
+				Config: fmt.Sprintf(`
+resource "terrifi_firewall_zone" "source" {
+  name = %q
+}
+
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "ALLOW"
+
+  source {
+    zone_id = terrifi_firewall_zone.source.id
+  }
+
+  destination {
+    zone_id = %q
+  }
+}
+`, srcZoneName, policyName, externalZoneID),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "action", "ALLOW"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "create_allow_respond"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_createAllowRespondNonExternal(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-car-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-car-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-car-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				// create_allow_respond = true + non-external destination → no error.
+				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name                 = %q
+  action               = "ALLOW"
+  create_allow_respond = true
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+}
+`, policyName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "create_allow_respond", "true"),
+				),
+			},
+		},
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
+
+// getExternalZoneID returns the ID of the predefined external (WAN) zone on the
+// connected controller. Fails the test if no such zone exists.
+func getExternalZoneID(t *testing.T) string {
+	t.Helper()
+	ctx := context.Background()
+	cfg := ClientConfigFromEnv()
+	client, err := NewClient(ctx, cfg)
+	if err != nil {
+		t.Fatalf("failed to create test client: %s", err)
+	}
+
+	var zones []unifi.FirewallZone
+	if err := client.doV2Request(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", client.BaseURL, client.APIPath, client.Site),
+		struct{}{}, &zones,
+	); err != nil {
+		t.Fatalf("failed to list firewall zones: %s", err)
+	}
+
+	for _, z := range zones {
+		if z.ZoneKey == "external" {
+			return z.ID
+		}
+	}
+	t.Fatal("no external zone found on this controller — is zone-based firewall enabled?")
+	return ""
+}
 
 func testAccFirewallPolicyZonesConfig(zone1Name, zone2Name string) string {
 	return fmt.Sprintf(`

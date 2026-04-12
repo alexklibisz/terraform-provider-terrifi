@@ -23,6 +23,7 @@ import (
 var (
 	_ resource.Resource                = &firewallPolicyResource{}
 	_ resource.ResourceWithImportState = &firewallPolicyResource{}
+	_ resource.ResourceWithModifyPlan  = &firewallPolicyResource{}
 )
 
 func NewFirewallPolicyResource() resource.Resource {
@@ -258,7 +259,7 @@ func (r *firewallPolicyResource) Schema(
 			},
 
 			"create_allow_respond": schema.BoolAttribute{
-				MarkdownDescription: "Whether to automatically create a corresponding allow-respond rule.",
+				MarkdownDescription: "Whether to automatically create a corresponding allow-respond rule. Not supported when the destination zone is the external zone — UniFi handles WAN return traffic at the stateful firewall level automatically.",
 				Optional:            true,
 			},
 
@@ -452,6 +453,56 @@ func (r *firewallPolicyResource) ImportState(
 	}
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *firewallPolicyResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	// Skip if provider not yet configured, or during destroy (plan is null).
+	if r.client == nil || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan firewallPolicyResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Only validate when create_allow_respond is explicitly true.
+	if plan.CreateAllowRespond.IsNull() || plan.CreateAllowRespond.IsUnknown() || !plan.CreateAllowRespond.ValueBool() {
+		return
+	}
+
+	// Skip if destination or its zone_id is unknown (e.g. zone not yet created).
+	if plan.Destination.IsNull() || plan.Destination.IsUnknown() {
+		return
+	}
+
+	var dst firewallPolicyEndpointModel
+	plan.Destination.As(ctx, &dst, basetypes.ObjectAsOptions{})
+
+	if dst.ZoneID.IsNull() || dst.ZoneID.IsUnknown() {
+		return
+	}
+
+	site := r.client.SiteOrDefault(plan.Site)
+	zone, err := r.client.GetFirewallZone(ctx, site, dst.ZoneID.ValueString())
+	if err != nil {
+		// Zone lookup failed — skip provider-side validation and let the API respond.
+		return
+	}
+
+	if zone.ZoneKey == "external" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("create_allow_respond"),
+			"Unsupported Attribute Configuration",
+			"create_allow_respond is not supported for policies targeting the external zone. "+
+				"UniFi handles WAN return traffic at the stateful firewall level automatically.",
+		)
+	}
 }
 
 // ---------------------------------------------------------------------------
