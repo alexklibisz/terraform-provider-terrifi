@@ -16,97 +16,110 @@ import (
 // Unit tests — no TF_ACC, no network, no env vars needed
 // ---------------------------------------------------------------------------
 
-func TestDeviceResourceModelToAPI(t *testing.T) {
+func TestDeviceResourceApplyPlanToDevice(t *testing.T) {
 	r := &deviceResource{}
 
 	t.Run("full model", func(t *testing.T) {
 		brightness := int64(75)
 		volume := int64(50)
 		m := &deviceResourceModel{
-			Name:                       types.StringValue("Living Room AP"),
-			LedEnabled:               types.BoolValue(true),
-			LedColor:          types.StringValue("#0000ff"),
-			LedBrightness: types.Int64Value(brightness),
-			OutdoorModeOverride:       types.StringValue("off"),
-			Locked:                    types.BoolValue(true),
-			Disabled:                  types.BoolValue(false),
-			SnmpContact:              types.StringValue("admin@example.com"),
-			SnmpLocation:             types.StringValue("Rack 1"),
-			Volume:                   types.Int64Value(volume),
+			Name:                types.StringValue("Living Room AP"),
+			LedEnabled:         types.BoolValue(true),
+			LedColor:           types.StringValue("#0000ff"),
+			LedBrightness:      types.Int64Value(brightness),
+			OutdoorModeOverride: types.StringValue("off"),
+			Locked:              types.BoolValue(true),
+			Disabled:            types.BoolValue(false),
+			SnmpContact:         types.StringValue("admin@example.com"),
+			SnmpLocation:        types.StringValue("Rack 1"),
+			Volume:              types.Int64Value(volume),
 		}
 
-		d := r.modelToAPI(m)
+		d := &unifi.Device{Adopted: true, State: 1}
+		r.applyPlanToDevice(m, d)
 
 		assert.Equal(t, "Living Room AP", d.Name)
 		assert.Equal(t, "on", d.LedOverride)
+		// Non-managed fields preserved.
+		assert.True(t, d.Adopted)
+		assert.Equal(t, unifi.DeviceState(1), d.State)
 	})
 
 	t.Run("led_enabled false maps to off", func(t *testing.T) {
 		m := &deviceResourceModel{
-			Name:                       types.StringNull(),
-			LedEnabled:               types.BoolValue(false),
-			LedColor:          types.StringNull(),
-			LedBrightness: types.Int64Null(),
-			OutdoorModeOverride:       types.StringNull(),
-			Locked:                    types.BoolNull(),
-			Disabled:                  types.BoolNull(),
-			SnmpContact:              types.StringNull(),
-			SnmpLocation:             types.StringNull(),
-			Volume:                   types.Int64Null(),
+			Name:                types.StringNull(),
+			LedEnabled:         types.BoolValue(false),
+			LedColor:           types.StringNull(),
+			LedBrightness:      types.Int64Null(),
+			OutdoorModeOverride: types.StringNull(),
+			Locked:              types.BoolNull(),
+			Disabled:            types.BoolNull(),
+			SnmpContact:         types.StringNull(),
+			SnmpLocation:        types.StringNull(),
+			Volume:              types.Int64Null(),
 		}
 
-		d := r.modelToAPI(m)
+		d := &unifi.Device{}
+		r.applyPlanToDevice(m, d)
 		assert.Equal(t, "off", d.LedOverride)
 	})
 
-	t.Run("minimal model — all null", func(t *testing.T) {
+	t.Run("all null — existing device fields preserved", func(t *testing.T) {
 		m := &deviceResourceModel{
-			Name:                       types.StringNull(),
-			LedEnabled:               types.BoolNull(),
-			LedColor:          types.StringNull(),
-			LedBrightness: types.Int64Null(),
-			OutdoorModeOverride:       types.StringNull(),
-			Locked:                    types.BoolNull(),
-			Disabled:                  types.BoolNull(),
-			SnmpContact:              types.StringNull(),
-			SnmpLocation:             types.StringNull(),
-			Volume:                   types.Int64Null(),
+			Name:                types.StringNull(),
+			LedEnabled:         types.BoolNull(),
+			LedColor:           types.StringNull(),
+			LedBrightness:      types.Int64Null(),
+			OutdoorModeOverride: types.StringNull(),
+			Locked:              types.BoolNull(),
+			Disabled:            types.BoolNull(),
+			SnmpContact:         types.StringNull(),
+			SnmpLocation:        types.StringNull(),
+			Volume:              types.Int64Null(),
 		}
 
-		d := r.modelToAPI(m)
+		existingBrightness := int64(80)
+		d := &unifi.Device{
+			Name:                       "Existing Name",
+			LedOverride:               "on",
+			LedOverrideColorBrightness: &existingBrightness,
+			Adopted:                    true,
+			State:                      1,
+		}
+		r.applyPlanToDevice(m, d)
 
-		assert.Empty(t, d.Name)
-		assert.Empty(t, d.LedOverride)
-		assert.Empty(t, d.LedOverrideColor)
-		assert.Nil(t, d.LedOverrideColorBrightness)
-		assert.Empty(t, d.OutdoorModeOverride)
-		assert.False(t, d.Locked)
-		assert.False(t, d.Disabled)
-		assert.Empty(t, d.SnmpContact)
-		assert.Empty(t, d.SnmpLocation)
-		assert.Nil(t, d.Volume)
+		// Null plan fields should NOT overwrite existing device values.
+		assert.Equal(t, "Existing Name", d.Name)
+		assert.Equal(t, "on", d.LedOverride)
+		assert.Equal(t, int64(80), *d.LedOverrideColorBrightness)
+		assert.True(t, d.Adopted)
+		assert.Equal(t, unifi.DeviceState(1), d.State)
 	})
 
-	t.Run("unknown values treated as unset", func(t *testing.T) {
+	t.Run("unknown values treated as unset — preserve existing", func(t *testing.T) {
 		m := &deviceResourceModel{
-			Name:                       types.StringUnknown(),
-			LedEnabled:               types.BoolUnknown(),
-			LedColor:          types.StringUnknown(),
-			LedBrightness: types.Int64Unknown(),
-			OutdoorModeOverride:       types.StringUnknown(),
-			Locked:                    types.BoolUnknown(),
-			Disabled:                  types.BoolUnknown(),
-			SnmpContact:              types.StringUnknown(),
-			SnmpLocation:             types.StringUnknown(),
-			Volume:                   types.Int64Unknown(),
+			Name:                types.StringUnknown(),
+			LedEnabled:         types.BoolUnknown(),
+			LedColor:           types.StringUnknown(),
+			LedBrightness:      types.Int64Unknown(),
+			OutdoorModeOverride: types.StringUnknown(),
+			Locked:              types.BoolUnknown(),
+			Disabled:            types.BoolUnknown(),
+			SnmpContact:         types.StringUnknown(),
+			SnmpLocation:        types.StringUnknown(),
+			Volume:              types.Int64Unknown(),
 		}
 
-		d := r.modelToAPI(m)
+		d := &unifi.Device{
+			Name:        "Keep Me",
+			LedOverride: "off",
+			Adopted:     true,
+		}
+		r.applyPlanToDevice(m, d)
 
-		assert.Empty(t, d.Name)
-		assert.Empty(t, d.LedOverride)
-		assert.Nil(t, d.LedOverrideColorBrightness)
-		assert.Nil(t, d.Volume)
+		assert.Equal(t, "Keep Me", d.Name)
+		assert.Equal(t, "off", d.LedOverride)
+		assert.True(t, d.Adopted)
 	})
 }
 
@@ -206,7 +219,7 @@ func TestDeviceResourceAPIToModel(t *testing.T) {
 	})
 }
 
-func TestDeviceResourceModelToAPIRoundTrip(t *testing.T) {
+func TestDeviceResourceApplyPlanRoundTrip(t *testing.T) {
 	r := &deviceResource{}
 
 	brightness := int64(50)
@@ -231,9 +244,12 @@ func TestDeviceResourceModelToAPIRoundTrip(t *testing.T) {
 		State:                    unifi.DeviceStateConnected,
 	}
 
+	// API → model → apply back to a copy of the original device.
 	var m deviceResourceModel
 	r.apiToModel(original, &m, "default")
-	rebuilt := r.modelToAPI(&m)
+
+	rebuilt := *original // start from copy
+	r.applyPlanToDevice(&m, &rebuilt)
 
 	assert.Equal(t, original.Name, rebuilt.Name)
 	assert.Equal(t, original.LedOverride, rebuilt.LedOverride)
@@ -245,6 +261,10 @@ func TestDeviceResourceModelToAPIRoundTrip(t *testing.T) {
 	assert.Equal(t, original.SnmpContact, rebuilt.SnmpContact)
 	assert.Equal(t, original.SnmpLocation, rebuilt.SnmpLocation)
 	assert.Equal(t, *original.Volume, *rebuilt.Volume)
+	// Non-managed fields preserved.
+	assert.True(t, rebuilt.Adopted)
+	assert.Equal(t, unifi.DeviceStateConnected, rebuilt.State)
+	assert.Equal(t, "USW-24", rebuilt.Model)
 }
 
 // ---------------------------------------------------------------------------

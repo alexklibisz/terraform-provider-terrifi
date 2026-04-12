@@ -284,12 +284,13 @@ func (r *deviceResource) Create(
 		return
 	}
 
-	// Apply planned settings onto the existing device and update.
-	apiObj := r.modelToAPI(&plan)
-	apiObj.ID = existing.ID
-	apiObj.MAC = existing.MAC
+	// Start from a copy of the existing device and apply only planned changes.
+	// This preserves all non-managed fields (adopted, state, port_overrides, etc.)
+	// whose zero values would otherwise appear in the SDK's diff patch.
+	apiObj := *existing
+	r.applyPlanToDevice(&plan, &apiObj)
 
-	_, err = r.client.ApiClient.UpdateDevice(ctx, site, apiObj)
+	_, err = r.client.ApiClient.UpdateDevice(ctx, site, &apiObj)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Device", err.Error())
 		return
@@ -356,11 +357,17 @@ func (r *deviceResource) Update(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	apiObj := r.modelToAPI(&plan)
-	apiObj.ID = state.ID.ValueString()
-	apiObj.MAC = strings.ToLower(state.MAC.ValueString())
+	// Read existing device to use as base — preserves all non-managed fields.
+	existing, err := r.client.ApiClient.GetDevice(ctx, site, state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Error Reading Device Before Update", err.Error())
+		return
+	}
 
-	_, err := r.client.ApiClient.UpdateDevice(ctx, site, apiObj)
+	apiObj := *existing
+	r.applyPlanToDevice(&plan, &apiObj)
+
+	_, err = r.client.ApiClient.UpdateDevice(ctx, site, &apiObj)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Device", err.Error())
 		return
@@ -468,9 +475,11 @@ func (r *deviceResource) preserveNullOptionals(plan, state *deviceResourceModel)
 	}
 }
 
-func (r *deviceResource) modelToAPI(m *deviceResourceModel) *unifi.Device {
-	d := &unifi.Device{}
-
+// applyPlanToDevice mutates an existing Device in place, applying only the
+// fields the user configured. Null/unknown plan fields leave the existing value
+// untouched, so non-managed fields (adopted, state, port_overrides, etc.)
+// survive the SDK's diff-based UpdateDevice.
+func (r *deviceResource) applyPlanToDevice(m *deviceResourceModel, d *unifi.Device) {
 	if !m.Name.IsNull() && !m.Name.IsUnknown() {
 		d.Name = m.Name.ValueString()
 	}
@@ -516,8 +525,6 @@ func (r *deviceResource) modelToAPI(m *deviceResourceModel) *unifi.Device {
 		v := m.Volume.ValueInt64()
 		d.Volume = &v
 	}
-
-	return d
 }
 
 func (r *deviceResource) apiToModel(d *unifi.Device, m *deviceResourceModel, site string) {
