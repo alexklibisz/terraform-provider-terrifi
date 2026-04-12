@@ -723,6 +723,63 @@ func TestNetworkBlocks_defaults(t *testing.T) {
 	assert.False(t, hasInternet)
 }
 
+func TestNetworkBlocks_vlanOnly(t *testing.T) {
+	iotName := "IoT"
+	iotVLAN := int64(100)
+	iotGroup := "LAN"
+	mgmtName := "Management"
+	mgmtVLAN := int64(10)
+
+	networks := []unifi.Network{
+		{
+			ID:           "net1",
+			Purpose:      "vlan-only",
+			Name:         &iotName,
+			VLAN:         &iotVLAN,
+			NetworkGroup: &iotGroup,
+		},
+		{
+			// Non-LAN group should appear in output.
+			ID:           "net2",
+			Purpose:      "vlan-only",
+			Name:         &mgmtName,
+			VLAN:         &mgmtVLAN,
+			NetworkGroup: func() *string { s := "VLAN"; return &s }(),
+		},
+		{
+			ID:      "net3",
+			Purpose: "wan",
+		},
+	}
+
+	blocks := NetworkBlocks(networks)
+	require.Len(t, blocks, 2) // WAN filtered out
+
+	// IoT: LAN group omitted (it's the default), no DHCP/subnet/internet_access_enabled
+	b := blocks[0]
+	assert.Equal(t, "terrifi_network", b.ResourceType)
+	assert.Equal(t, "iot", b.ResourceName)
+	attrs := attrMapFromBlock(b)
+	assert.Equal(t, `"IoT"`, attrs["name"])
+	assert.Equal(t, `"vlan-only"`, attrs["purpose"])
+	assert.Equal(t, "100", attrs["vlan_id"])
+	_, hasGroup := attrs["network_group"]
+	assert.False(t, hasGroup, "network_group LAN should be omitted")
+	_, hasSubnet := attrs["subnet"]
+	assert.False(t, hasSubnet)
+	_, hasDHCP := attrs["dhcp_enabled"]
+	assert.False(t, hasDHCP)
+	_, hasInternet := attrs["internet_access_enabled"]
+	assert.False(t, hasInternet)
+
+	// Management: non-LAN group is included
+	b2 := blocks[1]
+	attrs2 := attrMapFromBlock(b2)
+	assert.Equal(t, `"vlan-only"`, attrs2["purpose"])
+	assert.Equal(t, "10", attrs2["vlan_id"])
+	assert.Equal(t, `"VLAN"`, attrs2["network_group"])
+}
+
 // ---------------------------------------------------------------------------
 // WLANBlocks
 // ---------------------------------------------------------------------------
