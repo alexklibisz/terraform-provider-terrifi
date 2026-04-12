@@ -540,6 +540,269 @@ resource "terrifi_device" "test" {
 	})
 }
 
+// TestAccDeviceResource_nameOnly ensures mac-only → name → mac-only lifecycle works
+// without touching any other fields (regression: API-returned fields like
+// led_color, outdoor_mode_override must not leak into state).
+func TestAccDeviceResource_nameOnly(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+	macOnly := fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac = %q
+}
+`, dev.MAC)
+
+	withName := fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-nameonly"
+}
+`, dev.MAC)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: MAC only — no optional fields.
+			{Config: macOnly},
+			// Step 2: re-apply same config — must be idempotent (no spurious diffs
+			// from API-returned fields like led_color, outdoor_mode_override).
+			{Config: macOnly},
+			// Step 3: add name.
+			{
+				Config: withName,
+				Check:  resource.TestCheckResourceAttr("terrifi_device.test", "name", "tfacc-device-nameonly"),
+			},
+			// Step 4: remove name again.
+			{Config: macOnly},
+			// Step 5: idempotent after removal.
+			{Config: macOnly},
+		},
+	})
+}
+
+// TestAccDeviceResource_addRemoveOptionals adds optional fields then removes them,
+// verifying no spurious diffs after removal (regression for "100 -> null" diffs).
+func TestAccDeviceResource_addRemoveOptionals(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: set several optional fields.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac           = %q
+  name          = "tfacc-device-addremove"
+  led_enabled   = false
+  snmp_contact  = "admin@example.com"
+  snmp_location = "Rack 1"
+  locked        = true
+}
+`, dev.MAC),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_device.test", "led_enabled", "false"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "snmp_contact", "admin@example.com"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "snmp_location", "Rack 1"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "locked", "true"),
+				),
+			},
+			// Step 2: remove all optional fields except mac.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac = %q
+}
+`, dev.MAC),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_device.test", "name"),
+					resource.TestCheckNoResourceAttr("terrifi_device.test", "led_enabled"),
+					resource.TestCheckNoResourceAttr("terrifi_device.test", "snmp_contact"),
+					resource.TestCheckNoResourceAttr("terrifi_device.test", "snmp_location"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "locked", "false"),
+				),
+			},
+			// Step 3: idempotent after removal — must produce no diff.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac = %q
+}
+`, dev.MAC),
+			},
+		},
+	})
+}
+
+// TestAccDeviceResource_importThenApply imports a device, then applies config
+// without changes — must be a no-op (regression for import → plan diffs).
+func TestAccDeviceResource_importThenApply(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+	config := fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-importapply"
+}
+`, dev.MAC)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create.
+			{Config: config},
+			// Import.
+			{
+				ResourceName:            "terrifi_device.test",
+				ImportState:             true,
+				ImportStateId:           dev.MAC,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume"},
+			},
+			// Apply same config after import — must succeed with no errors.
+			{Config: config},
+			// Second apply — idempotent.
+			{Config: config},
+		},
+	})
+}
+
+// TestAccDeviceResource_ledToggleIdempotent toggles LED on/off/on and checks
+// idempotency at each step.
+func TestAccDeviceResource_ledToggleIdempotent(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+
+	ledOn := fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac         = %q
+  name        = "tfacc-device-ledtoggle"
+  led_enabled = true
+}
+`, dev.MAC)
+
+	ledOff := fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac         = %q
+  name        = "tfacc-device-ledtoggle"
+  led_enabled = false
+}
+`, dev.MAC)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: ledOn,
+				Check:  resource.TestCheckResourceAttr("terrifi_device.test", "led_enabled", "true"),
+			},
+			{Config: ledOn}, // idempotent
+			{
+				Config: ledOff,
+				Check:  resource.TestCheckResourceAttr("terrifi_device.test", "led_enabled", "false"),
+			},
+			{Config: ledOff}, // idempotent
+			{
+				Config: ledOn,
+				Check:  resource.TestCheckResourceAttr("terrifi_device.test", "led_enabled", "true"),
+			},
+		},
+	})
+}
+
+// TestAccDeviceResource_disabledToggle tests the disabled attribute lifecycle.
+func TestAccDeviceResource_disabledToggle(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac      = %q
+  name     = "tfacc-device-disabled"
+  disabled = true
+}
+`, dev.MAC),
+				Check: resource.TestCheckResourceAttr("terrifi_device.test", "disabled", "true"),
+			},
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac      = %q
+  name     = "tfacc-device-disabled"
+  disabled = false
+}
+`, dev.MAC),
+				Check: resource.TestCheckResourceAttr("terrifi_device.test", "disabled", "false"),
+			},
+		},
+	})
+}
+
+// TestAccDeviceResource_computedFieldsStable verifies computed read-only fields
+// don't cause spurious diffs across multiple applies.
+func TestAccDeviceResource_computedFieldsStable(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+	config := fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-computed"
+}
+`, dev.MAC)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("terrifi_device.test", "model"),
+					resource.TestCheckResourceAttrSet("terrifi_device.test", "type"),
+					resource.TestCheckResourceAttrSet("terrifi_device.test", "ip"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "adopted", "true"),
+					resource.TestCheckResourceAttrSet("terrifi_device.test", "state"),
+				),
+			},
+			// Second and third apply — computed fields must remain stable.
+			{Config: config},
+			{Config: config},
+		},
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Validation tests (no controller needed)
 // ---------------------------------------------------------------------------
