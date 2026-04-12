@@ -284,20 +284,14 @@ func (r *deviceResource) Create(
 		return
 	}
 
-	// Start from a copy of the existing device and apply only planned changes.
-	// This preserves all non-managed fields (adopted, state, port_overrides, etc.)
-	// whose zero values would otherwise appear in the SDK's diff patch.
-	apiObj := *existing
-	r.applyPlanToDevice(&plan, &apiObj)
-
-	_, err = r.client.ApiClient.UpdateDevice(ctx, site, &apiObj)
+	// TODO(go-unifi): Bypass SDK's UpdateDevice — see device_api.go for details.
+	err = r.client.UpdateDevice(ctx, site, existing.ID, &plan)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Device", err.Error())
 		return
 	}
 
-	// Re-read to get full state including runtime fields (state, ip, etc.)
-	// that the UpdateDevice response may not include.
+	// Re-read to get full state including runtime fields (state, ip, etc.).
 	device, err := r.client.ApiClient.GetDevice(ctx, site, existing.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Device After Create", err.Error())
@@ -357,17 +351,8 @@ func (r *deviceResource) Update(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	// Read existing device to use as base — preserves all non-managed fields.
-	existing, err := r.client.ApiClient.GetDevice(ctx, site, state.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error Reading Device Before Update", err.Error())
-		return
-	}
-
-	apiObj := *existing
-	r.applyPlanToDevice(&plan, &apiObj)
-
-	_, err = r.client.ApiClient.UpdateDevice(ctx, site, &apiObj)
+	// TODO(go-unifi): Bypass SDK's UpdateDevice — see device_api.go for details.
+	err := r.client.UpdateDevice(ctx, site, state.ID.ValueString(), &plan)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Device", err.Error())
 		return
@@ -475,57 +460,6 @@ func (r *deviceResource) preserveNullOptionals(plan, state *deviceResourceModel)
 	}
 }
 
-// applyPlanToDevice mutates an existing Device in place, applying only the
-// fields the user configured. Null/unknown plan fields leave the existing value
-// untouched, so non-managed fields (adopted, state, port_overrides, etc.)
-// survive the SDK's diff-based UpdateDevice.
-func (r *deviceResource) applyPlanToDevice(m *deviceResourceModel, d *unifi.Device) {
-	if !m.Name.IsNull() && !m.Name.IsUnknown() {
-		d.Name = m.Name.ValueString()
-	}
-
-	if !m.LedEnabled.IsNull() && !m.LedEnabled.IsUnknown() {
-		if m.LedEnabled.ValueBool() {
-			d.LedOverride = "on"
-		} else {
-			d.LedOverride = "off"
-		}
-	}
-
-	if !m.LedColor.IsNull() && !m.LedColor.IsUnknown() {
-		d.LedOverrideColor = m.LedColor.ValueString()
-	}
-
-	if !m.LedBrightness.IsNull() && !m.LedBrightness.IsUnknown() {
-		v := m.LedBrightness.ValueInt64()
-		d.LedOverrideColorBrightness = &v
-	}
-
-	if !m.OutdoorModeOverride.IsNull() && !m.OutdoorModeOverride.IsUnknown() {
-		d.OutdoorModeOverride = m.OutdoorModeOverride.ValueString()
-	}
-
-	if !m.Locked.IsNull() && !m.Locked.IsUnknown() {
-		d.Locked = m.Locked.ValueBool()
-	}
-
-	if !m.Disabled.IsNull() && !m.Disabled.IsUnknown() {
-		d.Disabled = m.Disabled.ValueBool()
-	}
-
-	if !m.SnmpContact.IsNull() && !m.SnmpContact.IsUnknown() {
-		d.SnmpContact = m.SnmpContact.ValueString()
-	}
-
-	if !m.SnmpLocation.IsNull() && !m.SnmpLocation.IsUnknown() {
-		d.SnmpLocation = m.SnmpLocation.ValueString()
-	}
-
-	if !m.Volume.IsNull() && !m.Volume.IsUnknown() {
-		v := m.Volume.ValueInt64()
-		d.Volume = &v
-	}
-}
 
 func (r *deviceResource) apiToModel(d *unifi.Device, m *deviceResourceModel, site string) {
 	m.ID = types.StringValue(d.ID)
