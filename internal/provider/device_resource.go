@@ -165,7 +165,8 @@ func (r *deviceResource) Schema(
 			},
 
 			"snmp_contact": schema.StringAttribute{
-				MarkdownDescription: "SNMP contact string (max 255 characters).",
+				MarkdownDescription: "[SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) contact string (max 255 characters). " +
+					"Identifies who is responsible for the device; read by network monitoring tools.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtMost(255),
@@ -173,7 +174,8 @@ func (r *deviceResource) Schema(
 			},
 
 			"snmp_location": schema.StringAttribute{
-				MarkdownDescription: "SNMP location string (max 255 characters).",
+				MarkdownDescription: "[SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) location string (max 255 characters). " +
+					"Describes where the device is physically located; read by network monitoring tools.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtMost(255),

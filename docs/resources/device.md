@@ -84,8 +84,8 @@ resource "terrifi_device" "ap" {
 - `outdoor_mode_override` (String) — Outdoor mode override: `default`, `on`, or `off`.
 - `locked` (Boolean) — Whether the device is locked to prevent accidental removal.
 - `disabled` (Boolean) — Whether the device is administratively disabled.
-- `snmp_contact` (String) — SNMP contact string (max 255 characters).
-- `snmp_location` (String) — SNMP location string (max 255 characters).
+- `snmp_contact` (String) — [SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) contact string (max 255 characters). Identifies who is responsible for the device; read by network monitoring tools like Nagios, PRTG, or LibreNMS.
+- `snmp_location` (String) — [SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) location string (max 255 characters). Describes where the device is physically located; read by network monitoring tools.
 - `volume` (Number) — Speaker volume (0–100). Only applicable to devices with speakers.
 - `site` (String) — The site the device belongs to. Defaults to the provider site. Changing this forces a new resource.
 
