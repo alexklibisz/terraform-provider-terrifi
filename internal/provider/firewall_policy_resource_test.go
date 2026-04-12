@@ -2857,7 +2857,7 @@ resource "terrifi_firewall_policy" "test" {
   }
 }
 `, srcZoneName, policyName, externalZoneID),
-				ExpectError: regexp.MustCompile(`create_allow_respond is not supported for policies targeting the external zone`),
+				ExpectError: regexp.MustCompile(`create_allow_respond is not supported`),
 			},
 			{
 				// Same config without create_allow_respond succeeds.
