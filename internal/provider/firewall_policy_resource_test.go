@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"testing"
 
@@ -2818,7 +2819,12 @@ resource "terrifi_firewall_policy" "test" {
 }
 
 func TestAccFirewallPolicy_createAllowRespondExternalZone(t *testing.T) {
-	// The external zone is predefined on real controllers only.
+	// The external zone is predefined on real controllers only. Guard TF_ACC
+	// first so the framework's own skip fires when running as unit tests, then
+	// validate env vars and hardware requirement before the API lookup.
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless env 'TF_ACC' set")
+	}
 	preCheck(t)
 	requireHardware(t)
 
