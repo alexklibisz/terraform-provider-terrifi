@@ -467,6 +467,64 @@ resource "terrifi_network" "test" {
 	})
 }
 
+func TestAccNetwork_vlanOnly(t *testing.T) {
+	name := fmt.Sprintf("tfacc-vlan-%s", randomSuffix())
+	nameUpdated := fmt.Sprintf("tfacc-vlan-upd-%s", randomSuffix())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: create minimal vlan-only network (no subnet, DHCP, internet fields).
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name    = %q
+  purpose = "vlan-only"
+  vlan_id = 200
+}
+`, name),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "name", name),
+					resource.TestCheckResourceAttr("terrifi_network.test", "purpose", "vlan-only"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "vlan_id", "200"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "network_group", "LAN"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_enabled", "false"),
+					resource.TestCheckNoResourceAttr("terrifi_network.test", "subnet"),
+					resource.TestCheckNoResourceAttr("terrifi_network.test", "dhcp_start"),
+					resource.TestCheckNoResourceAttr("terrifi_network.test", "dhcp_stop"),
+					resource.TestCheckNoResourceAttr("terrifi_network.test", "dhcp_lease"),
+					resource.TestCheckResourceAttrSet("terrifi_network.test", "id"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "site", "default"),
+				),
+			},
+			// Step 2: update name only — no plan diff on DHCP/subnet fields.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name    = %q
+  purpose = "vlan-only"
+  vlan_id = 200
+}
+`, nameUpdated),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "name", nameUpdated),
+					resource.TestCheckResourceAttr("terrifi_network.test", "purpose", "vlan-only"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "vlan_id", "200"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_enabled", "false"),
+					resource.TestCheckNoResourceAttr("terrifi_network.test", "subnet"),
+				),
+			},
+			// Step 3: import round-trip — state must round-trip cleanly with no diff.
+			{
+				ResourceName:      "terrifi_network.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func TestAccNetwork_importSiteID(t *testing.T) {
 	name := fmt.Sprintf("tfacc-impsid-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
