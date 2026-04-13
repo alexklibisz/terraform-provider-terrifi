@@ -25,6 +25,7 @@ import (
 var (
 	_ resource.Resource                = &networkResource{}
 	_ resource.ResourceWithImportState = &networkResource{}
+	_ resource.ResourceWithModifyPlan  = &networkResource{}
 )
 
 func NewNetworkResource() resource.Resource {
@@ -92,13 +93,13 @@ func (r *networkResource) Schema(
 			},
 
 			"purpose": schema.StringAttribute{
-				MarkdownDescription: "The purpose of the network. Must be `corporate`.",
+				MarkdownDescription: "The purpose of the network. One of: `corporate`, `vlan-only`.",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("corporate"),
+					stringvalidator.OneOf("corporate", "vlan-only"),
 				},
 			},
 
@@ -306,6 +307,53 @@ func (r *networkResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+func (r *networkResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	// During destroy the plan is null — nothing to modify.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan networkResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.Purpose.ValueString() != "vlan-only" {
+		return
+	}
+
+	// vlan-only networks carry no IP configuration or DHCP. Null out those
+	// fields so schema defaults (e.g. dhcp_lease=86400) don't produce a
+	// perpetual plan diff against the API response, which omits them entirely.
+	plan.Subnet = types.StringNull()
+	plan.DHCPEnabled = types.BoolValue(false)
+	plan.DHCPStart = types.StringNull()
+	plan.DHCPStop = types.StringNull()
+	plan.DHCPLease = types.Int64Null()
+	plan.DHCPDns = types.ListNull(types.StringType)
+
+	// internet_access_enabled is not meaningful for vlan-only networks. Override
+	// the schema default (true) to false — but only when the user did not
+	// explicitly set the field in their config. If the user set it explicitly we
+	// must leave the plan value alone or Terraform will reject the plan with
+	// "planned value does not match config value".
+	var config networkResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if config.InternetAccessEnabled.IsNull() {
+		plan.InternetAccessEnabled = types.BoolValue(false)
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
+
 // ---------------------------------------------------------------------------
 // Helper methods
 // ---------------------------------------------------------------------------
@@ -348,7 +396,6 @@ func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceMode
 		Purpose: m.Purpose.ValueString(),
 		Enabled: true,
 	}
-	applySDKSettingPreferenceWorkaround(net)
 
 	if !m.Name.IsNull() {
 		name := m.Name.ValueString()
@@ -363,69 +410,75 @@ func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceMode
 		}
 	}
 
-	if !m.Subnet.IsNull() {
-		subnet := m.Subnet.ValueString()
-		net.IPSubnet = &subnet
-	}
-
 	if !m.NetworkGroup.IsNull() {
 		group := m.NetworkGroup.ValueString()
 		net.NetworkGroup = &group
 	}
 
-	if !m.DHCPEnabled.IsNull() {
-		net.DHCPDEnabled = m.DHCPEnabled.ValueBool()
-	}
+	// Subnet, DHCP, and the setting_preference workaround only apply to
+	// corporate networks. vlan-only networks carry no IP configuration.
+	if m.Purpose.ValueString() == "corporate" {
+		applySDKSettingPreferenceWorkaround(net)
 
-	// TODO(go-unifi): The IsUnknown() guards on DHCP fields below work around a
-	// bug in the SDK's marshalCorporate() (network_encode.go). That function uses
-	// valueOrDefault(n.DHCPDStart, defaultStart) which unconditionally sends DHCP
-	// range values even when the caller leaves them nil. During a Terraform create,
-	// computed+optional fields like dhcp_start/dhcp_stop are "unknown" (not null),
-	// so ValueString() returns "". Passing &"" to the SDK causes marshalCorporate()
-	// to serialize empty strings, which crashes the controller with:
-	//   java.lang.IllegalArgumentException: Could not parse []
-	// When the SDK is fixed (e.g., by not defaulting nil pointer fields), the
-	// IsUnknown() checks here can be collapsed back to just IsNull().
-	if !m.DHCPStart.IsNull() && !m.DHCPStart.IsUnknown() {
-		start := m.DHCPStart.ValueString()
-		net.DHCPDStart = &start
-	}
+		if !m.Subnet.IsNull() {
+			subnet := m.Subnet.ValueString()
+			net.IPSubnet = &subnet
+		}
 
-	if !m.DHCPStop.IsNull() && !m.DHCPStop.IsUnknown() {
-		stop := m.DHCPStop.ValueString()
-		net.DHCPDStop = &stop
-	}
+		if !m.DHCPEnabled.IsNull() {
+			net.DHCPDEnabled = m.DHCPEnabled.ValueBool()
+		}
 
-	if !m.DHCPLease.IsNull() && !m.DHCPLease.IsUnknown() {
-		lease := m.DHCPLease.ValueInt64()
-		net.DHCPDLeaseTime = &lease
-	}
+		// TODO(go-unifi): The IsUnknown() guards on DHCP fields below work around a
+		// bug in the SDK's marshalCorporate() (network_encode.go). That function uses
+		// valueOrDefault(n.DHCPDStart, defaultStart) which unconditionally sends DHCP
+		// range values even when the caller leaves them nil. During a Terraform create,
+		// computed+optional fields like dhcp_start/dhcp_stop are "unknown" (not null),
+		// so ValueString() returns "". Passing &"" to the SDK causes marshalCorporate()
+		// to serialize empty strings, which crashes the controller with:
+		//   java.lang.IllegalArgumentException: Could not parse []
+		// When the SDK is fixed (e.g., by not defaulting nil pointer fields), the
+		// IsUnknown() checks here can be collapsed back to just IsNull().
+		if !m.DHCPStart.IsNull() && !m.DHCPStart.IsUnknown() {
+			start := m.DHCPStart.ValueString()
+			net.DHCPDStart = &start
+		}
 
-	if !m.DHCPDns.IsNull() && !m.DHCPDns.IsUnknown() {
-		var dnsServers []types.String
-		m.DHCPDns.ElementsAs(ctx, &dnsServers, false)
+		if !m.DHCPStop.IsNull() && !m.DHCPStop.IsUnknown() {
+			stop := m.DHCPStop.ValueString()
+			net.DHCPDStop = &stop
+		}
 
-		for i, dns := range dnsServers {
-			if i >= 4 {
-				break
-			}
-			dnsVal := dns.ValueString()
-			switch i {
-			case 0:
-				net.DHCPDDNS1 = dnsVal
-			case 1:
-				net.DHCPDDNS2 = dnsVal
-			case 2:
-				net.DHCPDDNS3 = dnsVal
-			case 3:
-				net.DHCPDDNS4 = dnsVal
+		if !m.DHCPLease.IsNull() && !m.DHCPLease.IsUnknown() {
+			lease := m.DHCPLease.ValueInt64()
+			net.DHCPDLeaseTime = &lease
+		}
+
+		if !m.DHCPDns.IsNull() && !m.DHCPDns.IsUnknown() {
+			var dnsServers []types.String
+			m.DHCPDns.ElementsAs(ctx, &dnsServers, false)
+
+			for i, dns := range dnsServers {
+				if i >= 4 {
+					break
+				}
+				dnsVal := dns.ValueString()
+				switch i {
+				case 0:
+					net.DHCPDDNS1 = dnsVal
+				case 1:
+					net.DHCPDDNS2 = dnsVal
+				case 2:
+					net.DHCPDDNS3 = dnsVal
+				case 3:
+					net.DHCPDDNS4 = dnsVal
+				}
 			}
 		}
-	}
 
-	if !m.InternetAccessEnabled.IsNull() {
-		net.InternetAccessEnabled = m.InternetAccessEnabled.ValueBool()
+		if !m.InternetAccessEnabled.IsNull() {
+			net.InternetAccessEnabled = m.InternetAccessEnabled.ValueBool()
+		}
 	}
 
 	return net
@@ -448,64 +501,83 @@ func (r *networkResource) apiToModel(ctx context.Context, net *unifi.Network, m 
 		m.VLANId = types.Int64Null()
 	}
 
-	if net.IPSubnet != nil && *net.IPSubnet != "" {
-		m.Subnet = types.StringPointerValue(net.IPSubnet)
-	} else {
-		m.Subnet = types.StringNull()
-	}
-
 	if net.NetworkGroup != nil && *net.NetworkGroup != "" {
 		m.NetworkGroup = types.StringPointerValue(net.NetworkGroup)
 	} else {
-		m.NetworkGroup = types.StringNull()
+		// Fall back to the schema default so state is never null, which would
+		// cause a perpetual diff against the default "LAN" value at plan time.
+		m.NetworkGroup = types.StringValue("LAN")
 	}
 
-	m.DHCPEnabled = types.BoolValue(net.DHCPDEnabled)
-
-	if net.DHCPDStart != nil && *net.DHCPDStart != "" {
-		m.DHCPStart = types.StringPointerValue(net.DHCPDStart)
-	} else {
-		m.DHCPStart = types.StringNull()
-	}
-
-	if net.DHCPDStop != nil && *net.DHCPDStop != "" {
-		m.DHCPStop = types.StringPointerValue(net.DHCPDStop)
-	} else {
-		m.DHCPStop = types.StringNull()
-	}
-
-	if net.DHCPDLeaseTime != nil && *net.DHCPDLeaseTime != 0 {
-		m.DHCPLease = types.Int64PointerValue(net.DHCPDLeaseTime)
-	} else {
-		m.DHCPLease = types.Int64Null()
-	}
-
-	// Collect non-empty DNS servers into a list
-	var dnsServers []string
-	if net.DHCPDDNS1 != "" {
-		dnsServers = append(dnsServers, net.DHCPDDNS1)
-	}
-	if net.DHCPDDNS2 != "" {
-		dnsServers = append(dnsServers, net.DHCPDDNS2)
-	}
-	if net.DHCPDDNS3 != "" {
-		dnsServers = append(dnsServers, net.DHCPDDNS3)
-	}
-	if net.DHCPDDNS4 != "" {
-		dnsServers = append(dnsServers, net.DHCPDDNS4)
-	}
-
-	if len(dnsServers) > 0 {
-		var dnsValues []types.String
-		for _, dns := range dnsServers {
-			dnsValues = append(dnsValues, types.StringValue(dns))
+	// Subnet, DHCP, and internet_access_enabled are only meaningful for
+	// corporate networks. Null them out for vlan-only so the state matches
+	// what ModifyPlan produces and there is no perpetual diff.
+	if net.Purpose == "corporate" {
+		if net.IPSubnet != nil && *net.IPSubnet != "" {
+			m.Subnet = types.StringPointerValue(net.IPSubnet)
+		} else {
+			m.Subnet = types.StringNull()
 		}
-		m.DHCPDns = types.ListValueMust(types.StringType, toAttrValues(dnsValues))
-	} else {
-		m.DHCPDns = types.ListNull(types.StringType)
-	}
 
-	m.InternetAccessEnabled = types.BoolValue(net.InternetAccessEnabled)
+		m.DHCPEnabled = types.BoolValue(net.DHCPDEnabled)
+
+		if net.DHCPDStart != nil && *net.DHCPDStart != "" {
+			m.DHCPStart = types.StringPointerValue(net.DHCPDStart)
+		} else {
+			m.DHCPStart = types.StringNull()
+		}
+
+		if net.DHCPDStop != nil && *net.DHCPDStop != "" {
+			m.DHCPStop = types.StringPointerValue(net.DHCPDStop)
+		} else {
+			m.DHCPStop = types.StringNull()
+		}
+
+		if net.DHCPDLeaseTime != nil && *net.DHCPDLeaseTime != 0 {
+			m.DHCPLease = types.Int64PointerValue(net.DHCPDLeaseTime)
+		} else {
+			m.DHCPLease = types.Int64Null()
+		}
+
+		// Collect non-empty DNS servers into a list.
+		var dnsServers []string
+		if net.DHCPDDNS1 != "" {
+			dnsServers = append(dnsServers, net.DHCPDDNS1)
+		}
+		if net.DHCPDDNS2 != "" {
+			dnsServers = append(dnsServers, net.DHCPDDNS2)
+		}
+		if net.DHCPDDNS3 != "" {
+			dnsServers = append(dnsServers, net.DHCPDDNS3)
+		}
+		if net.DHCPDDNS4 != "" {
+			dnsServers = append(dnsServers, net.DHCPDDNS4)
+		}
+
+		if len(dnsServers) > 0 {
+			var dnsValues []types.String
+			for _, dns := range dnsServers {
+				dnsValues = append(dnsValues, types.StringValue(dns))
+			}
+			m.DHCPDns = types.ListValueMust(types.StringType, toAttrValues(dnsValues))
+		} else {
+			m.DHCPDns = types.ListNull(types.StringType)
+		}
+
+		m.InternetAccessEnabled = types.BoolValue(net.InternetAccessEnabled)
+	} else {
+		// vlan-only: null out all IP/DHCP fields.
+		m.Subnet = types.StringNull()
+		m.DHCPEnabled = types.BoolValue(false)
+		m.DHCPStart = types.StringNull()
+		m.DHCPStop = types.StringNull()
+		m.DHCPLease = types.Int64Null()
+		m.DHCPDns = types.ListNull(types.StringType)
+		// internet_access_enabled is not sent to the API for vlan-only networks.
+		// Store false so it matches what ModifyPlan produces, avoiding a
+		// perpetual diff after import or refresh.
+		m.InternetAccessEnabled = types.BoolValue(false)
+	}
 }
 
 func toAttrValues(vals []types.String) []attr.Value {

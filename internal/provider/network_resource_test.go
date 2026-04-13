@@ -77,6 +77,38 @@ func TestNetworkModelToAPI(t *testing.T) {
 		assert.Equal(t, int64(86400), *net.DHCPDLeaseTime)
 	})
 
+	t.Run("vlan-only network skips DHCP and subnet", func(t *testing.T) {
+		model := &networkResourceModel{
+			Name:         types.StringValue("IoT VLAN"),
+			Purpose:      types.StringValue("vlan-only"),
+			VLANId:       types.Int64Value(100),
+			NetworkGroup: types.StringValue("LAN"),
+			// These fields would be nulled by ModifyPlan at plan time, but we
+			// test modelToAPI in isolation so pass null explicitly.
+			Subnet:      types.StringNull(),
+			DHCPEnabled: types.BoolValue(false),
+			DHCPStart:   types.StringNull(),
+			DHCPStop:    types.StringNull(),
+			DHCPLease:   types.Int64Null(),
+			DHCPDns:     types.ListNull(types.StringType),
+		}
+
+		net := r.modelToAPI(ctx, model)
+
+		assert.Equal(t, "vlan-only", net.Purpose)
+		require.NotNil(t, net.VLAN)
+		assert.Equal(t, int64(100), *net.VLAN)
+		assert.True(t, net.VLANEnabled)
+		// Subnet and DHCP must NOT be set for vlan-only.
+		assert.Nil(t, net.IPSubnet)
+		assert.False(t, net.DHCPDEnabled)
+		assert.Nil(t, net.DHCPDStart)
+		assert.Nil(t, net.DHCPDStop)
+		assert.Nil(t, net.DHCPDLeaseTime)
+		// Setting-preference workaround must NOT be applied for vlan-only.
+		assert.Nil(t, net.SettingPreference)
+	})
+
 	t.Run("dhcp dns list fans out to API fields", func(t *testing.T) {
 		model := &networkResourceModel{
 			Name:    types.StringValue("DNS Test"),
@@ -159,6 +191,35 @@ func TestNetworkAPIToModel(t *testing.T) {
 		assert.Equal(t, "192.168.33.10", model.DHCPStart.ValueString())
 		assert.Equal(t, "192.168.33.250", model.DHCPStop.ValueString())
 		assert.Equal(t, int64(86400), model.DHCPLease.ValueInt64())
+	})
+
+	t.Run("vlan-only network nulls out DHCP and subnet", func(t *testing.T) {
+		name := "IoT VLAN"
+		vlan := int64(100)
+		group := "LAN"
+
+		net := &unifi.Network{
+			ID:          "vlan123",
+			Purpose:     "vlan-only",
+			Name:        &name,
+			VLAN:        &vlan,
+			VLANEnabled: true,
+			NetworkGroup: &group,
+		}
+
+		var model networkResourceModel
+		r.apiToModel(ctx, net, &model, "default")
+
+		assert.Equal(t, "vlan-only", model.Purpose.ValueString())
+		assert.Equal(t, int64(100), model.VLANId.ValueInt64())
+		assert.Equal(t, "LAN", model.NetworkGroup.ValueString())
+		// All IP/DHCP fields must be null for vlan-only.
+		assert.True(t, model.Subnet.IsNull())
+		assert.False(t, model.DHCPEnabled.ValueBool())
+		assert.True(t, model.DHCPStart.IsNull())
+		assert.True(t, model.DHCPStop.IsNull())
+		assert.True(t, model.DHCPLease.IsNull())
+		assert.True(t, model.DHCPDns.IsNull())
 	})
 
 	t.Run("network with DNS servers", func(t *testing.T) {
