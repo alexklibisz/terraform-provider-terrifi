@@ -331,6 +331,59 @@ resource "terrifi_network" "test" {
 	})
 }
 
+func TestAccGenerateImports_Network_VlanOnly(t *testing.T) {
+	requireHardware(t)
+	name := fmt.Sprintf("terrifi-test-vlan-%s", randomSuffix())
+	vlan := randomVLAN()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name    = %q
+  purpose = "vlan-only"
+  vlan_id = %d
+}
+`, name, vlan),
+				Check: func(s *terraform.State) error {
+					id, err := resourceID(s, "terrifi_network.test")
+					if err != nil {
+						return err
+					}
+					tfName := strings.ReplaceAll(name, "-", "_")
+					output := runCLI(t, "generate-imports", "terrifi_network")
+					checks := []struct {
+						want   string
+						absent bool
+					}{
+						{want: fmt.Sprintf(`id = "%s"`, id)},
+						{want: fmt.Sprintf(`terrifi_network.%s`, tfName)},
+						{want: fmt.Sprintf(`name = "%s"`, name)},
+						{want: `purpose = "vlan-only"`},
+						{want: fmt.Sprintf(`vlan_id = %d`, vlan)},
+						{want: `subnet`, absent: true},
+						{want: `dhcp_enabled`, absent: true},
+						{want: `internet_access_enabled`, absent: true},
+						{want: `network_group`, absent: true},
+					}
+					for _, c := range checks {
+						contains := strings.Contains(output, c.want)
+						if c.absent && contains {
+							return fmt.Errorf("CLI output should not contain %q\n\nFull output:\n%s", c.want, output)
+						}
+						if !c.absent && !contains {
+							return fmt.Errorf("CLI output missing expected string %q\n\nFull output:\n%s", c.want, output)
+						}
+					}
+					return nil
+				},
+			},
+		},
+	})
+}
+
 func TestAccGenerateImports_WLAN(t *testing.T) {
 	requireHardware(t)
 	suffix := randomSuffix()

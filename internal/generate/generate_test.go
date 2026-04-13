@@ -739,7 +739,7 @@ func TestNetworkBlocks_vlanOnly(t *testing.T) {
 			NetworkGroup: &iotGroup,
 		},
 		{
-			// Non-LAN group should appear in output.
+			// Non-LAN group is ignored for vlan-only — the API rejects it.
 			ID:           "net2",
 			Purpose:      "vlan-only",
 			Name:         &mgmtName,
@@ -772,12 +772,13 @@ func TestNetworkBlocks_vlanOnly(t *testing.T) {
 	_, hasInternet := attrs["internet_access_enabled"]
 	assert.False(t, hasInternet)
 
-	// Management: non-LAN group is included
+	// Management: network_group is omitted even when non-LAN — not valid for vlan-only.
 	b2 := blocks[1]
 	attrs2 := attrMapFromBlock(b2)
 	assert.Equal(t, `"vlan-only"`, attrs2["purpose"])
 	assert.Equal(t, "10", attrs2["vlan_id"])
-	assert.Equal(t, `"VLAN"`, attrs2["network_group"])
+	_, hasMgmtGroup := attrs2["network_group"]
+	assert.False(t, hasMgmtGroup, "network_group should be omitted for vlan-only")
 }
 
 // ---------------------------------------------------------------------------

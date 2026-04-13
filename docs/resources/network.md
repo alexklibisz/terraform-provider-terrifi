@@ -7,7 +7,7 @@ description: |-
 
 # terrifi_network (Resource)
 
-Manages a network on the UniFi controller. Supports corporate network types with VLAN configuration and DHCP settings.
+Manages a network on the UniFi controller. Supports `corporate` networks with VLAN configuration and DHCP settings, and `vlan-only` networks that carry no IP configuration.
 
 ## Example Usage
 
@@ -29,12 +29,22 @@ resource "terrifi_network" "iot" {
 }
 ```
 
+### VLAN-only network
+
+```terraform
+resource "terrifi_network" "cameras" {
+  name    = "Cameras"
+  purpose = "vlan-only"
+  vlan_id = 20
+}
+```
+
 ## Schema
 
 ### Required
 
 - `name` (String) — The name of the network.
-- `purpose` (String) — The purpose of the network. For now this must be `corporate`. We might support others in the future but it's more complicated to implement and test.
+- `purpose` (String) — The purpose of the network. One of: `corporate`, `vlan-only`.
 
 ### Optional
 

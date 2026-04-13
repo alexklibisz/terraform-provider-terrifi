@@ -33,11 +33,11 @@ func NetworkBlocks(networks []unifi.Network) []ResourceBlock {
 		if n.VLAN != nil && *n.VLAN != 0 {
 			block.Attributes = append(block.Attributes, Attr{Key: "vlan_id", Value: HCLInt64(*n.VLAN)})
 		}
-		if n.NetworkGroup != nil && *n.NetworkGroup != "" && *n.NetworkGroup != "LAN" {
-			block.Attributes = append(block.Attributes, Attr{Key: "network_group", Value: HCLString(*n.NetworkGroup)})
-		}
 
 		if n.Purpose == "corporate" {
+			if n.NetworkGroup != nil && *n.NetworkGroup != "" && *n.NetworkGroup != "LAN" {
+				block.Attributes = append(block.Attributes, Attr{Key: "network_group", Value: HCLString(*n.NetworkGroup)})
+			}
 			if n.IPSubnet != nil && *n.IPSubnet != "" {
 				block.Attributes = append(block.Attributes, Attr{Key: "subnet", Value: HCLString(*n.IPSubnet)})
 			}
