@@ -56,6 +56,9 @@ jobs:
       - name: Build
         timeout-minutes: 10
         run: task build
+      - name: Cleanup leftover test resources
+        timeout-minutes: 5
+        run: go run ./cmd/terrifi-tests cleanup
       - name: Acceptance tests (HIL)
         timeout-minutes: 10
         run: task test:acc:hardware
