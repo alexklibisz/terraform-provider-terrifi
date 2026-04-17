@@ -21,6 +21,59 @@ import (
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
+type deviceRadioSettingsModel struct {
+	Channel        types.String `tfsdk:"channel"`
+	Ht             types.Int64  `tfsdk:"ht"`
+	TxPower        types.String `tfsdk:"tx_power"`
+	TxPowerMode    types.String `tfsdk:"tx_power_mode"`
+	MinRssiEnabled types.Bool   `tfsdk:"min_rssi_enabled"`
+	MinRssi        types.Int64  `tfsdk:"min_rssi"`
+}
+
+// radioSettingsSchema returns the nested-attribute schema used for each radio
+// band. Omit the attribute entirely to leave that radio's settings unchanged.
+func radioSettingsSchema(band string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		MarkdownDescription: "Radio settings for the " + band + " radio on an access point. Omit to leave this radio's settings unchanged.",
+		Optional:            true,
+		Attributes: map[string]schema.Attribute{
+			"channel": schema.StringAttribute{
+				MarkdownDescription: "Channel number or `auto`. Valid channels depend on the radio band and country.",
+				Optional:            true,
+			},
+			"ht": schema.Int64Attribute{
+				MarkdownDescription: "Channel width in MHz. Typical values: `20`, `40`, `80`, `160`.",
+				Optional:            true,
+				Validators: []validator.Int64{
+					int64validator.OneOf(20, 40, 80, 160, 240, 320),
+				},
+			},
+			"tx_power_mode": schema.StringAttribute{
+				MarkdownDescription: "Transmit power mode: `auto`, `high`, `medium`, `low`, `custom`, or `disabled`.",
+				Optional:            true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("auto", "high", "medium", "low", "custom", "disabled"),
+				},
+			},
+			"tx_power": schema.StringAttribute{
+				MarkdownDescription: "Transmit power in dBm. Only used when `tx_power_mode` is `custom`.",
+				Optional:            true,
+			},
+			"min_rssi_enabled": schema.BoolAttribute{
+				MarkdownDescription: "Whether the minimum RSSI client association threshold is enabled.",
+				Optional:            true,
+			},
+			"min_rssi": schema.Int64Attribute{
+				MarkdownDescription: "Minimum RSSI threshold for client association (dBm, -90 to -67).",
+				Optional:            true,
+				Validators: []validator.Int64{
+					int64validator.Between(-90, -67),
+				},
+			},
+		},
+	}
+}
+
 var ledColorRegexp = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}){1,2}$`)
 
 var (
@@ -50,6 +103,9 @@ type deviceResourceModel struct {
 	SnmpContact               types.String `tfsdk:"snmp_contact"`
 	SnmpLocation              types.String `tfsdk:"snmp_location"`
 	Volume                    types.Int64  `tfsdk:"volume"`
+	Radio24 *deviceRadioSettingsModel `tfsdk:"radio_24"`
+	Radio5  *deviceRadioSettingsModel `tfsdk:"radio_5"`
+	Radio6  *deviceRadioSettingsModel `tfsdk:"radio_6"`
 	// Computed/read-only.
 	Model   types.String `tfsdk:"model"`
 	Type    types.String `tfsdk:"type"`
@@ -189,6 +245,10 @@ func (r *deviceResource) Schema(
 					int64validator.Between(0, 100),
 				},
 			},
+
+			"radio_24": radioSettingsSchema("2.4 GHz (`ng`)"),
+			"radio_5":  radioSettingsSchema("5 GHz (`na`)"),
+			"radio_6":  radioSettingsSchema("6 GHz (`6e`)"),
 
 			// Read-only attributes.
 			"model": schema.StringAttribute{
@@ -460,6 +520,62 @@ func (r *deviceResource) preserveNullOptionals(plan, state *deviceResourceModel)
 	if plan.Volume.IsNull() {
 		state.Volume = types.Int64Null()
 	}
+	preserveNullRadio(plan.Radio24, &state.Radio24)
+	preserveNullRadio(plan.Radio5, &state.Radio5)
+	preserveNullRadio(plan.Radio6, &state.Radio6)
+}
+
+// preserveNullRadio handles null preservation for one radio block. If the
+// plan didn't configure this radio, null the state. Otherwise null out
+// fields the user didn't set.
+func preserveNullRadio(plan *deviceRadioSettingsModel, state **deviceRadioSettingsModel) {
+	if plan == nil {
+		*state = nil
+		return
+	}
+	if *state == nil {
+		return
+	}
+	s := *state
+	if plan.Channel.IsNull() {
+		s.Channel = types.StringNull()
+	}
+	if plan.Ht.IsNull() {
+		s.Ht = types.Int64Null()
+	}
+	if plan.TxPower.IsNull() {
+		s.TxPower = types.StringNull()
+	}
+	if plan.TxPowerMode.IsNull() {
+		s.TxPowerMode = types.StringNull()
+	}
+	if plan.MinRssiEnabled.IsNull() {
+		s.MinRssiEnabled = types.BoolNull()
+	}
+	if plan.MinRssi.IsNull() {
+		s.MinRssi = types.Int64Null()
+	}
+}
+
+// radioEntryToModel converts an API DeviceRadioTable entry into our nested model.
+func radioEntryToModel(rt unifi.DeviceRadioTable) deviceRadioSettingsModel {
+	settings := deviceRadioSettingsModel{
+		Channel:        stringValueOrNull(rt.Channel),
+		TxPower:        stringValueOrNull(rt.TxPower),
+		TxPowerMode:    stringValueOrNull(rt.TxPowerMode),
+		MinRssiEnabled: types.BoolValue(rt.MinRssiEnabled),
+	}
+	if rt.Ht != nil {
+		settings.Ht = types.Int64Value(*rt.Ht)
+	} else {
+		settings.Ht = types.Int64Null()
+	}
+	if rt.MinRssi != nil {
+		settings.MinRssi = types.Int64Value(*rt.MinRssi)
+	} else {
+		settings.MinRssi = types.Int64Null()
+	}
+	return settings
 }
 
 
@@ -492,6 +608,21 @@ func (r *deviceResource) apiToModel(d *unifi.Device, m *deviceResourceModel, sit
 		m.Volume = types.Int64Value(*d.Volume)
 	} else {
 		m.Volume = types.Int64Null()
+	}
+
+	m.Radio24 = nil
+	m.Radio5 = nil
+	m.Radio6 = nil
+	for _, rt := range d.RadioTable {
+		settings := radioEntryToModel(rt)
+		switch rt.Radio {
+		case "ng":
+			m.Radio24 = &settings
+		case "na":
+			m.Radio5 = &settings
+		case "6e":
+			m.Radio6 = &settings
+		}
 	}
 
 	// Read-only fields.
