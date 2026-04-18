@@ -2085,30 +2085,31 @@ resource "terrifi_firewall_policy" "test" {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		// CUSTOM mode requires all 7 days when no date range is provided. With a
+		// subset of days the API returns 400 "Missing date range", indicating that
+		// partial-week CUSTOM schedules also need a start/end date (not yet
+		// supported by the schema).
 		Steps: []resource.TestStep{
 			{
 				Config: baseConfig(`
   schedule {
     mode             = "CUSTOM"
-    date             = "2030-01-01"
     time_range_start = "09:00"
     time_range_end   = "12:00"
-    repeat_on_days   = ["mon", "wed", "fri"]
+    repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-01-01"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "3"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
 				),
 			},
 			{
 				Config: baseConfig(`
   schedule {
     mode             = "CUSTOM"
-    date             = "2030-06-15"
     time_range_start = "08:00"
     time_range_end   = "18:00"
     repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -2116,7 +2117,8 @@ resource "terrifi_firewall_policy" "test" {
 `),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-06-15"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
 				),
 			},
