@@ -184,6 +184,8 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 				types.StringValue("tue"),
 				types.StringValue("wed"),
 			}),
+			"date_range_start": types.StringNull(),
+			"date_range_end":   types.StringNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -253,6 +255,8 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 				types.StringValue("sat"),
 				types.StringValue("sun"),
 			}),
+			"date_range_start": types.StringValue("2030-01-01"),
+			"date_range_end":   types.StringValue("2030-12-31"),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -772,7 +776,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "pol-001", model.ID.ValueString())
 		assert.Equal(t, "default", model.Site.ValueString())
@@ -812,7 +816,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "mysite")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "mysite")
 
 		assert.Equal(t, "pol-002", model.ID.ValueString())
 		assert.Equal(t, "mysite", model.Site.ValueString())
@@ -851,7 +855,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.False(t, model.Enabled.ValueBool())
 		assert.True(t, model.Logging.IsNull())
@@ -873,7 +877,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.True(t, model.Index.IsNull())
 	})
@@ -893,7 +897,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.True(t, model.Description.IsNull())
 	})
@@ -912,7 +916,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "BOTH", model.IPVersion.ValueString())
 		assert.Equal(t, "all", model.Protocol.ValueString())
@@ -940,7 +944,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
 		assert.True(t, model.ConnectionStates.IsNull())
@@ -965,7 +969,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "CUSTOM", model.ConnectionStateType.ValueString())
 		assert.False(t, model.ConnectionStates.IsNull())
@@ -993,7 +997,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "icmpv6", model.Protocol.ValueString())
 		assert.Equal(t, "IPV6", model.IPVersion.ValueString())
@@ -1017,7 +1021,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "icmp", model.Protocol.ValueString())
 	})
@@ -1042,7 +1046,15 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{
+			FirewallPolicy: policy,
+			RawSchedule: &firewallPolicyScheduleRequest{
+				Mode:           "EVERY_WEEK",
+				TimeRangeStart: "08:00",
+				TimeRangeEnd:   "17:00",
+				RepeatOnDays:   []string{"mon", "fri"},
+			},
+		}, &model, "default")
 
 		assert.False(t, model.Schedule.IsNull())
 	})
@@ -1067,7 +1079,15 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{
+			FirewallPolicy: policy,
+			RawSchedule: &firewallPolicyScheduleRequest{
+				Mode:           "ONE_TIME_ONLY",
+				Date:           "2030-01-01",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+			},
+		}, &model, "default")
 
 		assert.False(t, model.Schedule.IsNull())
 		var sched firewallPolicyScheduleModel
@@ -1098,7 +1118,17 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{
+			FirewallPolicy: policy,
+			RawSchedule: &firewallPolicyScheduleRequest{
+				Mode:           "CUSTOM",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+				RepeatOnDays:   []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
+				DateRangeStart: "2030-01-01",
+				DateRangeEnd:   "2030-12-31",
+			},
+		}, &model, "default")
 
 		assert.False(t, model.Schedule.IsNull())
 		var sched firewallPolicyScheduleModel
@@ -1107,6 +1137,8 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.Equal(t, "09:00", sched.TimeRangeStart.ValueString())
 		assert.Equal(t, "12:00", sched.TimeRangeEnd.ValueString())
 		assert.Equal(t, 7, len(sched.RepeatOnDays.Elements()))
+		assert.Equal(t, "2030-01-01", sched.DateRangeStart.ValueString())
+		assert.Equal(t, "2030-12-31", sched.DateRangeEnd.ValueString())
 	})
 
 	t.Run("MAC matching target populates mac_addresses", func(t *testing.T) {
@@ -1126,7 +1158,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1157,7 +1189,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1186,7 +1218,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1217,7 +1249,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1249,7 +1281,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1278,7 +1310,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1310,7 +1342,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var dstModel firewallPolicyEndpointModel
 		model.Destination.As(context.Background(), &dstModel, basetypes.ObjectAsOptions{})
@@ -1366,6 +1398,8 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 			"time_range_start": types.StringValue("09:00"),
 			"time_range_end":   types.StringValue("12:00"),
 			"repeat_on_days":   types.SetNull(types.StringType),
+			"date_range_start": types.StringNull(),
+			"date_range_end":   types.StringNull(),
 		})
 		state := &firewallPolicyResourceModel{
 			Name:     types.StringValue("Scheduled Policy"),
@@ -2082,6 +2116,7 @@ resource "terrifi_firewall_policy" "test" {
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
+			// All 7 days with date range.
 			{
 				Config: baseConfig(`
   schedule {
@@ -2089,6 +2124,8 @@ resource "terrifi_firewall_policy" "test" {
     time_range_start = "09:00"
     time_range_end   = "12:00"
     repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    date_range_start = "2030-01-01"
+    date_range_end   = "2030-12-31"
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
@@ -2096,9 +2133,11 @@ resource "terrifi_firewall_policy" "test" {
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_start", "2030-01-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_end", "2030-12-31"),
 				),
 			},
-			// Subset of days.
+			// Subset of days with updated date range.
 			{
 				Config: baseConfig(`
   schedule {
@@ -2106,6 +2145,8 @@ resource "terrifi_firewall_policy" "test" {
     time_range_start = "08:00"
     time_range_end   = "18:00"
     repeat_on_days   = ["mon", "wed", "fri"]
+    date_range_start = "2030-03-01"
+    date_range_end   = "2030-06-30"
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
@@ -2113,6 +2154,8 @@ resource "terrifi_firewall_policy" "test" {
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "3"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_start", "2030-03-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_end", "2030-06-30"),
 				),
 			},
 			{
