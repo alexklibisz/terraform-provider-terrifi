@@ -2124,8 +2124,8 @@ resource "terrifi_firewall_policy" "test" {
     time_range_start = "09:00"
     time_range_end   = "12:00"
     repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    date_range_start = "2030-01-01"
-    date_range_end   = "2030-12-31"
+    date_start       = "2030-01-01"
+    date_end         = "2030-12-31"
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
@@ -2133,8 +2133,8 @@ resource "terrifi_firewall_policy" "test" {
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_start", "2030-01-01"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_end", "2030-12-31"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_start", "2030-01-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_end", "2030-12-31"),
 				),
 			},
 			// Subset of days with updated date range.
@@ -2145,8 +2145,8 @@ resource "terrifi_firewall_policy" "test" {
     time_range_start = "08:00"
     time_range_end   = "18:00"
     repeat_on_days   = ["mon", "wed", "fri"]
-    date_range_start = "2030-03-01"
-    date_range_end   = "2030-06-30"
+    date_start       = "2030-03-01"
+    date_end         = "2030-06-30"
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
@@ -2154,8 +2154,8 @@ resource "terrifi_firewall_policy" "test" {
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "3"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_start", "2030-03-01"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_range_end", "2030-06-30"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_start", "2030-03-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_end", "2030-06-30"),
 				),
 			},
 			{
