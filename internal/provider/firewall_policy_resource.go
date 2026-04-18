@@ -510,16 +510,20 @@ func (r *firewallPolicyResource) ModifyPlan(
 // ---------------------------------------------------------------------------
 
 func (r *firewallPolicyResource) applyPlanToState(plan, state *firewallPolicyResourceModel) {
-	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
+	if !plan.Name.IsUnknown() {
 		state.Name = plan.Name
 	}
-	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
+	// For optional-only fields (no Computed/Default), null means the user removed
+	// the field. Propagate null so the API receives a cleared value instead of the
+	// stale state value, which would cause a "provider produced inconsistent result"
+	// error when the API echoes the old value back.
+	if !plan.Description.IsUnknown() {
 		state.Description = plan.Description
 	}
 	if !plan.Enabled.IsNull() && !plan.Enabled.IsUnknown() {
 		state.Enabled = plan.Enabled
 	}
-	if !plan.Action.IsNull() && !plan.Action.IsUnknown() {
+	if !plan.Action.IsUnknown() {
 		state.Action = plan.Action
 	}
 	if !plan.IPVersion.IsNull() && !plan.IPVersion.IsUnknown() {
@@ -531,28 +535,28 @@ func (r *firewallPolicyResource) applyPlanToState(plan, state *firewallPolicyRes
 	if !plan.ConnectionStateType.IsNull() && !plan.ConnectionStateType.IsUnknown() {
 		state.ConnectionStateType = plan.ConnectionStateType
 	}
-	if !plan.ConnectionStates.IsNull() && !plan.ConnectionStates.IsUnknown() {
+	if !plan.ConnectionStates.IsUnknown() {
 		state.ConnectionStates = plan.ConnectionStates
 	}
-	if !plan.MatchIPSec.IsNull() && !plan.MatchIPSec.IsUnknown() {
+	if !plan.MatchIPSec.IsUnknown() {
 		state.MatchIPSec = plan.MatchIPSec
 	}
-	if !plan.Logging.IsNull() && !plan.Logging.IsUnknown() {
+	if !plan.Logging.IsUnknown() {
 		state.Logging = plan.Logging
 	}
-	if !plan.CreateAllowRespond.IsNull() && !plan.CreateAllowRespond.IsUnknown() {
+	if !plan.CreateAllowRespond.IsUnknown() {
 		state.CreateAllowRespond = plan.CreateAllowRespond
 	}
 	if !plan.Index.IsNull() && !plan.Index.IsUnknown() {
 		state.Index = plan.Index
 	}
-	if !plan.Source.IsNull() && !plan.Source.IsUnknown() {
+	if !plan.Source.IsUnknown() {
 		state.Source = plan.Source
 	}
-	if !plan.Destination.IsNull() && !plan.Destination.IsUnknown() {
+	if !plan.Destination.IsUnknown() {
 		state.Destination = plan.Destination
 	}
-	if !plan.Schedule.IsNull() && !plan.Schedule.IsUnknown() {
+	if !plan.Schedule.IsUnknown() {
 		state.Schedule = plan.Schedule
 	}
 }
