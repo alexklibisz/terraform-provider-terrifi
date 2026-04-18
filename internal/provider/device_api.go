@@ -56,15 +56,15 @@ func applyPlannedToRadioEntry(rt *unifi.DeviceRadioTable, planned deviceRadioSet
 	if !planned.Channel.IsNull() && !planned.Channel.IsUnknown() {
 		rt.Channel = planned.Channel.ValueString()
 	}
-	if !planned.Ht.IsNull() && !planned.Ht.IsUnknown() {
-		v := planned.Ht.ValueInt64()
+	if !planned.ChannelWidth.IsNull() && !planned.ChannelWidth.IsUnknown() {
+		v := planned.ChannelWidth.ValueInt64()
 		rt.Ht = &v
 	}
-	if !planned.TxPower.IsNull() && !planned.TxPower.IsUnknown() {
-		rt.TxPower = planned.TxPower.ValueString()
+	if !planned.TransmitPower.IsNull() && !planned.TransmitPower.IsUnknown() {
+		rt.TxPower = planned.TransmitPower.ValueString()
 	}
-	if !planned.TxPowerMode.IsNull() && !planned.TxPowerMode.IsUnknown() {
-		rt.TxPowerMode = planned.TxPowerMode.ValueString()
+	if !planned.TransmitPowerMode.IsNull() && !planned.TransmitPowerMode.IsUnknown() {
+		rt.TxPowerMode = planned.TransmitPowerMode.ValueString()
 	}
 	if !planned.MinRssiEnabled.IsNull() && !planned.MinRssiEnabled.IsUnknown() {
 		rt.MinRssiEnabled = planned.MinRssiEnabled.ValueBool()

@@ -1040,16 +1040,16 @@ func TestDeviceRadiosAPIToModel(t *testing.T) {
 		assert.Nil(t, m.Radio6)
 
 		assert.Equal(t, "6", m.Radio24.Channel.ValueString())
-		assert.Equal(t, int64(80), m.Radio24.Ht.ValueInt64())
-		assert.Equal(t, "auto", m.Radio24.TxPowerMode.ValueString())
-		assert.True(t, m.Radio24.TxPower.IsNull())
+		assert.Equal(t, int64(80), m.Radio24.ChannelWidth.ValueInt64())
+		assert.Equal(t, "auto", m.Radio24.TransmitPowerMode.ValueString())
+		assert.True(t, m.Radio24.TransmitPower.IsNull())
 		assert.False(t, m.Radio24.MinRssiEnabled.ValueBool())
 		assert.True(t, m.Radio24.MinRssi.IsNull())
 
 		assert.Equal(t, "auto", m.Radio5.Channel.ValueString())
-		assert.Equal(t, int64(80), m.Radio5.Ht.ValueInt64())
-		assert.Equal(t, "high", m.Radio5.TxPowerMode.ValueString())
-		assert.Equal(t, "23", m.Radio5.TxPower.ValueString())
+		assert.Equal(t, int64(80), m.Radio5.ChannelWidth.ValueInt64())
+		assert.Equal(t, "high", m.Radio5.TransmitPowerMode.ValueString())
+		assert.Equal(t, "23", m.Radio5.TransmitPower.ValueString())
 		assert.True(t, m.Radio5.MinRssiEnabled.ValueBool())
 		assert.Equal(t, int64(-75), m.Radio5.MinRssi.ValueInt64())
 	})
@@ -1070,7 +1070,7 @@ func TestDeviceRadiosAPIToModel(t *testing.T) {
 		assert.Nil(t, m.Radio5)
 		require.NotNil(t, m.Radio6)
 		assert.Equal(t, "37", m.Radio6.Channel.ValueString())
-		assert.Equal(t, int64(160), m.Radio6.Ht.ValueInt64())
+		assert.Equal(t, int64(160), m.Radio6.ChannelWidth.ValueInt64())
 	})
 
 	t.Run("device with no radios", func(t *testing.T) {
@@ -1086,12 +1086,12 @@ func TestDeviceRadiosAPIToModel(t *testing.T) {
 func TestPreserveNullRadio(t *testing.T) {
 	full := func() *deviceRadioSettingsModel {
 		return &deviceRadioSettingsModel{
-			Channel:        types.StringValue("6"),
-			Ht:             types.Int64Value(40),
-			TxPower:        types.StringValue("20"),
-			TxPowerMode:    types.StringValue("custom"),
-			MinRssiEnabled: types.BoolValue(true),
-			MinRssi:        types.Int64Value(-75),
+			Channel:           types.StringValue("6"),
+			ChannelWidth:      types.Int64Value(40),
+			TransmitPower:     types.StringValue("20"),
+			TransmitPowerMode: types.StringValue("custom"),
+			MinRssiEnabled:    types.BoolValue(true),
+			MinRssi:           types.Int64Value(-75),
 		}
 	}
 
@@ -1110,12 +1110,12 @@ func TestPreserveNullRadio(t *testing.T) {
 
 	t.Run("plan with some null fields nulls corresponding state fields", func(t *testing.T) {
 		plan := &deviceRadioSettingsModel{
-			Channel:        types.StringValue("auto"),
-			Ht:             types.Int64Null(),
-			TxPower:        types.StringNull(),
-			TxPowerMode:    types.StringNull(),
-			MinRssiEnabled: types.BoolNull(),
-			MinRssi:        types.Int64Null(),
+			Channel:           types.StringValue("auto"),
+			ChannelWidth:      types.Int64Null(),
+			TransmitPower:     types.StringNull(),
+			TransmitPowerMode: types.StringNull(),
+			MinRssiEnabled:    types.BoolNull(),
+			MinRssi:           types.Int64Null(),
 		}
 		state := full()
 		preserveNullRadio(plan, &state)
@@ -1123,9 +1123,9 @@ func TestPreserveNullRadio(t *testing.T) {
 		// Configured field kept from state (API).
 		assert.Equal(t, "6", state.Channel.ValueString())
 		// Unconfigured fields nulled.
-		assert.True(t, state.Ht.IsNull())
-		assert.True(t, state.TxPower.IsNull())
-		assert.True(t, state.TxPowerMode.IsNull())
+		assert.True(t, state.ChannelWidth.IsNull())
+		assert.True(t, state.TransmitPower.IsNull())
+		assert.True(t, state.TransmitPowerMode.IsNull())
 		assert.True(t, state.MinRssiEnabled.IsNull())
 		assert.True(t, state.MinRssi.IsNull())
 	})
@@ -1136,9 +1136,9 @@ func TestPreserveNullRadio(t *testing.T) {
 		preserveNullRadio(plan, &state)
 		require.NotNil(t, state)
 		assert.False(t, state.Channel.IsNull())
-		assert.False(t, state.Ht.IsNull())
-		assert.False(t, state.TxPower.IsNull())
-		assert.False(t, state.TxPowerMode.IsNull())
+		assert.False(t, state.ChannelWidth.IsNull())
+		assert.False(t, state.TransmitPower.IsNull())
+		assert.False(t, state.TransmitPowerMode.IsNull())
 		assert.False(t, state.MinRssiEnabled.IsNull())
 		assert.False(t, state.MinRssi.IsNull())
 	})
@@ -1156,12 +1156,12 @@ func TestApplyPlannedToRadioEntry(t *testing.T) {
 			MinRssiEnabled: true,
 		}
 		planned := deviceRadioSettingsModel{
-			Channel:        types.StringValue("auto"),
-			Ht:             types.Int64Null(),
-			TxPower:        types.StringNull(),
-			TxPowerMode:    types.StringNull(),
-			MinRssiEnabled: types.BoolValue(false),
-			MinRssi:        types.Int64Null(),
+			Channel:           types.StringValue("auto"),
+			ChannelWidth:      types.Int64Null(),
+			TransmitPower:     types.StringNull(),
+			TransmitPowerMode: types.StringNull(),
+			MinRssiEnabled:    types.BoolValue(false),
+			MinRssi:           types.Int64Null(),
 		}
 		applyPlannedToRadioEntry(existing, planned)
 
@@ -1182,12 +1182,12 @@ func TestApplyPlannedToRadioEntry(t *testing.T) {
 		newHt := int64(40)
 		minRssi := int64(-70)
 		planned := deviceRadioSettingsModel{
-			Channel:        types.StringValue("11"),
-			Ht:             types.Int64Value(newHt),
-			TxPower:        types.StringValue("18"),
-			TxPowerMode:    types.StringValue("custom"),
-			MinRssiEnabled: types.BoolValue(true),
-			MinRssi:        types.Int64Value(minRssi),
+			Channel:           types.StringValue("11"),
+			ChannelWidth:      types.Int64Value(newHt),
+			TransmitPower:     types.StringValue("18"),
+			TransmitPowerMode: types.StringValue("custom"),
+			MinRssiEnabled:    types.BoolValue(true),
+			MinRssi:           types.Int64Value(minRssi),
 		}
 		applyPlannedToRadioEntry(existing, planned)
 
@@ -1219,8 +1219,8 @@ resource "terrifi_device" "test" {
   mac  = %q
   name = "tfacc-device-radio-channel"
   radio_24 = {
-    channel = "auto"
-    ht      = 40
+    channel       = "auto"
+    channel_width = 40
   }
 }
 `, ap.MAC)
@@ -1238,7 +1238,7 @@ resource "terrifi_device" "test" {
 				Config: withRadio,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.channel", "auto"),
-					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.ht", "40"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.channel_width", "40"),
 				),
 			},
 			// Idempotent — second apply must produce no diff.
@@ -1254,8 +1254,8 @@ resource "terrifi_device" "test" {
 	})
 }
 
-// TestAccDeviceResource_radio24_txPower sets tx_power_mode on the 2.4 GHz radio.
-func TestAccDeviceResource_radio24_txPower(t *testing.T) {
+// TestAccDeviceResource_radio24_transmitPower sets transmit_power_mode on the 2.4 GHz radio.
+func TestAccDeviceResource_radio24_transmitPower(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
 	}
@@ -1272,27 +1272,27 @@ resource "terrifi_device" "test" {
   mac  = %q
   name = "tfacc-device-radio-txpower"
   radio_24 = {
-    tx_power_mode = "medium"
+    transmit_power_mode = "medium"
   }
 }
 `, ap.MAC),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.tx_power_mode", "medium"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.transmit_power_mode", "medium"),
 				),
 			},
-			// Change tx_power_mode.
+			// Change transmit_power_mode.
 			{
 				Config: fmt.Sprintf(`
 resource "terrifi_device" "test" {
   mac  = %q
   name = "tfacc-device-radio-txpower"
   radio_24 = {
-    tx_power_mode = "auto"
+    transmit_power_mode = "auto"
   }
 }
 `, ap.MAC),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.tx_power_mode", "auto"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.transmit_power_mode", "auto"),
 				),
 			},
 		},
@@ -1319,13 +1319,13 @@ resource "terrifi_device" "test" {
   name = "tfacc-device-radio-multi"
   radio_24 = {
     channel       = "auto"
-    ht            = 40
-    tx_power_mode = "auto"
+    channel_width = 40
+    transmit_power_mode = "auto"
   }
   radio_5 = {
     channel       = "auto"
-    ht            = 80
-    tx_power_mode = "auto"
+    channel_width = 80
+    transmit_power_mode = "auto"
   }
 }
 `, ap.MAC)
@@ -1336,8 +1336,8 @@ resource "terrifi_device" "test" {
 			{
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.ht", "40"),
-					resource.TestCheckResourceAttr("terrifi_device.test", "radio_5.ht", "80"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "radio_24.channel_width", "40"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "radio_5.channel_width", "80"),
 				),
 			},
 			// Idempotent.
@@ -1367,7 +1367,7 @@ resource "terrifi_device" "test" {
   mac = %q
   radio_24 = {
     channel       = "auto"
-    tx_power_mode = "auto"
+    transmit_power_mode = "auto"
   }
 }
 `, ap.MAC)
@@ -1408,7 +1408,7 @@ resource "terrifi_device" "test" {
   name = "tfacc-device-radio-import"
   radio_24 = {
     channel       = "auto"
-    tx_power_mode = "auto"
+    transmit_power_mode = "auto"
   }
 }
 `, ap.MAC)
@@ -1554,7 +1554,7 @@ resource "terrifi_device" "test" {
 	})
 }
 
-func TestAccDeviceResource_validationInvalidHt(t *testing.T) {
+func TestAccDeviceResource_validationInvalidChannelWidth(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -1563,7 +1563,7 @@ func TestAccDeviceResource_validationInvalidHt(t *testing.T) {
 				Config: `
 resource "terrifi_device" "test" {
   mac = "aa:bb:cc:dd:ee:ff"
-  radio_24 = { ht = 100 }
+  radio_24 = { channel_width = 100 }
 }
 `,
 				ExpectError: regexp.MustCompile(`must be one of`),
@@ -1572,7 +1572,7 @@ resource "terrifi_device" "test" {
 	})
 }
 
-func TestAccDeviceResource_validationInvalidTxPowerMode(t *testing.T) {
+func TestAccDeviceResource_validationInvalidTransmitPowerMode(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -1581,7 +1581,7 @@ func TestAccDeviceResource_validationInvalidTxPowerMode(t *testing.T) {
 				Config: `
 resource "terrifi_device" "test" {
   mac = "aa:bb:cc:dd:ee:ff"
-  radio_5 = { tx_power_mode = "max" }
+  radio_5 = { transmit_power_mode = "max" }
 }
 `,
 				ExpectError: regexp.MustCompile(`must be one of`),

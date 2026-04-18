@@ -49,15 +49,15 @@ resource "terrifi_device" "office_ap" {
   name = "Office AP"
 
   radio_24 = {
-    channel       = "auto"
-    ht            = 40
-    tx_power_mode = "auto"
+    channel             = "auto"
+    channel_width       = 40
+    transmit_power_mode = "auto"
   }
 
   radio_5 = {
-    channel       = "auto"
-    ht            = 80
-    tx_power_mode = "auto"
+    channel             = "auto"
+    channel_width       = 80
+    transmit_power_mode = "auto"
   }
 }
 ```
@@ -159,9 +159,9 @@ resource "terrifi_device" "ap" {
 All fields are optional. Omitting the block entirely leaves the radio's current settings unchanged. Within a configured block, omitted fields are also left unchanged on the controller.
 
 - `channel` (String) — Channel number or `auto`. Valid channels depend on the radio band and country code.
-- `ht` (Number) — Channel width in MHz. Accepted values: `20`, `40`, `80`, `160`, `240`, `320`.
-- `tx_power_mode` (String) — Transmit power mode: `auto`, `high`, `medium`, `low`, `custom`, or `disabled`.
-- `tx_power` (String) — Transmit power in dBm. Only used when `tx_power_mode` is `custom`.
+- `channel_width` (Number) — Channel width in MHz. Accepted values: `20`, `40`, `80`, `160`, `240`, `320`.
+- `transmit_power_mode` (String) — Transmit power mode: `auto`, `high`, `medium`, `low`, `custom`, or `disabled`.
+- `transmit_power` (String) — Transmit power in dBm. Only used when `transmit_power_mode` is `custom`.
 - `min_rssi_enabled` (Boolean) — Whether the minimum RSSI client association threshold is enabled.
 - `min_rssi` (Number) — Minimum RSSI threshold for client association (dBm, -90 to -67).
 
