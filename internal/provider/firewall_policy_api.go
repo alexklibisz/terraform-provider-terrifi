@@ -86,12 +86,24 @@ type firewallPolicyScheduleRequest struct {
 	TimeRangeStart string   `json:"time_range_start,omitempty"`
 	TimeRangeEnd   string   `json:"time_range_end,omitempty"`
 	RepeatOnDays   []string `json:"repeat_on_days,omitempty"`
+	DateStart string `json:"date_start,omitempty"`
+	DateEnd   string `json:"date_end,omitempty"`
+}
+
+// firewallPolicyFull wraps *unifi.FirewallPolicy with the raw schedule from the
+// API response, preserving fields (date_range_start, date_range_end) that are not
+// present in the SDK's FirewallPolicySchedule struct.
+type firewallPolicyFull struct {
+	*unifi.FirewallPolicy
+	RawSchedule *firewallPolicyScheduleRequest
 }
 
 // CreateFirewallPolicy creates a firewall policy via the v2 API, bypassing the
-// SDK to control boolean serialization.
-func (c *Client) CreateFirewallPolicy(ctx context.Context, site string, d *unifi.FirewallPolicy) (*unifi.FirewallPolicy, error) {
-	payload := buildFirewallPolicyCreateRequest(d)
+// SDK to control boolean serialization. schedOverride, when non-nil, is used as
+// the schedule payload instead of deriving it from d.Schedule, allowing callers
+// to include fields (e.g. date_range_start, date_range_end) not in the SDK struct.
+func (c *Client) CreateFirewallPolicy(ctx context.Context, site string, d *unifi.FirewallPolicy, schedOverride *firewallPolicyScheduleRequest) (*firewallPolicyFull, error) {
+	payload := buildFirewallPolicyCreateRequest(d, schedOverride)
 
 	var result firewallPolicyResponse
 	err := c.doV2Request(ctx, http.MethodPost,
@@ -100,13 +112,14 @@ func (c *Client) CreateFirewallPolicy(ctx context.Context, site string, d *unifi
 	if err != nil {
 		return nil, err
 	}
-	return result.toSDK(), nil
+	return result.toFull(), nil
 }
 
 // UpdateFirewallPolicy updates a firewall policy via the v2 API, bypassing the
-// SDK to include _id in the PUT body and control boolean serialization.
-func (c *Client) UpdateFirewallPolicy(ctx context.Context, site string, d *unifi.FirewallPolicy) (*unifi.FirewallPolicy, error) {
-	create := buildFirewallPolicyCreateRequest(d)
+// SDK to include _id in the PUT body and control boolean serialization. schedOverride,
+// when non-nil, is used as the schedule payload instead of deriving it from d.Schedule.
+func (c *Client) UpdateFirewallPolicy(ctx context.Context, site string, d *unifi.FirewallPolicy, schedOverride *firewallPolicyScheduleRequest) (*firewallPolicyFull, error) {
+	create := buildFirewallPolicyCreateRequest(d, schedOverride)
 	payload := firewallPolicyUpdateRequest{
 		ID:                          d.ID,
 		firewallPolicyCreateRequest: create,
@@ -119,7 +132,7 @@ func (c *Client) UpdateFirewallPolicy(ctx context.Context, site string, d *unifi
 	if err != nil {
 		return nil, err
 	}
-	return result.toSDK(), nil
+	return result.toFull(), nil
 }
 
 // DeleteFirewallPolicy deletes a firewall policy via the v2 API, bypassing the
@@ -154,7 +167,7 @@ func (c *Client) ListFirewallPolicies(ctx context.Context, site string) ([]*unif
 // *int64, but the v2 API returns `port` as a JSON string (e.g. "443"). The SDK
 // fails to unmarshal this. When the SDK fixes the port field type (or adds a
 // custom unmarshaler), this can be replaced with c.ApiClient.GetFirewallPolicy().
-func (c *Client) GetFirewallPolicy(ctx context.Context, site string, id string) (*unifi.FirewallPolicy, error) {
+func (c *Client) GetFirewallPolicy(ctx context.Context, site string, id string) (*firewallPolicyFull, error) {
 	var rawPolicies []firewallPolicyResponse
 	err := c.doV2Request(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall-policies", c.BaseURL, c.APIPath, site),
@@ -165,7 +178,7 @@ func (c *Client) GetFirewallPolicy(ctx context.Context, site string, id string) 
 
 	for _, raw := range rawPolicies {
 		if raw.ID == id {
-			return raw.toSDK(), nil
+			return raw.toFull(), nil
 		}
 	}
 	return nil, &unifi.NotFoundError{}
@@ -205,6 +218,13 @@ type firewallPolicyEndpointResponse struct {
 	PortGroupID        string          `json:"port_group_id"`
 	MatchOppositePorts bool            `json:"match_opposite_ports"`
 	MatchOppositeIPs   bool            `json:"match_opposite_ips"`
+}
+
+func (r *firewallPolicyResponse) toFull() *firewallPolicyFull {
+	return &firewallPolicyFull{
+		FirewallPolicy: r.toSDK(),
+		RawSchedule:    r.Schedule,
+	}
 }
 
 func (r *firewallPolicyResponse) toSDK() *unifi.FirewallPolicy {
@@ -307,7 +327,7 @@ func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 	return ep.IPs
 }
 
-func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCreateRequest {
+func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy, schedOverride *firewallPolicyScheduleRequest) firewallPolicyCreateRequest {
 	req := firewallPolicyCreateRequest{
 		Name:                d.Name,
 		Description:         d.Description,
@@ -341,7 +361,9 @@ func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy) firewallPolicyCre
 		req.Destination = buildEndpointRequest(d.Destination.ZoneID, d.Destination.MatchingTarget, d.Destination.IPs, d.Destination.PortMatchingType, d.Destination.Port, d.Destination.PortGroupID, d.Destination.MatchOppositePorts, d.Destination.MatchOppositeIPs)
 	}
 
-	if d.Schedule != nil {
+	if schedOverride != nil {
+		req.Schedule = schedOverride
+	} else if d.Schedule != nil {
 		sched := &firewallPolicyScheduleRequest{
 			Mode:           d.Schedule.Mode,
 			Date:           d.Schedule.Date,

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -184,6 +185,8 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 				types.StringValue("tue"),
 				types.StringValue("wed"),
 			}),
+			"date_start": types.StringNull(),
+			"date_end":   types.StringNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -211,6 +214,77 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 		assert.Equal(t, "08:00", policy.Schedule.TimeRangeStart)
 		assert.Equal(t, "17:00", policy.Schedule.TimeRangeEnd)
 		assert.ElementsMatch(t, []string{"mon", "tue", "wed"}, policy.Schedule.RepeatOnDays)
+	})
+
+	t.Run("with CUSTOM schedule mode", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		schedObj := types.ObjectValueMust(scheduleAttrTypes, map[string]attr.Value{
+			"mode":             types.StringValue("CUSTOM"),
+			"date":             types.StringNull(),
+			"time_all_day":     types.BoolNull(),
+			"time_range_start": types.StringValue("09:00"),
+			"time_range_end":   types.StringValue("12:00"),
+			"repeat_on_days": types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("mon"),
+				types.StringValue("tue"),
+				types.StringValue("wed"),
+				types.StringValue("thu"),
+				types.StringValue("fri"),
+				types.StringValue("sat"),
+				types.StringValue("sun"),
+			}),
+			"date_start": types.StringValue("2030-01-01"),
+			"date_end":   types.StringValue("2030-12-31"),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Custom Schedule Block"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            schedObj,
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.NotNil(t, policy.Schedule)
+		assert.Equal(t, "CUSTOM", policy.Schedule.Mode)
+		assert.Equal(t, "09:00", policy.Schedule.TimeRangeStart)
+		assert.Equal(t, "12:00", policy.Schedule.TimeRangeEnd)
+		assert.ElementsMatch(t, []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}, policy.Schedule.RepeatOnDays)
 	})
 
 	t.Run("disabled rule", func(t *testing.T) {
@@ -703,7 +777,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "pol-001", model.ID.ValueString())
 		assert.Equal(t, "default", model.Site.ValueString())
@@ -743,7 +817,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "mysite")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "mysite")
 
 		assert.Equal(t, "pol-002", model.ID.ValueString())
 		assert.Equal(t, "mysite", model.Site.ValueString())
@@ -782,7 +856,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.False(t, model.Enabled.ValueBool())
 		assert.True(t, model.Logging.IsNull())
@@ -804,7 +878,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.True(t, model.Index.IsNull())
 	})
@@ -824,7 +898,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.True(t, model.Description.IsNull())
 	})
@@ -843,7 +917,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "BOTH", model.IPVersion.ValueString())
 		assert.Equal(t, "all", model.Protocol.ValueString())
@@ -871,7 +945,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
 		assert.True(t, model.ConnectionStates.IsNull())
@@ -896,7 +970,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "CUSTOM", model.ConnectionStateType.ValueString())
 		assert.False(t, model.ConnectionStates.IsNull())
@@ -924,7 +998,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "icmpv6", model.Protocol.ValueString())
 		assert.Equal(t, "IPV6", model.IPVersion.ValueString())
@@ -948,7 +1022,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "icmp", model.Protocol.ValueString())
 	})
@@ -973,9 +1047,99 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{
+			FirewallPolicy: policy,
+			RawSchedule: &firewallPolicyScheduleRequest{
+				Mode:           "EVERY_WEEK",
+				TimeRangeStart: "08:00",
+				TimeRangeEnd:   "17:00",
+				RepeatOnDays:   []string{"mon", "fri"},
+			},
+		}, &model, "default")
 
 		assert.False(t, model.Schedule.IsNull())
+	})
+
+	t.Run("ONE_TIME_ONLY schedule mode round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-oto",
+			Name:   "One Time Only",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID: "zone-src",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID: "zone-dst",
+			},
+			Schedule: &unifi.FirewallPolicySchedule{
+				Mode:           "ONE_TIME_ONLY",
+				Date:           "2030-01-01",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(&firewallPolicyFull{
+			FirewallPolicy: policy,
+			RawSchedule: &firewallPolicyScheduleRequest{
+				Mode:           "ONE_TIME_ONLY",
+				Date:           "2030-01-01",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+			},
+		}, &model, "default")
+
+		assert.False(t, model.Schedule.IsNull())
+		var sched firewallPolicyScheduleModel
+		model.Schedule.As(context.Background(), &sched, basetypes.ObjectAsOptions{})
+		assert.Equal(t, "ONE_TIME_ONLY", sched.Mode.ValueString())
+		assert.Equal(t, "2030-01-01", sched.Date.ValueString())
+		assert.Equal(t, "09:00", sched.TimeRangeStart.ValueString())
+		assert.Equal(t, "12:00", sched.TimeRangeEnd.ValueString())
+	})
+
+	t.Run("CUSTOM schedule mode round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-custom",
+			Name:   "Custom Schedule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID: "zone-src",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID: "zone-dst",
+			},
+			Schedule: &unifi.FirewallPolicySchedule{
+				Mode:           "CUSTOM",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+				RepeatOnDays:   []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(&firewallPolicyFull{
+			FirewallPolicy: policy,
+			RawSchedule: &firewallPolicyScheduleRequest{
+				Mode:           "CUSTOM",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+				RepeatOnDays:   []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
+				DateStart: "2030-01-01",
+				DateEnd:   "2030-12-31",
+			},
+		}, &model, "default")
+
+		assert.False(t, model.Schedule.IsNull())
+		var sched firewallPolicyScheduleModel
+		model.Schedule.As(context.Background(), &sched, basetypes.ObjectAsOptions{})
+		assert.Equal(t, "CUSTOM", sched.Mode.ValueString())
+		assert.Equal(t, "09:00", sched.TimeRangeStart.ValueString())
+		assert.Equal(t, "12:00", sched.TimeRangeEnd.ValueString())
+		assert.Equal(t, 7, len(sched.RepeatOnDays.Elements()))
+		assert.Equal(t, "2030-01-01", sched.DateStart.ValueString())
+		assert.Equal(t, "2030-12-31", sched.DateEnd.ValueString())
 	})
 
 	t.Run("MAC matching target populates mac_addresses", func(t *testing.T) {
@@ -995,7 +1159,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1026,7 +1190,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1055,7 +1219,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1086,7 +1250,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1118,7 +1282,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1147,7 +1311,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1179,7 +1343,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(policy, &model, "default")
+		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var dstModel firewallPolicyEndpointModel
 		model.Destination.As(context.Background(), &dstModel, basetypes.ObjectAsOptions{})
@@ -1225,6 +1389,124 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 		assert.False(t, state.Enabled.ValueBool())
 		assert.Equal(t, "IPV4", state.IPVersion.ValueString())
 		assert.Equal(t, "tcp", state.Protocol.ValueString())
+	})
+
+	t.Run("null schedule in plan clears state schedule", func(t *testing.T) {
+		schedObj := types.ObjectValueMust(scheduleAttrTypes, map[string]attr.Value{
+			"mode":             types.StringValue("ALWAYS"),
+			"date":             types.StringValue("2025-07-02"),
+			"time_all_day":     types.BoolNull(),
+			"time_range_start": types.StringValue("09:00"),
+			"time_range_end":   types.StringValue("12:00"),
+			"repeat_on_days":   types.SetNull(types.StringType),
+			"date_start": types.StringNull(),
+			"date_end":   types.StringNull(),
+		})
+		state := &firewallPolicyResourceModel{
+			Name:     types.StringValue("Scheduled Policy"),
+			Action:   types.StringValue("BLOCK"),
+			Schedule: schedObj,
+		}
+
+		plan := &firewallPolicyResourceModel{
+			Name:     types.StringValue("Scheduled Policy"),
+			Action:   types.StringValue("BLOCK"),
+			Schedule: types.ObjectNull(scheduleAttrTypes),
+		}
+
+		r.applyPlanToState(plan, state)
+
+		assert.True(t, state.Schedule.IsNull(), "schedule should be cleared when removed from plan")
+	})
+
+	t.Run("null optional fields in plan propagate to state", func(t *testing.T) {
+		state := &firewallPolicyResourceModel{
+			Name:               types.StringValue("My Policy"),
+			Action:             types.StringValue("ALLOW"),
+			Description:        types.StringValue("old description"),
+			Logging:            types.BoolValue(true),
+			MatchIPSec:         types.BoolValue(true),
+			CreateAllowRespond: types.BoolValue(true),
+		}
+
+		plan := &firewallPolicyResourceModel{
+			Name:               types.StringValue("My Policy"),
+			Action:             types.StringValue("ALLOW"),
+			Description:        types.StringNull(),
+			Logging:            types.BoolNull(),
+			MatchIPSec:         types.BoolNull(),
+			CreateAllowRespond: types.BoolNull(),
+			Schedule:           types.ObjectNull(scheduleAttrTypes),
+		}
+
+		r.applyPlanToState(plan, state)
+
+		assert.True(t, state.Description.IsNull(), "description should be cleared")
+		assert.True(t, state.Logging.IsNull(), "logging should be cleared")
+		assert.True(t, state.MatchIPSec.IsNull(), "match_ipsec should be cleared")
+		assert.True(t, state.CreateAllowRespond.IsNull(), "create_allow_respond should be cleared")
+	})
+}
+
+func TestScheduleCustomRequiresDatesValidator(t *testing.T) {
+	v := scheduleCustomRequiresDatesValidator{}
+	ctx := context.Background()
+
+	makeScheduleObj := func(mode, dateStart, dateEnd string) types.Object {
+		attrs := map[string]attr.Value{
+			"mode":             types.StringValue(mode),
+			"date":             types.StringNull(),
+			"time_all_day":     types.BoolNull(),
+			"time_range_start": types.StringValue("09:00"),
+			"time_range_end":   types.StringValue("17:00"),
+			"repeat_on_days":   types.SetNull(types.StringType),
+			"date_start":       types.StringNull(),
+			"date_end":         types.StringNull(),
+		}
+		if dateStart != "" {
+			attrs["date_start"] = types.StringValue(dateStart)
+		}
+		if dateEnd != "" {
+			attrs["date_end"] = types.StringValue(dateEnd)
+		}
+		return types.ObjectValueMust(scheduleAttrTypes, attrs)
+	}
+
+	t.Run("CUSTOM with both dates passes", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("CUSTOM", "2030-01-01", "2030-12-31")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.False(t, resp.Diagnostics.HasError())
+	})
+
+	t.Run("CUSTOM missing date_start fails", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("CUSTOM", "", "2030-12-31")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.True(t, resp.Diagnostics.HasError())
+		assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Required Attribute")
+	})
+
+	t.Run("CUSTOM missing date_end fails", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("CUSTOM", "2030-01-01", "")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.True(t, resp.Diagnostics.HasError())
+		assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Required Attribute")
+	})
+
+	t.Run("EVERY_WEEK without dates passes", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("EVERY_WEEK", "", "")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.False(t, resp.Diagnostics.HasError())
+	})
+
+	t.Run("null schedule object is skipped", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: types.ObjectNull(scheduleAttrTypes)}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.False(t, resp.Diagnostics.HasError())
 	})
 }
 
@@ -1694,12 +1976,9 @@ func TestAccFirewallPolicy_schedule(t *testing.T) {
 	zone2Name := fmt.Sprintf("tfacc-pol-sc-z2-%s", randomSuffix())
 	policyName := fmt.Sprintf("tfacc-pol-sched-%s", randomSuffix())
 
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t); requireHardware(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccFirewallPolicyZonesConfig(zone1Name, zone2Name) + fmt.Sprintf(`
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+	baseConfig := func(extra string) string {
+		return zonesConfig + fmt.Sprintf(`
 resource "terrifi_firewall_policy" "test" {
   name   = %q
   action = "BLOCK"
@@ -1711,20 +1990,246 @@ resource "terrifi_firewall_policy" "test" {
   destination {
     zone_id = terrifi_firewall_zone.zone2.id
   }
+%s}
+`, policyName, extra)
+	}
 
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: baseConfig(`
   schedule {
     mode             = "EVERY_WEEK"
     time_range_start = "08:00"
     time_range_end   = "17:00"
     repeat_on_days   = ["mon", "tue", "wed", "thu", "fri"]
   }
-}
-`, policyName),
+`),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "EVERY_WEEK"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "17:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "5"),
+				),
+			},
+			// Remove the schedule block — verifies the "was absent, but now present" bug is fixed.
+			{
+				Config: baseConfig(""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "schedule.mode"),
+				),
+			},
+			// Re-add schedule with mode=ALWAYS plus extra fields (matches the exact
+			// scenario reported in issue #130 where isDefaultSchedule was not triggered).
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "ALWAYS"
+    date             = "2025-07-02"
+    time_range_start = "09:00"
+    time_range_end   = "12:00"
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "ALWAYS"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2025-07-02"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
+				),
+			},
+			// Remove ALWAYS+extra-fields schedule — the other variant of the bug.
+			{
+				Config: baseConfig(""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "schedule.mode"),
+				),
+			},
+			// ONE_TIME_ONLY mode — verified working scenario from issue report.
+			// CUSTOM mode is returned by the API for some UI-created schedules but
+			// cannot be set via the API (returns 400 "Missing date range"); use
+			// ONE_TIME_ONLY instead when a date-bounded schedule is needed.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "ONE_TIME_ONLY"
+    date             = "2030-01-01"
+    time_range_start = "09:00"
+    time_range_end   = "12:00"
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "ONE_TIME_ONLY"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-01-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccFirewallPolicy_oneTimeOnly covers the ONE_TIME_ONLY schedule mode full
+// lifecycle: create, update, import, and removal. ONE_TIME_ONLY is the correct
+// mode to use for date-bounded schedules; CUSTOM is returned by the API for
+// certain UI-created schedules but cannot be set via the API directly.
+func TestAccFirewallPolicy_oneTimeOnly(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-oto-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-oto-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-oto-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+	baseConfig := func(extra string) string {
+		return zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+%s}
+`, policyName, extra)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create with ONE_TIME_ONLY mode, date, and time range.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "ONE_TIME_ONLY"
+    date             = "2030-01-01"
+    time_range_start = "09:00"
+    time_range_end   = "12:00"
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "ONE_TIME_ONLY"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-01-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
+				),
+			},
+			// Update date and time range.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "ONE_TIME_ONLY"
+    date             = "2030-06-15"
+    time_range_start = "08:00"
+    time_range_end   = "18:00"
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "ONE_TIME_ONLY"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-06-15"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
+				),
+			},
+			// Import with ONE_TIME_ONLY schedule intact.
+			{
+				ResourceName:      "terrifi_firewall_policy.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// Remove the schedule.
+			{
+				Config: baseConfig(""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "schedule.mode"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccFirewallPolicy_customSchedule(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-csc-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-csc-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-csc-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+	baseConfig := func(extra string) string {
+		return zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+%s}
+`, policyName, extra)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// All 7 days with date range.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "CUSTOM"
+    time_range_start = "09:00"
+    time_range_end   = "12:00"
+    repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    date_start       = "2030-01-01"
+    date_end         = "2030-12-31"
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_start", "2030-01-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_end", "2030-12-31"),
+				),
+			},
+			// Subset of days with updated date range.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "CUSTOM"
+    time_range_start = "08:00"
+    time_range_end   = "18:00"
+    repeat_on_days   = ["mon", "wed", "fri"]
+    date_start       = "2030-03-01"
+    date_end         = "2030-06-30"
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "3"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_start", "2030-03-01"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date_end", "2030-06-30"),
+				),
+			},
+			{
+				ResourceName:      "terrifi_firewall_policy.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
+				Config: baseConfig(""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "schedule.mode"),
 				),
 			},
 		},

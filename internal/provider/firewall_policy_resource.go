@@ -74,6 +74,8 @@ type firewallPolicyScheduleModel struct {
 	TimeRangeStart types.String `tfsdk:"time_range_start"`
 	TimeRangeEnd   types.String `tfsdk:"time_range_end"`
 	RepeatOnDays   types.Set    `tfsdk:"repeat_on_days"`
+	DateStart      types.String `tfsdk:"date_start"`
+	DateEnd        types.String `tfsdk:"date_end"`
 }
 
 // endpointAttrTypes defines the attribute types for source/destination nested objects.
@@ -98,6 +100,8 @@ var scheduleAttrTypes = map[string]attr.Type{
 	"time_range_start": types.StringType,
 	"time_range_end":   types.StringType,
 	"repeat_on_days":   types.SetType{ElemType: types.StringType},
+	"date_start":       types.StringType,
+	"date_end":         types.StringType,
 }
 
 func (r *firewallPolicyResource) Metadata(
@@ -282,12 +286,13 @@ func (r *firewallPolicyResource) Schema(
 
 			"schedule": schema.SingleNestedBlock{
 				MarkdownDescription: "Schedule configuration for when this policy is active.",
+				Validators:          []validator.Object{scheduleCustomRequiresDatesValidator{}},
 				Attributes: map[string]schema.Attribute{
 					"mode": schema.StringAttribute{
-						MarkdownDescription: "Schedule mode. Valid values: `ALWAYS`, `EVERY_DAY`, `EVERY_WEEK`, `ONE_TIME_ONLY`.",
+						MarkdownDescription: "Schedule mode. Valid values: `ALWAYS`, `EVERY_DAY`, `EVERY_WEEK`, `ONE_TIME_ONLY`, `CUSTOM`.",
 						Optional:            true,
 						Validators: []validator.String{
-							stringvalidator.OneOf("ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY"),
+							stringvalidator.OneOf("ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY", "CUSTOM"),
 						},
 					},
 					"date": schema.StringAttribute{
@@ -309,6 +314,14 @@ func (r *firewallPolicyResource) Schema(
 					"repeat_on_days": schema.SetAttribute{
 						MarkdownDescription: "Days of the week to repeat on. Valid values: `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`.",
 						ElementType:         types.StringType,
+						Optional:            true,
+					},
+					"date_start": schema.StringAttribute{
+						MarkdownDescription: "Start date of the schedule range (e.g. `2026-01-01`). Required for `CUSTOM` mode.",
+						Optional:            true,
+					},
+					"date_end": schema.StringAttribute{
+						MarkdownDescription: "End date of the schedule range (e.g. `2026-12-31`). Required for `CUSTOM` mode.",
 						Optional:            true,
 					},
 				},
@@ -351,8 +364,9 @@ func (r *firewallPolicyResource) Create(
 
 	site := r.client.SiteOrDefault(plan.Site)
 	policy := r.modelToAPI(ctx, &plan)
+	schedReq := scheduleModelToRequest(ctx, &plan)
 
-	created, err := r.client.CreateFirewallPolicy(ctx, site, policy)
+	created, err := r.client.CreateFirewallPolicy(ctx, site, policy, schedReq)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Firewall Policy", err.Error())
 		return
@@ -375,7 +389,7 @@ func (r *firewallPolicyResource) Read(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	policy, err := r.client.GetFirewallPolicy(ctx, site, state.ID.ValueString())
+	full, err := r.client.GetFirewallPolicy(ctx, site, state.ID.ValueString())
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			resp.State.RemoveResource(ctx)
@@ -388,7 +402,7 @@ func (r *firewallPolicyResource) Read(
 		return
 	}
 
-	r.apiToModel(policy, &state, site)
+	r.apiToModel(full, &state, site)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -409,8 +423,9 @@ func (r *firewallPolicyResource) Update(
 	site := r.client.SiteOrDefault(state.Site)
 	policy := r.modelToAPI(ctx, &state)
 	policy.ID = state.ID.ValueString()
+	schedReq := scheduleModelToRequest(ctx, &state)
 
-	updated, err := r.client.UpdateFirewallPolicy(ctx, site, policy)
+	updated, err := r.client.UpdateFirewallPolicy(ctx, site, policy, schedReq)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Firewall Policy", err.Error())
 		return
@@ -510,16 +525,20 @@ func (r *firewallPolicyResource) ModifyPlan(
 // ---------------------------------------------------------------------------
 
 func (r *firewallPolicyResource) applyPlanToState(plan, state *firewallPolicyResourceModel) {
-	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
+	if !plan.Name.IsUnknown() {
 		state.Name = plan.Name
 	}
-	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
+	// For optional-only fields (no Computed/Default), null means the user removed
+	// the field. Propagate null so the API receives a cleared value instead of the
+	// stale state value, which would cause a "provider produced inconsistent result"
+	// error when the API echoes the old value back.
+	if !plan.Description.IsUnknown() {
 		state.Description = plan.Description
 	}
 	if !plan.Enabled.IsNull() && !plan.Enabled.IsUnknown() {
 		state.Enabled = plan.Enabled
 	}
-	if !plan.Action.IsNull() && !plan.Action.IsUnknown() {
+	if !plan.Action.IsUnknown() {
 		state.Action = plan.Action
 	}
 	if !plan.IPVersion.IsNull() && !plan.IPVersion.IsUnknown() {
@@ -531,28 +550,28 @@ func (r *firewallPolicyResource) applyPlanToState(plan, state *firewallPolicyRes
 	if !plan.ConnectionStateType.IsNull() && !plan.ConnectionStateType.IsUnknown() {
 		state.ConnectionStateType = plan.ConnectionStateType
 	}
-	if !plan.ConnectionStates.IsNull() && !plan.ConnectionStates.IsUnknown() {
+	if !plan.ConnectionStates.IsUnknown() {
 		state.ConnectionStates = plan.ConnectionStates
 	}
-	if !plan.MatchIPSec.IsNull() && !plan.MatchIPSec.IsUnknown() {
+	if !plan.MatchIPSec.IsUnknown() {
 		state.MatchIPSec = plan.MatchIPSec
 	}
-	if !plan.Logging.IsNull() && !plan.Logging.IsUnknown() {
+	if !plan.Logging.IsUnknown() {
 		state.Logging = plan.Logging
 	}
-	if !plan.CreateAllowRespond.IsNull() && !plan.CreateAllowRespond.IsUnknown() {
+	if !plan.CreateAllowRespond.IsUnknown() {
 		state.CreateAllowRespond = plan.CreateAllowRespond
 	}
 	if !plan.Index.IsNull() && !plan.Index.IsUnknown() {
 		state.Index = plan.Index
 	}
-	if !plan.Source.IsNull() && !plan.Source.IsUnknown() {
+	if !plan.Source.IsUnknown() {
 		state.Source = plan.Source
 	}
-	if !plan.Destination.IsNull() && !plan.Destination.IsUnknown() {
+	if !plan.Destination.IsUnknown() {
 		state.Destination = plan.Destination
 	}
-	if !plan.Schedule.IsNull() && !plan.Schedule.IsUnknown() {
+	if !plan.Schedule.IsUnknown() {
 		state.Schedule = plan.Schedule
 	}
 }
@@ -682,7 +701,37 @@ func scheduleModelToAPI(ctx context.Context, m *firewallPolicyScheduleModel) *un
 	return sched
 }
 
-func (r *firewallPolicyResource) apiToModel(policy *unifi.FirewallPolicy, m *firewallPolicyResourceModel, site string) {
+// scheduleModelToRequest builds a firewallPolicyScheduleRequest from the top-level
+// resource model. Returns nil when the model has no schedule block configured.
+// This preserves fields (DateRangeStart, DateRangeEnd) not present in the SDK struct.
+func scheduleModelToRequest(ctx context.Context, m *firewallPolicyResourceModel) *firewallPolicyScheduleRequest {
+	if m.Schedule.IsNull() || m.Schedule.IsUnknown() {
+		return nil
+	}
+	var sched firewallPolicyScheduleModel
+	m.Schedule.As(ctx, &sched, basetypes.ObjectAsOptions{})
+
+	req := &firewallPolicyScheduleRequest{
+		Mode:           sched.Mode.ValueString(),
+		Date:           sched.Date.ValueString(),
+		TimeRangeStart: sched.TimeRangeStart.ValueString(),
+		TimeRangeEnd:   sched.TimeRangeEnd.ValueString(),
+		DateStart:      sched.DateStart.ValueString(),
+		DateEnd:        sched.DateEnd.ValueString(),
+	}
+	if sched.TimeAllDay.ValueBool() {
+		req.TimeAllDay = boolPtr(true)
+	}
+	if !sched.RepeatOnDays.IsNull() && !sched.RepeatOnDays.IsUnknown() {
+		var days []string
+		sched.RepeatOnDays.ElementsAs(ctx, &days, false)
+		req.RepeatOnDays = days
+	}
+	return req
+}
+
+func (r *firewallPolicyResource) apiToModel(full *firewallPolicyFull, m *firewallPolicyResourceModel, site string) {
+	policy := full.FirewallPolicy
 	m.ID = types.StringValue(policy.ID)
 	m.Site = types.StringValue(site)
 	m.Name = types.StringValue(policy.Name)
@@ -749,8 +798,8 @@ func (r *firewallPolicyResource) apiToModel(policy *unifi.FirewallPolicy, m *fir
 		m.Destination = types.ObjectNull(endpointAttrTypes)
 	}
 
-	if policy.Schedule != nil && !isDefaultSchedule(policy.Schedule) {
-		m.Schedule = scheduleAPIToModel(policy.Schedule)
+	if full.RawSchedule != nil && !isDefaultSchedule(full.RawSchedule) {
+		m.Schedule = scheduleAPIToModel(full.RawSchedule)
 	} else {
 		m.Schedule = types.ObjectNull(scheduleAttrTypes)
 	}
@@ -840,13 +889,19 @@ func populateTypedEndpointFields(attrs map[string]attr.Value, matchingTarget str
 	}
 }
 
-func scheduleAPIToModel(sched *unifi.FirewallPolicySchedule) types.Object {
+func scheduleAPIToModel(sched *firewallPolicyScheduleRequest) types.Object {
+	timeAllDay := false
+	if sched.TimeAllDay != nil {
+		timeAllDay = *sched.TimeAllDay
+	}
 	attrs := map[string]attr.Value{
 		"mode":             stringValueOrNull(sched.Mode),
 		"date":             stringValueOrNull(sched.Date),
-		"time_all_day":     boolValueOrNull(sched.TimeAllDay),
+		"time_all_day":     boolValueOrNull(timeAllDay),
 		"time_range_start": stringValueOrNull(sched.TimeRangeStart),
 		"time_range_end":   stringValueOrNull(sched.TimeRangeEnd),
+		"date_start": stringValueOrNull(sched.DateStart),
+		"date_end":   stringValueOrNull(sched.DateEnd),
 	}
 
 	if sched.RepeatOnDays != nil {
@@ -872,11 +927,54 @@ func stringValueOrNull(s string) types.String {
 // isDefaultSchedule returns true when the schedule is the API's default
 // (mode=ALWAYS with no other fields set). We treat this as "no schedule
 // configured" so that omitting the schedule block doesn't cause drift.
-func isDefaultSchedule(s *unifi.FirewallPolicySchedule) bool {
+// scheduleCustomRequiresDatesValidator enforces that date_start and date_end are
+// set whenever schedule mode is CUSTOM.
+type scheduleCustomRequiresDatesValidator struct{}
+
+func (v scheduleCustomRequiresDatesValidator) Description(_ context.Context) string {
+	return "When mode is CUSTOM, date_start and date_end are required."
+}
+
+func (v scheduleCustomRequiresDatesValidator) MarkdownDescription(_ context.Context) string {
+	return "When `mode` is `CUSTOM`, `date_start` and `date_end` are required."
+}
+
+func (v scheduleCustomRequiresDatesValidator) ValidateObject(ctx context.Context, req validator.ObjectRequest, resp *validator.ObjectResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	var sched firewallPolicyScheduleModel
+	resp.Diagnostics.Append(req.ConfigValue.As(ctx, &sched, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if sched.Mode.ValueString() != "CUSTOM" {
+		return
+	}
+	if sched.DateStart.IsNull() || sched.DateStart.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			req.Path.AtName("date_start"),
+			"Missing Required Attribute",
+			"date_start is required when schedule mode is CUSTOM.",
+		)
+	}
+	if sched.DateEnd.IsNull() || sched.DateEnd.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			req.Path.AtName("date_end"),
+			"Missing Required Attribute",
+			"date_end is required when schedule mode is CUSTOM.",
+		)
+	}
+}
+
+func isDefaultSchedule(s *firewallPolicyScheduleRequest) bool {
+	timeAllDay := s.TimeAllDay != nil && *s.TimeAllDay
 	return s.Mode == "ALWAYS" &&
 		s.Date == "" &&
-		!s.TimeAllDay &&
+		!timeAllDay &&
 		s.TimeRangeStart == "" &&
 		s.TimeRangeEnd == "" &&
-		len(s.RepeatOnDays) == 0
+		len(s.RepeatOnDays) == 0 &&
+		s.DateStart == "" &&
+		s.DateEnd == ""
 }

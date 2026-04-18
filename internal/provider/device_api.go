@@ -27,17 +27,27 @@ import (
 // By sending only these fields, we avoid the SDK's diff mechanism which
 // produces spurious changes from stat counters and other runtime fields.
 type deviceUpdatePayload struct {
-	Name                       string               `json:"name"`
-	LedOverride                string               `json:"led_override,omitempty"`
-	LedOverrideColor           string               `json:"led_override_color,omitempty"`
-	LedOverrideColorBrightness *int64               `json:"led_override_color_brightness,omitempty"`
-	OutdoorModeOverride        string               `json:"outdoor_mode_override,omitempty"`
-	Locked                     bool                 `json:"locked"`
-	Disabled                   bool                 `json:"disabled"`
-	SnmpContact                string               `json:"snmp_contact,omitempty"`
-	SnmpLocation               string               `json:"snmp_location,omitempty"`
-	Volume                     *int64               `json:"volume,omitempty"`
-	RadioTable                 []unifi.DeviceRadioTable `json:"radio_table,omitempty"`
+	Name                       string                      `json:"name"`
+	LedOverride                string                      `json:"led_override,omitempty"`
+	LedOverrideColor           string                      `json:"led_override_color,omitempty"`
+	LedOverrideColorBrightness *int64                      `json:"led_override_color_brightness,omitempty"`
+	OutdoorModeOverride        string                      `json:"outdoor_mode_override,omitempty"`
+	Locked                     bool                        `json:"locked"`
+	Disabled                   bool                        `json:"disabled"`
+	SnmpContact                string                      `json:"snmp_contact,omitempty"`
+	SnmpLocation               string                      `json:"snmp_location,omitempty"`
+	Volume                     *int64                      `json:"volume,omitempty"`
+	ConfigNetwork              *deviceConfigNetworkPayload `json:"config_network,omitempty"`
+	RadioTable                 []unifi.DeviceRadioTable    `json:"radio_table,omitempty"`
+}
+
+type deviceConfigNetworkPayload struct {
+	Type    string `json:"type"`
+	IP      string `json:"ip,omitempty"`
+	Netmask string `json:"netmask,omitempty"`
+	Gateway string `json:"gateway,omitempty"`
+	DNS1    string `json:"dns1,omitempty"`
+	DNS2    string `json:"dns2,omitempty"`
 }
 
 // applyPlannedToRadioEntry updates only the user-configured fields in an
@@ -114,6 +124,17 @@ func (c *Client) UpdateDevice(ctx context.Context, site string, id string, m *de
 	if !m.Volume.IsNull() && !m.Volume.IsUnknown() {
 		v := m.Volume.ValueInt64()
 		payload.Volume = &v
+	}
+
+	if m.ConfigNetwork != nil {
+		payload.ConfigNetwork = &deviceConfigNetworkPayload{
+			Type:    m.ConfigNetwork.Type.ValueString(),
+			IP:      m.ConfigNetwork.IP.ValueString(),
+			Netmask: m.ConfigNetwork.Netmask.ValueString(),
+			Gateway: m.ConfigNetwork.Gateway.ValueString(),
+			DNS1:    m.ConfigNetwork.DNS1.ValueString(),
+			DNS2:    m.ConfigNetwork.DNS2.ValueString(),
+		}
 	}
 
 	plannedByRadio := map[string]*deviceRadioSettingsModel{}

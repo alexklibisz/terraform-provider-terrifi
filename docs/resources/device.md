@@ -77,6 +77,35 @@ resource "terrifi_device" "gateway" {
 }
 ```
 
+### Static management IP
+
+```terraform
+resource "terrifi_device" "core_switch" {
+  mac  = "11:22:33:44:55:66"
+  name = "Core Switch"
+  config_network = {
+    type    = "static"
+    ip      = "192.168.1.5"
+    netmask = "255.255.255.0"
+    gateway = "192.168.1.1"
+    dns1    = "1.1.1.1"
+    dns2    = "8.8.8.8"
+  }
+}
+```
+
+To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields:
+
+```terraform
+resource "terrifi_device" "core_switch" {
+  mac  = "11:22:33:44:55:66"
+  name = "Core Switch"
+  config_network = {
+    type = "dhcp"
+  }
+}
+```
+
 ### Using with device data source
 
 ```terraform
@@ -114,6 +143,16 @@ resource "terrifi_device" "ap" {
 - `radio_5` (Attributes) — Settings for the 5 GHz radio (UniFi `na` radio) on an access point. See [nested schema for radio blocks](#nested-schema-for-radio-blocks).
 - `radio_6` (Attributes) — Settings for the 6 GHz radio (UniFi `6e` radio) on an access point. See [nested schema for radio blocks](#nested-schema-for-radio-blocks).
 - `site` (String) — The site the device belongs to. Defaults to the provider site. Changing this forces a new resource.
+- `config_network` (Block) — Management network configuration. Omit to leave the device's current configuration untouched. See [below](#config_network).
+
+### config_network
+
+- `type` (String, Required) — Addressing mode: `dhcp` or `static`.
+- `ip` (String) — Static IPv4 address. Required when `type = "static"`; must not be set when `type = "dhcp"`.
+- `netmask` (String) — Subnet mask (e.g. `255.255.255.0`). Required when `type = "static"`.
+- `gateway` (String) — Default gateway IPv4 address. Required when `type = "static"`.
+- `dns1` (String) — Primary DNS server.
+- `dns2` (String) — Secondary DNS server.
 
 ### Nested schema for radio blocks
 
