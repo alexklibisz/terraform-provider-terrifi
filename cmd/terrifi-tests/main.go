@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
+
+// forgetBatchSize bounds the number of MACs sent in a single stamgr forget-sta
+// call. Large controllers can have thousands of leftover records; batching
+// avoids oversized payloads while still amortizing controller round-trips.
+const forgetBatchSize = 200
 
 // testResourcePrefix is the name prefix used by all acceptance tests when
 // creating resources. Anything matching this prefix is assumed to be leftover
@@ -97,22 +101,32 @@ func cleanupClientDevices(ctx context.Context, client *provider.Client, site str
 	}
 
 	fmt.Printf("client_devices: %d candidates\n", len(matches))
+	macs := make([]string, 0, len(matches))
 	for _, c := range matches {
 		blocked := c.Blocked != nil && *c.Blocked
 		fmt.Printf("  %s  mac=%s  blocked=%v  name=%q\n", c.ID, c.MAC, blocked, c.Name)
-		if dryRun {
-			continue
+		if c.MAC != "" {
+			macs = append(macs, c.MAC)
 		}
-		if err := client.DeleteClientDevice(ctx, site, c.ID); err != nil {
-			var notFound *unifi.NotFoundError
-			if errors.As(err, &notFound) {
-				continue
-			}
-			fmt.Printf("    delete failed: %v\n", err)
+	}
+
+	if dryRun || len(macs) == 0 {
+		return 0, 0
+	}
+
+	for start := 0; start < len(macs); start += forgetBatchSize {
+		end := start + forgetBatchSize
+		if end > len(macs) {
+			end = len(macs)
+		}
+		batch := macs[start:end]
+		if err := client.ForgetClientDevicesByMAC(ctx, site, batch); err != nil {
+			fmt.Printf("client_devices: forget-sta batch [%d:%d] failed: %v\n", start, end, err)
 			errs++
 			continue
 		}
-		deleted++
+		deleted += len(batch)
+		fmt.Printf("client_devices: forgot batch [%d:%d] (%d macs)\n", start, end, len(batch))
 	}
 	return deleted, errs
 }

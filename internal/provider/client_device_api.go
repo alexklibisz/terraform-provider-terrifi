@@ -161,11 +161,30 @@ func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac stri
 	return &respBody.Data[0], nil
 }
 
-// DeleteClientDevice deletes a client device via the v1 REST API.
-func (c *Client) DeleteClientDevice(ctx context.Context, site string, id string) error {
-	return c.doV1Request(ctx, http.MethodDelete,
-		fmt.Sprintf("%s%s/api/s/%s/rest/user/%s", c.BaseURL, c.APIPath, site, id),
-		struct{}{}, nil)
+// ForgetClientDevicesByMAC removes one or more known client devices via the
+// stamgr "forget-sta" command. UniFi controllers do not honor DELETE on
+// /rest/user/{id} (they return 404), so we use the documented stamgr endpoint
+// instead. Accepts a batch of MACs to minimize controller round-trips when
+// cleaning up many records at once.
+func (c *Client) ForgetClientDevicesByMAC(ctx context.Context, site string, macs []string) error {
+	if len(macs) == 0 {
+		return nil
+	}
+	payload := map[string]any{
+		"cmd":  "forget-sta",
+		"macs": macs,
+	}
+	var respBody struct {
+		Meta json.RawMessage `json:"meta"`
+		Data []unifi.Client  `json:"data"`
+	}
+	err := c.doV1Request(ctx, http.MethodPost,
+		fmt.Sprintf("%s%s/api/s/%s/cmd/stamgr", c.BaseURL, c.APIPath, site),
+		payload, &respBody)
+	if err != nil {
+		return err
+	}
+	return checkV1Meta(respBody.Meta)
 }
 
 // doV1Request makes an authenticated HTTP request to the UniFi v1 REST API.
