@@ -1940,6 +1940,84 @@ resource "terrifi_firewall_policy" "test" {
 	})
 }
 
+func TestAccFirewallPolicy_customSchedule(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-csc-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-csc-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-custom-sched-%s", randomSuffix())
+
+	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
+	baseConfig := func(extra string) string {
+		return zonesConfig + fmt.Sprintf(`
+resource "terrifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.zone1.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.zone2.id
+  }
+%s}
+`, policyName, extra)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t); requireHardware(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create directly with CUSTOM mode.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "CUSTOM"
+    time_range_start = "09:00"
+    time_range_end   = "12:00"
+    repeat_on_days   = ["mon", "wed", "fri"]
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "3"),
+				),
+			},
+			// Update time range and days.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "CUSTOM"
+    time_range_start = "08:00"
+    time_range_end   = "18:00"
+    repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
+				),
+			},
+			// Import with CUSTOM schedule intact.
+			{
+				ResourceName:      "terrifi_firewall_policy.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// Remove the schedule — verifies removal works after CUSTOM was set.
+			{
+				Config: baseConfig(""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "schedule.mode"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccFirewallPolicy_disabled(t *testing.T) {
 	zone1Name := fmt.Sprintf("tfacc-pol-dis-z1-%s", randomSuffix())
 	zone2Name := fmt.Sprintf("tfacc-pol-dis-z2-%s", randomSuffix())
