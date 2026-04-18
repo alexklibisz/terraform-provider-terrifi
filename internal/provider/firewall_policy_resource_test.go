@@ -1047,6 +1047,37 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.False(t, model.Schedule.IsNull())
 	})
 
+	t.Run("ONE_TIME_ONLY schedule mode round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-oto",
+			Name:   "One Time Only",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID: "zone-src",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID: "zone-dst",
+			},
+			Schedule: &unifi.FirewallPolicySchedule{
+				Mode:           "ONE_TIME_ONLY",
+				Date:           "2030-01-01",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.False(t, model.Schedule.IsNull())
+		var sched firewallPolicyScheduleModel
+		model.Schedule.As(context.Background(), &sched, basetypes.ObjectAsOptions{})
+		assert.Equal(t, "ONE_TIME_ONLY", sched.Mode.ValueString())
+		assert.Equal(t, "2030-01-01", sched.Date.ValueString())
+		assert.Equal(t, "09:00", sched.TimeRangeStart.ValueString())
+		assert.Equal(t, "12:00", sched.TimeRangeEnd.ValueString())
+	})
+
 	t.Run("CUSTOM schedule mode round-trip", func(t *testing.T) {
 		policy := &unifi.FirewallPolicy{
 			ID:     "pol-custom",
@@ -1918,32 +1949,38 @@ resource "terrifi_firewall_policy" "test" {
 					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "schedule.mode"),
 				),
 			},
-			// CUSTOM mode — returned by the API for manually-configured schedules
-			// in the UniFi UI; was rejected by the schema validator before this fix.
+			// ONE_TIME_ONLY mode — verified working scenario from issue report.
+			// CUSTOM mode is returned by the API for some UI-created schedules but
+			// cannot be set via the API (returns 400 "Missing date range"); use
+			// ONE_TIME_ONLY instead when a date-bounded schedule is needed.
 			{
 				Config: baseConfig(`
   schedule {
-    mode             = "CUSTOM"
+    mode             = "ONE_TIME_ONLY"
+    date             = "2030-01-01"
     time_range_start = "09:00"
     time_range_end   = "12:00"
-    repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "ONE_TIME_ONLY"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-01-01"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccFirewallPolicy_customSchedule(t *testing.T) {
-	zone1Name := fmt.Sprintf("tfacc-pol-csc-z1-%s", randomSuffix())
-	zone2Name := fmt.Sprintf("tfacc-pol-csc-z2-%s", randomSuffix())
-	policyName := fmt.Sprintf("tfacc-pol-custom-sched-%s", randomSuffix())
+// TestAccFirewallPolicy_oneTimeOnly covers the ONE_TIME_ONLY schedule mode full
+// lifecycle: create, update, import, and removal. ONE_TIME_ONLY is the correct
+// mode to use for date-bounded schedules; CUSTOM is returned by the API for
+// certain UI-created schedules but cannot be set via the API directly.
+func TestAccFirewallPolicy_oneTimeOnly(t *testing.T) {
+	zone1Name := fmt.Sprintf("tfacc-pol-oto-z1-%s", randomSuffix())
+	zone2Name := fmt.Sprintf("tfacc-pol-oto-z2-%s", randomSuffix())
+	policyName := fmt.Sprintf("tfacc-pol-oto-%s", randomSuffix())
 
 	zonesConfig := testAccFirewallPolicyZonesConfig(zone1Name, zone2Name)
 	baseConfig := func(extra string) string {
@@ -1967,47 +2004,47 @@ resource "terrifi_firewall_policy" "test" {
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// Create directly with CUSTOM mode.
+			// Create with ONE_TIME_ONLY mode, date, and time range.
 			{
 				Config: baseConfig(`
   schedule {
-    mode             = "CUSTOM"
+    mode             = "ONE_TIME_ONLY"
+    date             = "2030-01-01"
     time_range_start = "09:00"
     time_range_end   = "12:00"
-    repeat_on_days   = ["mon", "wed", "fri"]
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "ONE_TIME_ONLY"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-01-01"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "3"),
 				),
 			},
-			// Update time range and days.
+			// Update date and time range.
 			{
 				Config: baseConfig(`
   schedule {
-    mode             = "CUSTOM"
+    mode             = "ONE_TIME_ONLY"
+    date             = "2030-06-15"
     time_range_start = "08:00"
     time_range_end   = "18:00"
-    repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "ONE_TIME_ONLY"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.date", "2030-06-15"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
 				),
 			},
-			// Import with CUSTOM schedule intact.
+			// Import with ONE_TIME_ONLY schedule intact.
 			{
 				ResourceName:      "terrifi_firewall_policy.test",
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// Remove the schedule — verifies removal works after CUSTOM was set.
+			// Remove the schedule.
 			{
 				Config: baseConfig(""),
 				Check: resource.ComposeTestCheckFunc(
