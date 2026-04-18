@@ -2055,10 +2055,6 @@ resource "terrifi_firewall_policy" "test" {
 	})
 }
 
-// TestAccFirewallPolicy_customSchedule tests CUSTOM schedule mode with a date.
-// CUSTOM without a date returns 400 "Missing date range" from the API. This
-// test probes whether providing date is sufficient to create a CUSTOM schedule.
-// If the API still rejects it, additional date-range fields may be needed.
 func TestAccFirewallPolicy_customSchedule(t *testing.T) {
 	zone1Name := fmt.Sprintf("tfacc-pol-csc-z1-%s", randomSuffix())
 	zone2Name := fmt.Sprintf("tfacc-pol-csc-z2-%s", randomSuffix())
@@ -2085,10 +2081,6 @@ resource "terrifi_firewall_policy" "test" {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		// CUSTOM mode requires all 7 days when no date range is provided. With a
-		// subset of days the API returns 400 "Missing date range", indicating that
-		// partial-week CUSTOM schedules also need a start/end date (not yet
-		// supported by the schema).
 		Steps: []resource.TestStep{
 			{
 				Config: baseConfig(`
@@ -2106,20 +2098,21 @@ resource "terrifi_firewall_policy" "test" {
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
 				),
 			},
+			// Subset of days.
 			{
 				Config: baseConfig(`
   schedule {
     mode             = "CUSTOM"
     time_range_start = "08:00"
     time_range_end   = "18:00"
-    repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    repeat_on_days   = ["mon", "wed", "fri"]
   }
 `),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "08:00"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "18:00"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "3"),
 				),
 			},
 			{
