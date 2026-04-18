@@ -24,8 +24,9 @@ import (
 var ledColorRegexp = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}){1,2}$`)
 
 var (
-	_ resource.Resource                = &deviceResource{}
-	_ resource.ResourceWithImportState = &deviceResource{}
+	_ resource.Resource                     = &deviceResource{}
+	_ resource.ResourceWithImportState      = &deviceResource{}
+	_ resource.ResourceWithConfigValidators = &deviceResource{}
 )
 
 func NewDeviceResource() resource.Resource {
@@ -37,25 +38,35 @@ type deviceResource struct {
 }
 
 type deviceResourceModel struct {
-	ID                        types.String `tfsdk:"id"`
-	Site                      types.String `tfsdk:"site"`
-	MAC                       types.String `tfsdk:"mac"`
-	Name                      types.String `tfsdk:"name"`
-	LedEnabled               types.Bool   `tfsdk:"led_enabled"`
-	LedColor          types.String `tfsdk:"led_color"`
-	LedBrightness types.Int64  `tfsdk:"led_brightness"`
-	OutdoorModeOverride       types.String `tfsdk:"outdoor_mode_override"`
-	Locked                    types.Bool   `tfsdk:"locked"`
-	Disabled                  types.Bool   `tfsdk:"disabled"`
-	SnmpContact               types.String `tfsdk:"snmp_contact"`
-	SnmpLocation              types.String `tfsdk:"snmp_location"`
-	Volume                    types.Int64  `tfsdk:"volume"`
+	ID                  types.String              `tfsdk:"id"`
+	Site                types.String              `tfsdk:"site"`
+	MAC                 types.String              `tfsdk:"mac"`
+	Name                types.String              `tfsdk:"name"`
+	LedEnabled          types.Bool                `tfsdk:"led_enabled"`
+	LedColor            types.String              `tfsdk:"led_color"`
+	LedBrightness       types.Int64               `tfsdk:"led_brightness"`
+	OutdoorModeOverride types.String              `tfsdk:"outdoor_mode_override"`
+	Locked              types.Bool                `tfsdk:"locked"`
+	Disabled            types.Bool                `tfsdk:"disabled"`
+	SnmpContact         types.String              `tfsdk:"snmp_contact"`
+	SnmpLocation        types.String              `tfsdk:"snmp_location"`
+	Volume              types.Int64               `tfsdk:"volume"`
+	ConfigNetwork       *deviceConfigNetworkModel `tfsdk:"config_network"`
 	// Computed/read-only.
 	Model   types.String `tfsdk:"model"`
 	Type    types.String `tfsdk:"type"`
 	IP      types.String `tfsdk:"ip"`
 	Adopted types.Bool   `tfsdk:"adopted"`
 	State   types.Int64  `tfsdk:"state"`
+}
+
+type deviceConfigNetworkModel struct {
+	Type    types.String `tfsdk:"type"`
+	IP      types.String `tfsdk:"ip"`
+	Netmask types.String `tfsdk:"netmask"`
+	Gateway types.String `tfsdk:"gateway"`
+	DNS1    types.String `tfsdk:"dns1"`
+	DNS2    types.String `tfsdk:"dns2"`
 }
 
 func (r *deviceResource) Metadata(
@@ -167,7 +178,7 @@ func (r *deviceResource) Schema(
 			"snmp_contact": schema.StringAttribute{
 				MarkdownDescription: "[SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) contact string (max 255 characters). " +
 					"Identifies who is responsible for the device; read by network monitoring tools.",
-				Optional:            true,
+				Optional: true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtMost(255),
 				},
@@ -176,7 +187,7 @@ func (r *deviceResource) Schema(
 			"snmp_location": schema.StringAttribute{
 				MarkdownDescription: "[SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) location string (max 255 characters). " +
 					"Describes where the device is physically located; read by network monitoring tools.",
-				Optional:            true,
+				Optional: true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtMost(255),
 				},
@@ -187,6 +198,43 @@ func (r *deviceResource) Schema(
 				Optional:            true,
 				Validators: []validator.Int64{
 					int64validator.Between(0, 100),
+				},
+			},
+
+			"config_network": schema.SingleNestedAttribute{
+				MarkdownDescription: "Management network configuration for the device. " +
+					"Use `type = \"dhcp\"` to receive an address from DHCP, or `type = \"static\"` " +
+					"with `ip`, `netmask`, and `gateway` set to assign a fixed management address. " +
+					"Omit this block to leave the device's current configuration unchanged.",
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						MarkdownDescription: "Addressing mode: `dhcp` or `static`.",
+						Required:            true,
+						Validators: []validator.String{
+							stringvalidator.OneOf("dhcp", "static"),
+						},
+					},
+					"ip": schema.StringAttribute{
+						MarkdownDescription: "Static IPv4 address. Required when `type = static`.",
+						Optional:            true,
+					},
+					"netmask": schema.StringAttribute{
+						MarkdownDescription: "Subnet mask (e.g. `255.255.255.0`). Required when `type = static`.",
+						Optional:            true,
+					},
+					"gateway": schema.StringAttribute{
+						MarkdownDescription: "Default gateway IPv4 address. Required when `type = static`.",
+						Optional:            true,
+					},
+					"dns1": schema.StringAttribute{
+						MarkdownDescription: "Primary DNS server.",
+						Optional:            true,
+					},
+					"dns2": schema.StringAttribute{
+						MarkdownDescription: "Secondary DNS server.",
+						Optional:            true,
+					},
 				},
 			},
 
@@ -232,6 +280,12 @@ func (r *deviceResource) Schema(
 				},
 			},
 		},
+	}
+}
+
+func (r *deviceResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		deviceConfigNetworkValidator{},
 	}
 }
 
@@ -460,8 +514,28 @@ func (r *deviceResource) preserveNullOptionals(plan, state *deviceResourceModel)
 	if plan.Volume.IsNull() {
 		state.Volume = types.Int64Null()
 	}
+	if plan.ConfigNetwork == nil {
+		state.ConfigNetwork = nil
+	} else if state.ConfigNetwork != nil {
+		// Preserve null sub-fields the user didn't configure so Terraform
+		// doesn't see spurious diffs for values the API fills in by default.
+		if plan.ConfigNetwork.IP.IsNull() {
+			state.ConfigNetwork.IP = types.StringNull()
+		}
+		if plan.ConfigNetwork.Netmask.IsNull() {
+			state.ConfigNetwork.Netmask = types.StringNull()
+		}
+		if plan.ConfigNetwork.Gateway.IsNull() {
+			state.ConfigNetwork.Gateway = types.StringNull()
+		}
+		if plan.ConfigNetwork.DNS1.IsNull() {
+			state.ConfigNetwork.DNS1 = types.StringNull()
+		}
+		if plan.ConfigNetwork.DNS2.IsNull() {
+			state.ConfigNetwork.DNS2 = types.StringNull()
+		}
+	}
 }
-
 
 func (r *deviceResource) apiToModel(d *unifi.Device, m *deviceResourceModel, site string) {
 	m.ID = types.StringValue(d.ID)
@@ -494,10 +568,82 @@ func (r *deviceResource) apiToModel(d *unifi.Device, m *deviceResourceModel, sit
 		m.Volume = types.Int64Null()
 	}
 
+	if d.ConfigNetwork != nil && d.ConfigNetwork.Type != "" {
+		m.ConfigNetwork = &deviceConfigNetworkModel{
+			Type:    types.StringValue(d.ConfigNetwork.Type),
+			IP:      stringValueOrNull(d.ConfigNetwork.IP),
+			Netmask: stringValueOrNull(d.ConfigNetwork.Netmask),
+			Gateway: stringValueOrNull(d.ConfigNetwork.Gateway),
+			DNS1:    stringValueOrNull(d.ConfigNetwork.DNS1),
+			DNS2:    stringValueOrNull(d.ConfigNetwork.DNS2),
+		}
+	} else {
+		m.ConfigNetwork = nil
+	}
+
 	// Read-only fields.
 	m.Model = stringValueOrNull(d.Model)
 	m.Type = stringValueOrNull(d.Type)
 	m.IP = stringValueOrNull(d.IP)
 	m.Adopted = types.BoolValue(d.Adopted)
 	m.State = types.Int64Value(int64(d.State))
+}
+
+// ---------------------------------------------------------------------------
+// Config validators
+// ---------------------------------------------------------------------------
+
+// deviceConfigNetworkValidator ensures that when config_network.type is
+// "static", the required addressing fields (ip, netmask, gateway) are set.
+type deviceConfigNetworkValidator struct{}
+
+func (v deviceConfigNetworkValidator) Description(_ context.Context) string {
+	return "When config_network.type is \"static\", ip, netmask, and gateway must be set."
+}
+
+func (v deviceConfigNetworkValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v deviceConfigNetworkValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var cfg *deviceConfigNetworkModel
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("config_network"), &cfg)...)
+	if resp.Diagnostics.HasError() || cfg == nil {
+		return
+	}
+
+	if cfg.Type.IsNull() || cfg.Type.IsUnknown() {
+		return
+	}
+
+	switch cfg.Type.ValueString() {
+	case "static":
+		for name, v := range map[string]types.String{
+			"ip":      cfg.IP,
+			"netmask": cfg.Netmask,
+			"gateway": cfg.Gateway,
+		} {
+			if v.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("config_network").AtName(name),
+					"Missing required attribute",
+					fmt.Sprintf("config_network.%s is required when config_network.type is \"static\".", name),
+				)
+			}
+		}
+	case "dhcp":
+		for name, v := range map[string]types.String{
+			"ip":      cfg.IP,
+			"netmask": cfg.Netmask,
+			"gateway": cfg.Gateway,
+		} {
+			if !v.IsNull() && !v.IsUnknown() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("config_network").AtName(name),
+					"Attribute not allowed",
+					fmt.Sprintf("config_network.%s must not be set when config_network.type is \"dhcp\".", name),
+				)
+			}
+		}
+	}
 }

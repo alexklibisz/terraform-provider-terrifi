@@ -6,8 +6,10 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
@@ -26,17 +28,17 @@ func TestDeviceUpdatePayload(t *testing.T) {
 			ID:                         "dev-123",
 			MAC:                        "aa:bb:cc:dd:ee:ff",
 			Name:                       "Office AP",
-			LedOverride:               "on",
-			LedOverrideColor:          "#ff0000",
+			LedOverride:                "on",
+			LedOverrideColor:           "#ff0000",
 			LedOverrideColorBrightness: &brightness,
-			OutdoorModeOverride:       "off",
-			Locked:                    true,
-			Disabled:                  false,
-			SnmpContact:              "admin@test.com",
-			SnmpLocation:             "Building A",
-			Volume:                   &volume,
-			Adopted:                  true,
-			State:                    unifi.DeviceStateConnected,
+			OutdoorModeOverride:        "off",
+			Locked:                     true,
+			Disabled:                   false,
+			SnmpContact:                "admin@test.com",
+			SnmpLocation:               "Building A",
+			Volume:                     &volume,
+			Adopted:                    true,
+			State:                      unifi.DeviceStateConnected,
 		}
 
 		var m deviceResourceModel
@@ -81,15 +83,15 @@ func TestDeviceResourceAPIToModel(t *testing.T) {
 			IP:                         "192.168.1.10",
 			Adopted:                    true,
 			State:                      unifi.DeviceStateConnected,
-			LedOverride:               "on",
-			LedOverrideColor:          "#ff0000",
+			LedOverride:                "on",
+			LedOverrideColor:           "#ff0000",
 			LedOverrideColorBrightness: &brightness,
-			OutdoorModeOverride:       "off",
-			Locked:                    true,
-			Disabled:                  false,
-			SnmpContact:              "admin@test.com",
-			SnmpLocation:             "Building A",
-			Volume:                   &volume,
+			OutdoorModeOverride:        "off",
+			Locked:                     true,
+			Disabled:                   false,
+			SnmpContact:                "admin@test.com",
+			SnmpLocation:               "Building A",
+			Volume:                     &volume,
 		}
 
 		var m deviceResourceModel
@@ -162,6 +164,73 @@ func TestDeviceResourceAPIToModel(t *testing.T) {
 	})
 }
 
+func TestDeviceResourceAPIToModelConfigNetwork(t *testing.T) {
+	r := &deviceResource{}
+
+	t.Run("static config network", func(t *testing.T) {
+		dev := &unifi.Device{
+			ID:  "dev-cn-static",
+			MAC: "aa:bb:cc:dd:ee:ff",
+			ConfigNetwork: &unifi.DeviceConfigNetwork{
+				Type:    "static",
+				IP:      "192.168.1.50",
+				Netmask: "255.255.255.0",
+				Gateway: "192.168.1.1",
+				DNS1:    "1.1.1.1",
+				DNS2:    "8.8.8.8",
+			},
+		}
+
+		var m deviceResourceModel
+		r.apiToModel(dev, &m, "default")
+
+		require.NotNil(t, m.ConfigNetwork)
+		assert.Equal(t, "static", m.ConfigNetwork.Type.ValueString())
+		assert.Equal(t, "192.168.1.50", m.ConfigNetwork.IP.ValueString())
+		assert.Equal(t, "255.255.255.0", m.ConfigNetwork.Netmask.ValueString())
+		assert.Equal(t, "192.168.1.1", m.ConfigNetwork.Gateway.ValueString())
+		assert.Equal(t, "1.1.1.1", m.ConfigNetwork.DNS1.ValueString())
+		assert.Equal(t, "8.8.8.8", m.ConfigNetwork.DNS2.ValueString())
+	})
+
+	t.Run("dhcp config network", func(t *testing.T) {
+		dev := &unifi.Device{
+			ID:            "dev-cn-dhcp",
+			MAC:           "aa:bb:cc:dd:ee:ff",
+			ConfigNetwork: &unifi.DeviceConfigNetwork{Type: "dhcp"},
+		}
+
+		var m deviceResourceModel
+		r.apiToModel(dev, &m, "default")
+
+		require.NotNil(t, m.ConfigNetwork)
+		assert.Equal(t, "dhcp", m.ConfigNetwork.Type.ValueString())
+		assert.True(t, m.ConfigNetwork.IP.IsNull())
+		assert.True(t, m.ConfigNetwork.Netmask.IsNull())
+		assert.True(t, m.ConfigNetwork.Gateway.IsNull())
+	})
+
+	t.Run("nil config network", func(t *testing.T) {
+		dev := &unifi.Device{ID: "dev-cn-nil", MAC: "aa:bb:cc:dd:ee:ff"}
+
+		var m deviceResourceModel
+		r.apiToModel(dev, &m, "default")
+
+		assert.Nil(t, m.ConfigNetwork)
+	})
+
+	t.Run("preserveNullOptionals nils state when plan is nil", func(t *testing.T) {
+		plan := deviceResourceModel{}
+		state := deviceResourceModel{
+			ConfigNetwork: &deviceConfigNetworkModel{
+				Type: types.StringValue("dhcp"),
+			},
+		}
+		r.preserveNullOptionals(&plan, &state)
+		assert.Nil(t, state.ConfigNetwork)
+	})
+}
+
 func TestDeviceResourceAPIToModelRoundTrip(t *testing.T) {
 	r := &deviceResource{}
 
@@ -171,20 +240,20 @@ func TestDeviceResourceAPIToModelRoundTrip(t *testing.T) {
 		ID:                         "dev-rt",
 		MAC:                        "aa:bb:cc:dd:ee:ff",
 		Name:                       "Round Trip",
-		LedOverride:               "on",
-		LedOverrideColor:          "#00ff00",
+		LedOverride:                "on",
+		LedOverrideColor:           "#00ff00",
 		LedOverrideColorBrightness: &brightness,
-		OutdoorModeOverride:       "on",
-		Locked:                    true,
-		Disabled:                  false,
-		SnmpContact:              "ops@example.com",
-		SnmpLocation:             "DC1",
-		Volume:                   &volume,
-		Model:                    "USW-24",
-		Type:                     "usw",
-		IP:                       "10.0.0.1",
-		Adopted:                  true,
-		State:                    unifi.DeviceStateConnected,
+		OutdoorModeOverride:        "on",
+		Locked:                     true,
+		Disabled:                   false,
+		SnmpContact:                "ops@example.com",
+		SnmpLocation:               "DC1",
+		Volume:                     &volume,
+		Model:                      "USW-24",
+		Type:                       "usw",
+		IP:                         "10.0.0.1",
+		Adopted:                    true,
+		State:                      unifi.DeviceStateConnected,
 	}
 
 	// API → model → verify model correctly represents the API data.
@@ -766,6 +835,133 @@ resource "terrifi_device" "test" {
 	})
 }
 
+// TestAccDeviceResource_configNetworkDHCP sets the management network to DHCP
+// and verifies the round trip. DHCP is always safe to apply since it won't
+// disrupt controller connectivity.
+func TestAccDeviceResource_configNetworkDHCP(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-cn-dhcp"
+  config_network = {
+    type = "dhcp"
+  }
+}
+`, dev.MAC),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_device.test", "config_network.type", "dhcp"),
+				),
+			},
+			// Idempotent re-apply.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-cn-dhcp"
+  config_network = {
+    type = "dhcp"
+  }
+}
+`, dev.MAC),
+			},
+			// Remove config_network — device keeps whatever the controller set.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-cn-dhcp"
+}
+`, dev.MAC),
+				Check: resource.TestCheckNoResourceAttr("terrifi_device.test", "config_network"),
+			},
+		},
+	})
+}
+
+// TestAccDeviceResource_configNetworkStatic assigns a static management IP and
+// reverts to DHCP. Skipped unless TERRIFI_ACC_DEVICE_STATIC_IP, _NETMASK, and
+// _GATEWAY are all set — applying a wrong static IP would sever the controller's
+// connection to the device.
+func TestAccDeviceResource_configNetworkStatic(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+	staticIP := os.Getenv("TERRIFI_ACC_DEVICE_STATIC_IP")
+	netmask := os.Getenv("TERRIFI_ACC_DEVICE_STATIC_NETMASK")
+	gateway := os.Getenv("TERRIFI_ACC_DEVICE_STATIC_GATEWAY")
+	if staticIP == "" || netmask == "" || gateway == "" {
+		t.Skip("TERRIFI_ACC_DEVICE_STATIC_IP/NETMASK/GATEWAY not set — skipping static IP test")
+	}
+	preCheck(t)
+	requireAdoptedDevice(t)
+
+	dev := findFirstAdoptedDevice(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-cn-static"
+  config_network = {
+    type    = "static"
+    ip      = %q
+    netmask = %q
+    gateway = %q
+  }
+}
+`, dev.MAC, staticIP, netmask, gateway),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_device.test", "config_network.type", "static"),
+					resource.TestCheckResourceAttr("terrifi_device.test", "config_network.ip", staticIP),
+					resource.TestCheckResourceAttr("terrifi_device.test", "config_network.netmask", netmask),
+					resource.TestCheckResourceAttr("terrifi_device.test", "config_network.gateway", gateway),
+				),
+			},
+			// Idempotent.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-cn-static"
+  config_network = {
+    type    = "static"
+    ip      = %q
+    netmask = %q
+    gateway = %q
+  }
+}
+`, dev.MAC, staticIP, netmask, gateway),
+			},
+			// Revert to DHCP.
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_device" "test" {
+  mac  = %q
+  name = "tfacc-device-cn-static"
+  config_network = {
+    type = "dhcp"
+  }
+}
+`, dev.MAC),
+				Check: resource.TestCheckResourceAttr("terrifi_device.test", "config_network.type", "dhcp"),
+			},
+		},
+	})
+}
+
 // TestAccDeviceResource_computedFieldsStable verifies computed read-only fields
 // don't cause spurious diffs across multiple applies.
 func TestAccDeviceResource_computedFieldsStable(t *testing.T) {
@@ -824,7 +1020,6 @@ resource "terrifi_device" "test" {
 	})
 }
 
-
 func TestAccDeviceResource_validationInvalidLedColor(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t) },
@@ -838,6 +1033,67 @@ resource "terrifi_device" "test" {
 }
 `,
 				ExpectError: regexp.MustCompile(`must be a hex color`),
+			},
+		},
+	})
+}
+
+func TestAccDeviceResource_validationStaticRequiresAddressing(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+resource "terrifi_device" "test" {
+  mac = "aa:bb:cc:dd:ee:ff"
+  config_network = {
+    type = "static"
+  }
+}
+`,
+				ExpectError: regexp.MustCompile(`required when config_network\.type is "static"`),
+			},
+		},
+	})
+}
+
+func TestAccDeviceResource_validationDHCPRejectsAddressing(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+resource "terrifi_device" "test" {
+  mac = "aa:bb:cc:dd:ee:ff"
+  config_network = {
+    type = "dhcp"
+    ip   = "192.168.1.50"
+  }
+}
+`,
+				ExpectError: regexp.MustCompile(`must not be set when config_network\.type is "dhcp"`),
+			},
+		},
+	})
+}
+
+func TestAccDeviceResource_validationInvalidConfigNetworkType(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+resource "terrifi_device" "test" {
+  mac = "aa:bb:cc:dd:ee:ff"
+  config_network = {
+    type = "auto"
+  }
+}
+`,
+				ExpectError: regexp.MustCompile(`must be one of`),
 			},
 		},
 	})

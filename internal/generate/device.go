@@ -1,6 +1,9 @@
 package generate
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
@@ -57,9 +60,41 @@ func DeviceBlocks(devices []unifi.Device) []ResourceBlock {
 		if d.Volume != nil {
 			block.Attributes = append(block.Attributes, Attr{Key: "volume", Value: HCLInt64(*d.Volume)})
 		}
+		if v := formatDeviceConfigNetwork(d.ConfigNetwork); v != "" {
+			block.Attributes = append(block.Attributes, Attr{Key: "config_network", Value: v})
+		}
 
 		blocks = append(blocks, block)
 	}
 	DeduplicateNames(blocks)
 	return blocks
+}
+
+// formatDeviceConfigNetwork renders the device's config_network as a nested
+// HCL object literal (for use as an Attribute value). Returns an empty string
+// when the device has no explicit configuration, so the attribute is omitted.
+func formatDeviceConfigNetwork(cn *unifi.DeviceConfigNetwork) string {
+	if cn == nil || cn.Type == "" {
+		return ""
+	}
+	var lines []string
+	lines = append(lines, fmt.Sprintf("    type    = %s", HCLString(cn.Type)))
+	if cn.Type == "static" {
+		if cn.IP != "" {
+			lines = append(lines, fmt.Sprintf("    ip      = %s", HCLString(cn.IP)))
+		}
+		if cn.Netmask != "" {
+			lines = append(lines, fmt.Sprintf("    netmask = %s", HCLString(cn.Netmask)))
+		}
+		if cn.Gateway != "" {
+			lines = append(lines, fmt.Sprintf("    gateway = %s", HCLString(cn.Gateway)))
+		}
+		if cn.DNS1 != "" {
+			lines = append(lines, fmt.Sprintf("    dns1    = %s", HCLString(cn.DNS1)))
+		}
+		if cn.DNS2 != "" {
+			lines = append(lines, fmt.Sprintf("    dns2    = %s", HCLString(cn.DNS2)))
+		}
+	}
+	return "{\n" + strings.Join(lines, "\n") + "\n  }"
 }

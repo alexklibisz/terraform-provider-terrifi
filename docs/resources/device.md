@@ -54,6 +54,35 @@ resource "terrifi_device" "gateway" {
 }
 ```
 
+### Static management IP
+
+```terraform
+resource "terrifi_device" "core_switch" {
+  mac  = "11:22:33:44:55:66"
+  name = "Core Switch"
+  config_network = {
+    type    = "static"
+    ip      = "192.168.1.5"
+    netmask = "255.255.255.0"
+    gateway = "192.168.1.1"
+    dns1    = "1.1.1.1"
+    dns2    = "8.8.8.8"
+  }
+}
+```
+
+To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields:
+
+```terraform
+resource "terrifi_device" "core_switch" {
+  mac  = "11:22:33:44:55:66"
+  name = "Core Switch"
+  config_network = {
+    type = "dhcp"
+  }
+}
+```
+
 ### Using with device data source
 
 ```terraform
@@ -88,6 +117,16 @@ resource "terrifi_device" "ap" {
 - `snmp_location` (String) — [SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) location string (max 255 characters). Describes where the device is physically located; read by network monitoring tools.
 - `volume` (Number) — Speaker volume (0–100). Only applicable to devices with speakers.
 - `site` (String) — The site the device belongs to. Defaults to the provider site. Changing this forces a new resource.
+- `config_network` (Block) — Management network configuration. Omit to leave the device's current configuration untouched. See [below](#config_network).
+
+### config_network
+
+- `type` (String, Required) — Addressing mode: `dhcp` or `static`.
+- `ip` (String) — Static IPv4 address. Required when `type = "static"`; must not be set when `type = "dhcp"`.
+- `netmask` (String) — Subnet mask (e.g. `255.255.255.0`). Required when `type = "static"`.
+- `gateway` (String) — Default gateway IPv4 address. Required when `type = "static"`.
+- `dns1` (String) — Primary DNS server.
+- `dns2` (String) — Secondary DNS server.
 
 ### Read-Only
 
