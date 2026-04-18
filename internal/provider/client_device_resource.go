@@ -399,22 +399,18 @@ func (r *clientDeviceResource) Delete(
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			// Controller auto-cleaned the user record (common for non-connected
 			// MACs), but network references may persist. Look up by MAC and
-			// clear bindings on the current record.
-			found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac)
-			if lookupErr == nil {
+			// clear bindings on the current record before forgetting.
+			if found, lookupErr := r.client.GetClientDeviceByMAC(ctx, site, mac); lookupErr == nil {
 				clearObj.ID = found.ID
 				_, _ = r.client.UpdateClientDevice(ctx, site, clearObj)
-				_ = r.client.DeleteClientDevice(ctx, site, found.ID)
 			}
-			return
 		}
 		// Non-404 errors clearing bindings are not fatal — proceed to delete.
 		// The delete itself may still succeed, and dependent resource deletes
 		// (e.g., client groups) have retry logic for stale references.
 	}
 
-	err = r.client.DeleteClientDevice(ctx, site, state.ID.ValueString())
-	if err != nil {
+	if err := r.client.ForgetClientDevicesByMAC(ctx, site, []string{mac}); err != nil {
 		// Treat "not found" as success — the resource is already gone.
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			return
