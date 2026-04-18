@@ -38,6 +38,7 @@ type deviceUpdatePayload struct {
 	SnmpLocation               string                      `json:"snmp_location,omitempty"`
 	Volume                     *int64                      `json:"volume,omitempty"`
 	ConfigNetwork              *deviceConfigNetworkPayload `json:"config_network,omitempty"`
+	RadioTable                 []unifi.DeviceRadioTable    `json:"radio_table,omitempty"`
 }
 
 type deviceConfigNetworkPayload struct {
@@ -47,6 +48,31 @@ type deviceConfigNetworkPayload struct {
 	Gateway string `json:"gateway,omitempty"`
 	DNS1    string `json:"dns1,omitempty"`
 	DNS2    string `json:"dns2,omitempty"`
+}
+
+// applyPlannedToRadioEntry updates only the user-configured fields in an
+// existing DeviceRadioTable entry, preserving all other controller-managed fields.
+func applyPlannedToRadioEntry(rt *unifi.DeviceRadioTable, planned deviceRadioSettingsModel) {
+	if !planned.Channel.IsNull() && !planned.Channel.IsUnknown() {
+		rt.Channel = planned.Channel.ValueString()
+	}
+	if !planned.Ht.IsNull() && !planned.Ht.IsUnknown() {
+		v := planned.Ht.ValueInt64()
+		rt.Ht = &v
+	}
+	if !planned.TxPower.IsNull() && !planned.TxPower.IsUnknown() {
+		rt.TxPower = planned.TxPower.ValueString()
+	}
+	if !planned.TxPowerMode.IsNull() && !planned.TxPowerMode.IsUnknown() {
+		rt.TxPowerMode = planned.TxPowerMode.ValueString()
+	}
+	if !planned.MinRssiEnabled.IsNull() && !planned.MinRssiEnabled.IsUnknown() {
+		rt.MinRssiEnabled = planned.MinRssiEnabled.ValueBool()
+	}
+	if !planned.MinRssi.IsNull() && !planned.MinRssi.IsUnknown() {
+		v := planned.MinRssi.ValueInt64()
+		rt.MinRssi = &v
+	}
 }
 
 // UpdateDevice sends a PUT to the UniFi REST API with only the managed fields.
@@ -109,6 +135,35 @@ func (c *Client) UpdateDevice(ctx context.Context, site string, id string, m *de
 			DNS1:    m.ConfigNetwork.DNS1.ValueString(),
 			DNS2:    m.ConfigNetwork.DNS2.ValueString(),
 		}
+	}
+
+	plannedByRadio := map[string]*deviceRadioSettingsModel{}
+	if m.Radio24 != nil {
+		plannedByRadio["ng"] = m.Radio24
+	}
+	if m.Radio5 != nil {
+		plannedByRadio["na"] = m.Radio5
+	}
+	if m.Radio6 != nil {
+		plannedByRadio["6e"] = m.Radio6
+	}
+
+	if len(plannedByRadio) > 0 {
+		// Read-modify-write: fetch current device to preserve non-managed radio
+		// fields and entries for radios not mentioned in the plan.
+		existing, err := c.ApiClient.GetDevice(ctx, site, id)
+		if err != nil {
+			return fmt.Errorf("reading device for radio settings merge: %w", err)
+		}
+
+		radioTable := make([]unifi.DeviceRadioTable, len(existing.RadioTable))
+		copy(radioTable, existing.RadioTable)
+		for i := range radioTable {
+			if planned, ok := plannedByRadio[radioTable[i].Radio]; ok {
+				applyPlannedToRadioEntry(&radioTable[i], *planned)
+			}
+		}
+		payload.RadioTable = radioTable
 	}
 
 	// Use the v1 REST API endpoint for device updates.

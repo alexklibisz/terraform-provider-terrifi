@@ -41,6 +41,29 @@ resource "terrifi_device" "core_switch" {
 }
 ```
 
+### Radio settings (access points)
+
+```terraform
+resource "terrifi_device" "office_ap" {
+  mac  = "aa:bb:cc:dd:ee:ff"
+  name = "Office AP"
+
+  radio_24 = {
+    channel       = "auto"
+    ht            = 40
+    tx_power_mode = "auto"
+  }
+
+  radio_5 = {
+    channel       = "auto"
+    ht            = 80
+    tx_power_mode = "auto"
+  }
+}
+```
+
+Each radio block is independent — omit a block to leave that radio's settings unchanged. Omit all blocks to leave the controller's current radio configuration untouched.
+
 ### Multiple settings
 
 ```terraform
@@ -116,6 +139,9 @@ resource "terrifi_device" "ap" {
 - `snmp_contact` (String) — [SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) contact string (max 255 characters). Identifies who is responsible for the device; read by network monitoring tools like Nagios, PRTG, or LibreNMS.
 - `snmp_location` (String) — [SNMP](https://en.wikipedia.org/wiki/Simple_Network_Management_Protocol) location string (max 255 characters). Describes where the device is physically located; read by network monitoring tools.
 - `volume` (Number) — Speaker volume (0–100). Only applicable to devices with speakers.
+- `radio_24` (Attributes) — Settings for the 2.4 GHz radio (UniFi `ng` radio) on an access point. See [nested schema for radio blocks](#nested-schema-for-radio-blocks).
+- `radio_5` (Attributes) — Settings for the 5 GHz radio (UniFi `na` radio) on an access point. See [nested schema for radio blocks](#nested-schema-for-radio-blocks).
+- `radio_6` (Attributes) — Settings for the 6 GHz radio (UniFi `6e` radio) on an access point. See [nested schema for radio blocks](#nested-schema-for-radio-blocks).
 - `site` (String) — The site the device belongs to. Defaults to the provider site. Changing this forces a new resource.
 - `config_network` (Block) — Management network configuration. Omit to leave the device's current configuration untouched. See [below](#config_network).
 
@@ -127,6 +153,17 @@ resource "terrifi_device" "ap" {
 - `gateway` (String) — Default gateway IPv4 address. Required when `type = "static"`.
 - `dns1` (String) — Primary DNS server.
 - `dns2` (String) — Secondary DNS server.
+
+### Nested schema for radio blocks
+
+All fields are optional. Omitting the block entirely leaves the radio's current settings unchanged. Within a configured block, omitted fields are also left unchanged on the controller.
+
+- `channel` (String) — Channel number or `auto`. Valid channels depend on the radio band and country code.
+- `ht` (Number) — Channel width in MHz. Accepted values: `20`, `40`, `80`, `160`, `240`, `320`.
+- `tx_power_mode` (String) — Transmit power mode: `auto`, `high`, `medium`, `low`, `custom`, or `disabled`.
+- `tx_power` (String) — Transmit power in dBm. Only used when `tx_power_mode` is `custom`.
+- `min_rssi_enabled` (Boolean) — Whether the minimum RSSI client association threshold is enabled.
+- `min_rssi` (Number) — Minimum RSSI threshold for client association (dBm, -90 to -67).
 
 ### Read-Only
 

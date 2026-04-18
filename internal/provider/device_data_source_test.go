@@ -192,6 +192,31 @@ func findFirstAdoptedDevice(t *testing.T) *unifi.Device {
 	return nil
 }
 
+// findFirstAdoptedAP returns the first adopted access point (type="uap"), or
+// nil if none exist. Radio settings are only meaningful on APs.
+func findFirstAdoptedAP(t *testing.T) *unifi.Device {
+	t.Helper()
+	client := testAccGetClient(t)
+	devices, err := client.ApiClient.ListDevice(t.Context(), "default")
+	if err != nil {
+		t.Fatalf("failed to list devices: %s", err)
+	}
+	for i := range devices {
+		if devices[i].Adopted && devices[i].Type == "uap" {
+			return &devices[i]
+		}
+	}
+	return nil
+}
+
+// requireAdoptedAP skips the test if no adopted AP exists on the controller.
+func requireAdoptedAP(t *testing.T) {
+	t.Helper()
+	if findFirstAdoptedAP(t) == nil {
+		t.Skip("no adopted access points found on controller — skipping radio test")
+	}
+}
+
 func testAccDeviceDataSourceByMACConfig(t *testing.T) string {
 	t.Helper()
 	dev := findFirstAdoptedDevice(t)
