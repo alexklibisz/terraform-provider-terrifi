@@ -127,6 +127,34 @@ resource "terrifi_firewall_policy" "weekday_block" {
 }
 ```
 
+### Custom schedule (date range with selected days)
+
+Use `CUSTOM` mode to restrict a policy to specific days within a date range. Both `date_start` and `date_end` are required.
+
+```terraform
+resource "terrifi_firewall_policy" "holiday_block" {
+  name   = "Block during holiday hours"
+  action = "BLOCK"
+
+  source {
+    zone_id = terrifi_firewall_zone.guest.id
+  }
+
+  destination {
+    zone_id = terrifi_firewall_zone.internal.id
+  }
+
+  schedule {
+    mode             = "CUSTOM"
+    date_start       = "2030-12-20"
+    date_end         = "2031-01-05"
+    time_range_start = "09:00"
+    time_range_end   = "17:00"
+    repeat_on_days   = ["mon", "wed", "fri"]
+  }
+}
+```
+
 ## Schema
 
 ### Required
@@ -172,8 +200,10 @@ At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set
 
 ### Schedule
 
-- `mode` (String, Required) — Schedule mode. Valid values: `ALWAYS`, `EVERY_DAY`, `EVERY_WEEK`, `ONE_TIME_ONLY`.
-- `date` (String) — Date for one-time schedules.
+- `mode` (String, Required) — Schedule mode. Valid values: `ALWAYS`, `EVERY_DAY`, `EVERY_WEEK`, `ONE_TIME_ONLY`, `CUSTOM`.
+- `date` (String) — Date for one-time schedules (e.g. `2030-01-01`). Used with `ONE_TIME_ONLY` mode.
+- `date_start` (String) — Start date of the schedule range (e.g. `2030-01-01`). Required when `mode` is `CUSTOM`.
+- `date_end` (String) — End date of the schedule range (e.g. `2030-12-31`). Required when `mode` is `CUSTOM`.
 - `time_all_day` (Boolean) — Whether the schedule applies all day.
 - `time_range_start` (String) — Start time (e.g. `08:00`).
 - `time_range_end` (String) — End time (e.g. `17:00`).

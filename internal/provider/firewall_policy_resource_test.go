@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -1444,6 +1445,68 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 		assert.True(t, state.Logging.IsNull(), "logging should be cleared")
 		assert.True(t, state.MatchIPSec.IsNull(), "match_ipsec should be cleared")
 		assert.True(t, state.CreateAllowRespond.IsNull(), "create_allow_respond should be cleared")
+	})
+}
+
+func TestScheduleCustomRequiresDatesValidator(t *testing.T) {
+	v := scheduleCustomRequiresDatesValidator{}
+	ctx := context.Background()
+
+	makeScheduleObj := func(mode, dateStart, dateEnd string) types.Object {
+		attrs := map[string]attr.Value{
+			"mode":             types.StringValue(mode),
+			"date":             types.StringNull(),
+			"time_all_day":     types.BoolNull(),
+			"time_range_start": types.StringValue("09:00"),
+			"time_range_end":   types.StringValue("17:00"),
+			"repeat_on_days":   types.SetNull(types.StringType),
+			"date_start":       types.StringNull(),
+			"date_end":         types.StringNull(),
+		}
+		if dateStart != "" {
+			attrs["date_start"] = types.StringValue(dateStart)
+		}
+		if dateEnd != "" {
+			attrs["date_end"] = types.StringValue(dateEnd)
+		}
+		return types.ObjectValueMust(scheduleAttrTypes, attrs)
+	}
+
+	t.Run("CUSTOM with both dates passes", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("CUSTOM", "2030-01-01", "2030-12-31")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.False(t, resp.Diagnostics.HasError())
+	})
+
+	t.Run("CUSTOM missing date_start fails", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("CUSTOM", "", "2030-12-31")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.True(t, resp.Diagnostics.HasError())
+		assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Required Attribute")
+	})
+
+	t.Run("CUSTOM missing date_end fails", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("CUSTOM", "2030-01-01", "")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.True(t, resp.Diagnostics.HasError())
+		assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Required Attribute")
+	})
+
+	t.Run("EVERY_WEEK without dates passes", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: makeScheduleObj("EVERY_WEEK", "", "")}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.False(t, resp.Diagnostics.HasError())
+	})
+
+	t.Run("null schedule object is skipped", func(t *testing.T) {
+		req := validator.ObjectRequest{ConfigValue: types.ObjectNull(scheduleAttrTypes)}
+		var resp validator.ObjectResponse
+		v.ValidateObject(ctx, req, &resp)
+		assert.False(t, resp.Diagnostics.HasError())
 	})
 }
 

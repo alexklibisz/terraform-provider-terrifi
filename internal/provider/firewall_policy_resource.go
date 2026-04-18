@@ -286,6 +286,7 @@ func (r *firewallPolicyResource) Schema(
 
 			"schedule": schema.SingleNestedBlock{
 				MarkdownDescription: "Schedule configuration for when this policy is active.",
+				Validators:          []validator.Object{scheduleCustomRequiresDatesValidator{}},
 				Attributes: map[string]schema.Attribute{
 					"mode": schema.StringAttribute{
 						MarkdownDescription: "Schedule mode. Valid values: `ALWAYS`, `EVERY_DAY`, `EVERY_WEEK`, `ONE_TIME_ONLY`, `CUSTOM`.",
@@ -926,6 +927,46 @@ func stringValueOrNull(s string) types.String {
 // isDefaultSchedule returns true when the schedule is the API's default
 // (mode=ALWAYS with no other fields set). We treat this as "no schedule
 // configured" so that omitting the schedule block doesn't cause drift.
+// scheduleCustomRequiresDatesValidator enforces that date_start and date_end are
+// set whenever schedule mode is CUSTOM.
+type scheduleCustomRequiresDatesValidator struct{}
+
+func (v scheduleCustomRequiresDatesValidator) Description(_ context.Context) string {
+	return "When mode is CUSTOM, date_start and date_end are required."
+}
+
+func (v scheduleCustomRequiresDatesValidator) MarkdownDescription(_ context.Context) string {
+	return "When `mode` is `CUSTOM`, `date_start` and `date_end` are required."
+}
+
+func (v scheduleCustomRequiresDatesValidator) ValidateObject(ctx context.Context, req validator.ObjectRequest, resp *validator.ObjectResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	var sched firewallPolicyScheduleModel
+	resp.Diagnostics.Append(req.ConfigValue.As(ctx, &sched, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if sched.Mode.ValueString() != "CUSTOM" {
+		return
+	}
+	if sched.DateStart.IsNull() || sched.DateStart.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			req.Path.AtName("date_start"),
+			"Missing Required Attribute",
+			"date_start is required when schedule mode is CUSTOM.",
+		)
+	}
+	if sched.DateEnd.IsNull() || sched.DateEnd.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			req.Path.AtName("date_end"),
+			"Missing Required Attribute",
+			"date_end is required when schedule mode is CUSTOM.",
+		)
+	}
+}
+
 func isDefaultSchedule(s *firewallPolicyScheduleRequest) bool {
 	timeAllDay := s.TimeAllDay != nil && *s.TimeAllDay
 	return s.Mode == "ALWAYS" &&
