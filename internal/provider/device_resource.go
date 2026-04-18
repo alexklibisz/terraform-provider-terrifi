@@ -22,12 +22,12 @@ import (
 )
 
 type deviceRadioSettingsModel struct {
-	Channel        types.String `tfsdk:"channel"`
-	Ht             types.Int64  `tfsdk:"ht"`
-	TxPower        types.String `tfsdk:"tx_power"`
-	TxPowerMode    types.String `tfsdk:"tx_power_mode"`
-	MinRssiEnabled types.Bool   `tfsdk:"min_rssi_enabled"`
-	MinRssi        types.Int64  `tfsdk:"min_rssi"`
+	Channel           types.String `tfsdk:"channel"`
+	ChannelWidth      types.Int64  `tfsdk:"channel_width"`
+	TransmitPower     types.String `tfsdk:"transmit_power"`
+	TransmitPowerMode types.String `tfsdk:"transmit_power_mode"`
+	MinRssiEnabled    types.Bool   `tfsdk:"min_rssi_enabled"`
+	MinRssi           types.Int64  `tfsdk:"min_rssi"`
 }
 
 // radioSettingsSchema returns the nested-attribute schema used for each radio
@@ -41,22 +41,22 @@ func radioSettingsSchema(band string) schema.SingleNestedAttribute {
 				MarkdownDescription: "Channel number or `auto`. Valid channels depend on the radio band and country.",
 				Optional:            true,
 			},
-			"ht": schema.Int64Attribute{
+			"channel_width": schema.Int64Attribute{
 				MarkdownDescription: "Channel width in MHz. Typical values: `20`, `40`, `80`, `160`.",
 				Optional:            true,
 				Validators: []validator.Int64{
 					int64validator.OneOf(20, 40, 80, 160, 240, 320),
 				},
 			},
-			"tx_power_mode": schema.StringAttribute{
+			"transmit_power_mode": schema.StringAttribute{
 				MarkdownDescription: "Transmit power mode: `auto`, `high`, `medium`, `low`, `custom`, or `disabled`.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOf("auto", "high", "medium", "low", "custom", "disabled"),
 				},
 			},
-			"tx_power": schema.StringAttribute{
-				MarkdownDescription: "Transmit power in dBm. Only used when `tx_power_mode` is `custom`.",
+			"transmit_power": schema.StringAttribute{
+				MarkdownDescription: "Transmit power in dBm. Only used when `transmit_power_mode` is `custom`.",
 				Optional:            true,
 			},
 			"min_rssi_enabled": schema.BoolAttribute{
@@ -615,14 +615,14 @@ func preserveNullRadio(plan *deviceRadioSettingsModel, state **deviceRadioSettin
 	if plan.Channel.IsNull() {
 		s.Channel = types.StringNull()
 	}
-	if plan.Ht.IsNull() {
-		s.Ht = types.Int64Null()
+	if plan.ChannelWidth.IsNull() {
+		s.ChannelWidth = types.Int64Null()
 	}
-	if plan.TxPower.IsNull() {
-		s.TxPower = types.StringNull()
+	if plan.TransmitPower.IsNull() {
+		s.TransmitPower = types.StringNull()
 	}
-	if plan.TxPowerMode.IsNull() {
-		s.TxPowerMode = types.StringNull()
+	if plan.TransmitPowerMode.IsNull() {
+		s.TransmitPowerMode = types.StringNull()
 	}
 	if plan.MinRssiEnabled.IsNull() {
 		s.MinRssiEnabled = types.BoolNull()
@@ -635,15 +635,15 @@ func preserveNullRadio(plan *deviceRadioSettingsModel, state **deviceRadioSettin
 // radioEntryToModel converts an API DeviceRadioTable entry into our nested model.
 func radioEntryToModel(rt unifi.DeviceRadioTable) deviceRadioSettingsModel {
 	settings := deviceRadioSettingsModel{
-		Channel:        stringValueOrNull(rt.Channel),
-		TxPower:        stringValueOrNull(rt.TxPower),
-		TxPowerMode:    stringValueOrNull(rt.TxPowerMode),
-		MinRssiEnabled: types.BoolValue(rt.MinRssiEnabled),
+		Channel:           stringValueOrNull(rt.Channel),
+		TransmitPower:     stringValueOrNull(rt.TxPower),
+		TransmitPowerMode: stringValueOrNull(rt.TxPowerMode),
+		MinRssiEnabled:    types.BoolValue(rt.MinRssiEnabled),
 	}
 	if rt.Ht != nil {
-		settings.Ht = types.Int64Value(*rt.Ht)
+		settings.ChannelWidth = types.Int64Value(*rt.Ht)
 	} else {
-		settings.Ht = types.Int64Null()
+		settings.ChannelWidth = types.Int64Null()
 	}
 	if rt.MinRssi != nil {
 		settings.MinRssi = types.Int64Value(*rt.MinRssi)
