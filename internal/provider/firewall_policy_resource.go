@@ -284,10 +284,10 @@ func (r *firewallPolicyResource) Schema(
 				MarkdownDescription: "Schedule configuration for when this policy is active.",
 				Attributes: map[string]schema.Attribute{
 					"mode": schema.StringAttribute{
-						MarkdownDescription: "Schedule mode. Valid values: `ALWAYS`, `EVERY_DAY`, `EVERY_WEEK`, `ONE_TIME_ONLY`.",
+						MarkdownDescription: "Schedule mode. Valid values: `ALWAYS`, `EVERY_DAY`, `EVERY_WEEK`, `ONE_TIME_ONLY`, `CUSTOM`.",
 						Optional:            true,
 						Validators: []validator.String{
-							stringvalidator.OneOf("ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY"),
+							stringvalidator.OneOf("ALWAYS", "EVERY_DAY", "EVERY_WEEK", "ONE_TIME_ONLY", "CUSTOM"),
 						},
 					},
 					"date": schema.StringAttribute{

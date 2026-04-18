@@ -213,6 +213,75 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 		assert.ElementsMatch(t, []string{"mon", "tue", "wed"}, policy.Schedule.RepeatOnDays)
 	})
 
+	t.Run("with CUSTOM schedule mode", func(t *testing.T) {
+		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-src"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		dstObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
+			"zone_id":              types.StringValue("zone-dst"),
+			"ips":                  types.SetNull(types.StringType),
+			"mac_addresses":        types.SetNull(types.StringType),
+			"network_ids":          types.SetNull(types.StringType),
+			"device_ids":           types.SetNull(types.StringType),
+			"port_matching_type":   types.StringValue("ANY"),
+			"port":                 types.Int64Null(),
+			"port_group_id":        types.StringNull(),
+			"match_opposite_ports": types.BoolNull(),
+			"match_opposite_ips":   types.BoolNull(),
+		})
+		schedObj := types.ObjectValueMust(scheduleAttrTypes, map[string]attr.Value{
+			"mode":             types.StringValue("CUSTOM"),
+			"date":             types.StringNull(),
+			"time_all_day":     types.BoolNull(),
+			"time_range_start": types.StringValue("09:00"),
+			"time_range_end":   types.StringValue("12:00"),
+			"repeat_on_days": types.SetValueMust(types.StringType, []attr.Value{
+				types.StringValue("mon"),
+				types.StringValue("tue"),
+				types.StringValue("wed"),
+				types.StringValue("thu"),
+				types.StringValue("fri"),
+				types.StringValue("sat"),
+				types.StringValue("sun"),
+			}),
+		})
+
+		model := &firewallPolicyResourceModel{
+			Name:                types.StringValue("Custom Schedule Block"),
+			Action:              types.StringValue("BLOCK"),
+			Enabled:             types.BoolValue(true),
+			IPVersion:           types.StringValue("BOTH"),
+			Protocol:            types.StringValue("all"),
+			ConnectionStateType: types.StringValue("ALL"),
+			ConnectionStates:    types.SetNull(types.StringType),
+			Description:         types.StringNull(),
+			MatchIPSec:          types.BoolNull(),
+			Logging:             types.BoolNull(),
+			CreateAllowRespond:  types.BoolNull(),
+			Index:               types.Int64Null(),
+			Source:              srcObj,
+			Destination:         dstObj,
+			Schedule:            schedObj,
+		}
+
+		policy := r.modelToAPI(ctx, model)
+
+		assert.NotNil(t, policy.Schedule)
+		assert.Equal(t, "CUSTOM", policy.Schedule.Mode)
+		assert.Equal(t, "09:00", policy.Schedule.TimeRangeStart)
+		assert.Equal(t, "12:00", policy.Schedule.TimeRangeEnd)
+		assert.ElementsMatch(t, []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}, policy.Schedule.RepeatOnDays)
+	})
+
 	t.Run("disabled rule", func(t *testing.T) {
 		srcObj := types.ObjectValueMust(endpointAttrTypes, map[string]attr.Value{
 			"zone_id":              types.StringValue("zone-src"),
@@ -976,6 +1045,37 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		r.apiToModel(policy, &model, "default")
 
 		assert.False(t, model.Schedule.IsNull())
+	})
+
+	t.Run("CUSTOM schedule mode round-trip", func(t *testing.T) {
+		policy := &unifi.FirewallPolicy{
+			ID:     "pol-custom",
+			Name:   "Custom Schedule",
+			Action: "BLOCK",
+			Source: &unifi.FirewallPolicySource{
+				ZoneID: "zone-src",
+			},
+			Destination: &unifi.FirewallPolicyDestination{
+				ZoneID: "zone-dst",
+			},
+			Schedule: &unifi.FirewallPolicySchedule{
+				Mode:           "CUSTOM",
+				TimeRangeStart: "09:00",
+				TimeRangeEnd:   "12:00",
+				RepeatOnDays:   []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
+			},
+		}
+
+		var model firewallPolicyResourceModel
+		r.apiToModel(policy, &model, "default")
+
+		assert.False(t, model.Schedule.IsNull())
+		var sched firewallPolicyScheduleModel
+		model.Schedule.As(context.Background(), &sched, basetypes.ObjectAsOptions{})
+		assert.Equal(t, "CUSTOM", sched.Mode.ValueString())
+		assert.Equal(t, "09:00", sched.TimeRangeStart.ValueString())
+		assert.Equal(t, "12:00", sched.TimeRangeEnd.ValueString())
+		assert.Equal(t, 7, len(sched.RepeatOnDays.Elements()))
 	})
 
 	t.Run("MAC matching target populates mac_addresses", func(t *testing.T) {
@@ -1816,6 +1916,24 @@ resource "terrifi_firewall_policy" "test" {
 				Config: baseConfig(""),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "schedule.mode"),
+				),
+			},
+			// CUSTOM mode — returned by the API for manually-configured schedules
+			// in the UniFi UI; was rejected by the schema validator before this fix.
+			{
+				Config: baseConfig(`
+  schedule {
+    mode             = "CUSTOM"
+    time_range_start = "09:00"
+    time_range_end   = "12:00"
+    repeat_on_days   = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+  }
+`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.mode", "CUSTOM"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_start", "09:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.time_range_end", "12:00"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "schedule.repeat_on_days.#", "7"),
 				),
 			},
 		},
