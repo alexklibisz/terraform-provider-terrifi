@@ -1348,7 +1348,7 @@ resource "terrifi_device" "test" {
   radio_5 = { min_rssi = -50 }
 }
 `,
-				ExpectError: regexp.MustCompile(`Attribute must be between`),
+				ExpectError: regexp.MustCompile(`value must be between`),
 			},
 		},
 	})
