@@ -86,8 +86,8 @@ type firewallPolicyScheduleRequest struct {
 	TimeRangeStart string   `json:"time_range_start,omitempty"`
 	TimeRangeEnd   string   `json:"time_range_end,omitempty"`
 	RepeatOnDays   []string `json:"repeat_on_days,omitempty"`
-	DateRangeStart string   `json:"date_range_start,omitempty"`
-	DateRangeEnd   string   `json:"date_range_end,omitempty"`
+	DateStart string `json:"date_start,omitempty"`
+	DateEnd   string `json:"date_end,omitempty"`
 }
 
 // firewallPolicyFull wraps *unifi.FirewallPolicy with the raw schedule from the

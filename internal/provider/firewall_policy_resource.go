@@ -74,8 +74,8 @@ type firewallPolicyScheduleModel struct {
 	TimeRangeStart types.String `tfsdk:"time_range_start"`
 	TimeRangeEnd   types.String `tfsdk:"time_range_end"`
 	RepeatOnDays   types.Set    `tfsdk:"repeat_on_days"`
-	DateRangeStart types.String `tfsdk:"date_range_start"`
-	DateRangeEnd   types.String `tfsdk:"date_range_end"`
+	DateStart      types.String `tfsdk:"date_start"`
+	DateEnd        types.String `tfsdk:"date_end"`
 }
 
 // endpointAttrTypes defines the attribute types for source/destination nested objects.
@@ -100,8 +100,8 @@ var scheduleAttrTypes = map[string]attr.Type{
 	"time_range_start": types.StringType,
 	"time_range_end":   types.StringType,
 	"repeat_on_days":   types.SetType{ElemType: types.StringType},
-	"date_range_start": types.StringType,
-	"date_range_end":   types.StringType,
+	"date_start":       types.StringType,
+	"date_end":         types.StringType,
 }
 
 func (r *firewallPolicyResource) Metadata(
@@ -315,11 +315,11 @@ func (r *firewallPolicyResource) Schema(
 						ElementType:         types.StringType,
 						Optional:            true,
 					},
-					"date_range_start": schema.StringAttribute{
+					"date_start": schema.StringAttribute{
 						MarkdownDescription: "Start date of the schedule range (e.g. `2026-01-01`). Required for `CUSTOM` mode.",
 						Optional:            true,
 					},
-					"date_range_end": schema.StringAttribute{
+					"date_end": schema.StringAttribute{
 						MarkdownDescription: "End date of the schedule range (e.g. `2026-12-31`). Required for `CUSTOM` mode.",
 						Optional:            true,
 					},
@@ -715,8 +715,8 @@ func scheduleModelToRequest(ctx context.Context, m *firewallPolicyResourceModel)
 		Date:           sched.Date.ValueString(),
 		TimeRangeStart: sched.TimeRangeStart.ValueString(),
 		TimeRangeEnd:   sched.TimeRangeEnd.ValueString(),
-		DateRangeStart: sched.DateRangeStart.ValueString(),
-		DateRangeEnd:   sched.DateRangeEnd.ValueString(),
+		DateStart:      sched.DateStart.ValueString(),
+		DateEnd:        sched.DateEnd.ValueString(),
 	}
 	if sched.TimeAllDay.ValueBool() {
 		req.TimeAllDay = boolPtr(true)
@@ -899,8 +899,8 @@ func scheduleAPIToModel(sched *firewallPolicyScheduleRequest) types.Object {
 		"time_all_day":     boolValueOrNull(timeAllDay),
 		"time_range_start": stringValueOrNull(sched.TimeRangeStart),
 		"time_range_end":   stringValueOrNull(sched.TimeRangeEnd),
-		"date_range_start": stringValueOrNull(sched.DateRangeStart),
-		"date_range_end":   stringValueOrNull(sched.DateRangeEnd),
+		"date_start": stringValueOrNull(sched.DateStart),
+		"date_end":   stringValueOrNull(sched.DateEnd),
 	}
 
 	if sched.RepeatOnDays != nil {
@@ -934,6 +934,6 @@ func isDefaultSchedule(s *firewallPolicyScheduleRequest) bool {
 		s.TimeRangeStart == "" &&
 		s.TimeRangeEnd == "" &&
 		len(s.RepeatOnDays) == 0 &&
-		s.DateRangeStart == "" &&
-		s.DateRangeEnd == ""
+		s.DateStart == "" &&
+		s.DateEnd == ""
 }

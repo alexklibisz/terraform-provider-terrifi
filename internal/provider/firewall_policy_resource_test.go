@@ -184,8 +184,8 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 				types.StringValue("tue"),
 				types.StringValue("wed"),
 			}),
-			"date_range_start": types.StringNull(),
-			"date_range_end":   types.StringNull(),
+			"date_start": types.StringNull(),
+			"date_end":   types.StringNull(),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -255,8 +255,8 @@ func TestFirewallPolicyModelToAPI(t *testing.T) {
 				types.StringValue("sat"),
 				types.StringValue("sun"),
 			}),
-			"date_range_start": types.StringValue("2030-01-01"),
-			"date_range_end":   types.StringValue("2030-12-31"),
+			"date_start": types.StringValue("2030-01-01"),
+			"date_end":   types.StringValue("2030-12-31"),
 		})
 
 		model := &firewallPolicyResourceModel{
@@ -1125,8 +1125,8 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 				TimeRangeStart: "09:00",
 				TimeRangeEnd:   "12:00",
 				RepeatOnDays:   []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
-				DateRangeStart: "2030-01-01",
-				DateRangeEnd:   "2030-12-31",
+				DateStart: "2030-01-01",
+				DateEnd:   "2030-12-31",
 			},
 		}, &model, "default")
 
@@ -1137,8 +1137,8 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		assert.Equal(t, "09:00", sched.TimeRangeStart.ValueString())
 		assert.Equal(t, "12:00", sched.TimeRangeEnd.ValueString())
 		assert.Equal(t, 7, len(sched.RepeatOnDays.Elements()))
-		assert.Equal(t, "2030-01-01", sched.DateRangeStart.ValueString())
-		assert.Equal(t, "2030-12-31", sched.DateRangeEnd.ValueString())
+		assert.Equal(t, "2030-01-01", sched.DateStart.ValueString())
+		assert.Equal(t, "2030-12-31", sched.DateEnd.ValueString())
 	})
 
 	t.Run("MAC matching target populates mac_addresses", func(t *testing.T) {
@@ -1398,8 +1398,8 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 			"time_range_start": types.StringValue("09:00"),
 			"time_range_end":   types.StringValue("12:00"),
 			"repeat_on_days":   types.SetNull(types.StringType),
-			"date_range_start": types.StringNull(),
-			"date_range_end":   types.StringNull(),
+			"date_start": types.StringNull(),
+			"date_end":   types.StringNull(),
 		})
 		state := &firewallPolicyResourceModel{
 			Name:     types.StringValue("Scheduled Policy"),
