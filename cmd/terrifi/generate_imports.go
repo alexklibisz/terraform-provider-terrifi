@@ -20,6 +20,7 @@ var validResourceTypes = []string{
 	"terrifi_firewall_policy",
 	"terrifi_firewall_policy_order",
 	"terrifi_network",
+	"terrifi_port_group",
 	"terrifi_wlan",
 }
 
@@ -123,6 +124,13 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("listing networks: %w", err)
 		}
 		blocks = generate.NetworkBlocks(networks)
+
+	case "terrifi_port_group":
+		groups, err := client.ListFirewallGroup(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing firewall groups: %w", err)
+		}
+		blocks = generate.PortGroupBlocks(groups)
 
 	case "terrifi_wlan":
 		wlans, err := client.ListWLAN(ctx, site)

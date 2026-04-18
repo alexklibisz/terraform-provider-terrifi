@@ -240,6 +240,7 @@ func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewFirewallPolicyOrderResource,
 		NewFirewallZoneResource,
 		NewNetworkResource,
+		NewPortGroupResource,
 		NewWLANResource,
 	}
 }
@@ -249,6 +250,7 @@ func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resourc
 func (p *terrifiProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewDeviceDataSource,
+		NewPortGroupDataSource,
 	}
 }
 
