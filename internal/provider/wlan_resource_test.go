@@ -125,6 +125,83 @@ func TestWLANModelToAPI(t *testing.T) {
 		assert.True(t, wlan.WPA3Support)
 		assert.True(t, wlan.WPA3Transition)
 	})
+
+	t.Run("application standard (default)", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:      types.StringValue("Std"),
+			NetworkID: types.StringValue("n"),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.False(t, wlan.IsGuest)
+		assert.False(t, wlan.EnhancedIot)
+	})
+
+	t.Run("application hotspot sets is_guest", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:        types.StringValue("HS"),
+			NetworkID:   types.StringValue("n"),
+			Application: types.StringValue("hotspot"),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.True(t, wlan.IsGuest)
+		assert.False(t, wlan.EnhancedIot)
+	})
+
+	t.Run("application iot sets enhanced_iot", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:        types.StringValue("IoT"),
+			NetworkID:   types.StringValue("n"),
+			Application: types.StringValue("iot"),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.False(t, wlan.IsGuest)
+		assert.True(t, wlan.EnhancedIot)
+	})
+
+	t.Run("application standard explicitly clears both flags", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:        types.StringValue("Std"),
+			NetworkID:   types.StringValue("n"),
+			Application: types.StringValue("standard"),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.False(t, wlan.IsGuest)
+		assert.False(t, wlan.EnhancedIot)
+	})
+
+	t.Run("optimize_iot_connectivity true", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:                    types.StringValue("IoT"),
+			NetworkID:               types.StringValue("n"),
+			Application:             types.StringValue("iot"),
+			OptimizeIoTConnectivity: types.BoolValue(true),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.True(t, wlan.OptimizeIotWifiConnectivity)
+	})
+
+	t.Run("optimize_iot_connectivity false", func(t *testing.T) {
+		model := &wlanResourceModel{
+			Name:                    types.StringValue("IoT"),
+			NetworkID:               types.StringValue("n"),
+			Application:             types.StringValue("iot"),
+			OptimizeIoTConnectivity: types.BoolValue(false),
+		}
+
+		wlan := r.modelToAPI(model)
+
+		assert.False(t, wlan.OptimizeIotWifiConnectivity)
+	})
 }
 
 func TestWLANAPIToModel(t *testing.T) {
@@ -232,6 +309,48 @@ func TestWLANAPIToModel(t *testing.T) {
 		assert.Equal(t, "wpa2", model.WPAMode.ValueString())
 	})
 
+	t.Run("optimize_iot_connectivity round-trips", func(t *testing.T) {
+		for _, v := range []bool{true, false} {
+			wlan := &unifi.WLAN{
+				ID:                          "id",
+				Name:                        "n",
+				NetworkID:                   "net",
+				OptimizeIotWifiConnectivity: v,
+			}
+			var model wlanResourceModel
+			r.apiToModel(wlan, &model, "default")
+			assert.Equal(t, v, model.OptimizeIoTConnectivity.ValueBool())
+		}
+	})
+
+	t.Run("application derived from flags", func(t *testing.T) {
+		cases := []struct {
+			name        string
+			isGuest     bool
+			enhancedIot bool
+			want        string
+		}{
+			{"neither -> standard", false, false, "standard"},
+			{"is_guest -> hotspot", true, false, "hotspot"},
+			{"enhanced_iot -> iot", false, true, "iot"},
+			{"is_guest takes precedence over enhanced_iot", true, true, "hotspot"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				wlan := &unifi.WLAN{
+					ID:          "id",
+					Name:        "n",
+					NetworkID:   "net",
+					IsGuest:     tc.isGuest,
+					EnhancedIot: tc.enhancedIot,
+				}
+				var model wlanResourceModel
+				r.apiToModel(wlan, &model, "default")
+				assert.Equal(t, tc.want, model.Application.ValueString())
+			})
+		}
+	})
+
 	t.Run("passphrase from API is ignored", func(t *testing.T) {
 		wlan := &unifi.WLAN{
 			ID:          "wlan-pass",
@@ -290,6 +409,32 @@ func TestWLANApplyPlanToState(t *testing.T) {
 		assert.True(t, state.Passphrase.IsNull())
 		assert.Equal(t, "net123", state.NetworkID.ValueString())
 		assert.Equal(t, "both", state.WifiBand.ValueString())
+	})
+
+	t.Run("application update propagates to state", func(t *testing.T) {
+		state := &wlanResourceModel{
+			Application: types.StringValue("standard"),
+		}
+		plan := &wlanResourceModel{
+			Application: types.StringValue("iot"),
+		}
+
+		r.applyPlanToState(plan, state)
+
+		assert.Equal(t, "iot", state.Application.ValueString())
+	})
+
+	t.Run("optimize_iot_connectivity update propagates", func(t *testing.T) {
+		state := &wlanResourceModel{
+			OptimizeIoTConnectivity: types.BoolValue(false),
+		}
+		plan := &wlanResourceModel{
+			OptimizeIoTConnectivity: types.BoolValue(true),
+		}
+
+		r.applyPlanToState(plan, state)
+
+		assert.True(t, state.OptimizeIoTConnectivity.ValueBool())
 	})
 }
 
@@ -943,6 +1088,216 @@ resource "terrifi_wlan" "test" {
 }
 `, wlanName),
 				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "wpa_mode", "wpa2"),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_applicationDefault(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name       = %q
+  passphrase = "testpassword123"
+  network_id = terrifi_network.wlan_test.id
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "standard"),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_applicationHotspot(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name        = %q
+  passphrase  = "testpassword123"
+  network_id  = terrifi_network.wlan_test.id
+  application = "hotspot"
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "hotspot"),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_applicationIot(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name        = %q
+  passphrase  = "testpassword123"
+  network_id  = terrifi_network.wlan_test.id
+  application = "iot"
+}
+`, wlanName),
+				Check: resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "iot"),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_applicationTransitions(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	// wifi_band is pinned to 2g because the controller coerces iot WLANs to 2g
+	// on updates, which would cause an inconsistent-plan error if we let the
+	// default ("both") ride through each step.
+	config := func(app string) string {
+		return wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name        = %q
+  passphrase  = "testpassword123"
+  network_id  = terrifi_network.wlan_test.id
+  wifi_band   = "2g"
+  application = %q
+}
+`, wlanName, app)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config("standard"),
+				Check:  resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "standard"),
+			},
+			{
+				Config: config("hotspot"),
+				Check:  resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "hotspot"),
+			},
+			{
+				Config: config("iot"),
+				Check:  resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "iot"),
+			},
+			{
+				Config: config("hotspot"),
+				Check:  resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "hotspot"),
+			},
+			{
+				Config: config("standard"),
+				Check:  resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "standard"),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_optimizeIoTConnectivity(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	// wifi_band is pinned to 2g because the controller coerces iot WLANs with
+	// optimize_iot_connectivity to 2g, which would cause an inconsistent-plan
+	// error if we left wifi_band defaulted to "both".
+	config := func(optimize bool) string {
+		return wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name                      = %q
+  passphrase                = "testpassword123"
+  network_id                = terrifi_network.wlan_test.id
+  wifi_band                 = "2g"
+  application               = "iot"
+  optimize_iot_connectivity = %t
+}
+`, wlanName, optimize)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config(true),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "iot"),
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "optimize_iot_connectivity", "true"),
+				),
+			},
+			{
+				Config: config(false),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "optimize_iot_connectivity", "false"),
+				),
+			},
+			{
+				Config: config(true),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_wlan.test", "optimize_iot_connectivity", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWLAN_applicationIdempotent(t *testing.T) {
+	requireHardware(t)
+	suffix := randomSuffix()
+	vlan := randomVLAN()
+	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
+	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
+
+	config := wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
+resource "terrifi_wlan" "test" {
+  name        = %q
+  passphrase  = "testpassword123"
+  network_id  = terrifi_network.wlan_test.id
+  application = "iot"
+}
+`, wlanName)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check:  resource.TestCheckResourceAttr("terrifi_wlan.test", "application", "iot"),
+			},
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
 			},
 		},
 	})

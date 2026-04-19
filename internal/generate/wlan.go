@@ -47,6 +47,15 @@ func WLANBlocks(wlans []unifi.WLAN) []ResourceBlock {
 		if w.WPA3Transition {
 			block.Attributes = append(block.Attributes, Attr{Key: "wpa3_transition", Value: HCLBool(true)})
 		}
+		switch {
+		case w.IsGuest:
+			block.Attributes = append(block.Attributes, Attr{Key: "application", Value: HCLString("hotspot")})
+		case w.EnhancedIot:
+			block.Attributes = append(block.Attributes, Attr{Key: "application", Value: HCLString("iot")})
+		}
+		if w.OptimizeIotWifiConnectivity {
+			block.Attributes = append(block.Attributes, Attr{Key: "optimize_iot_connectivity", Value: HCLBool(true)})
+		}
 
 		blocks = append(blocks, block)
 	}
