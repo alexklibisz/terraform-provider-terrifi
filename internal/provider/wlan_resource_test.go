@@ -1177,12 +1177,16 @@ func TestAccWLAN_applicationTransitions(t *testing.T) {
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
+	// wifi_band is pinned to 2g because the controller coerces iot WLANs to 2g
+	// on updates, which would cause an inconsistent-plan error if we let the
+	// default ("both") ride through each step.
 	config := func(app string) string {
 		return wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name        = %q
   passphrase  = "testpassword123"
   network_id  = terrifi_network.wlan_test.id
+  wifi_band   = "2g"
   application = %q
 }
 `, wlanName, app)
@@ -1223,12 +1227,16 @@ func TestAccWLAN_optimizeIoTConnectivity(t *testing.T) {
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
 	wlanName := fmt.Sprintf("tfacc-wlan-%s", suffix)
 
+	// wifi_band is pinned to 2g because the controller coerces iot WLANs with
+	// optimize_iot_connectivity to 2g, which would cause an inconsistent-plan
+	// error if we left wifi_band defaulted to "both".
 	config := func(optimize bool) string {
 		return wlanTestNetwork(netName, vlan) + fmt.Sprintf(`
 resource "terrifi_wlan" "test" {
   name                      = %q
   passphrase                = "testpassword123"
   network_id                = terrifi_network.wlan_test.id
+  wifi_band                 = "2g"
   application               = "iot"
   optimize_iot_connectivity = %t
 }
