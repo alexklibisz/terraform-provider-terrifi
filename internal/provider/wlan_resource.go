@@ -42,8 +42,10 @@ type wlanResourceModel struct {
 	Security       types.String `tfsdk:"security"`
 	HideSSID       types.Bool   `tfsdk:"hide_ssid"`
 	WPAMode        types.String `tfsdk:"wpa_mode"`
-	WPA3Support    types.Bool   `tfsdk:"wpa3_support"`
-	WPA3Transition types.Bool   `tfsdk:"wpa3_transition"`
+	WPA3Support             types.Bool   `tfsdk:"wpa3_support"`
+	WPA3Transition          types.Bool   `tfsdk:"wpa3_transition"`
+	Application             types.String `tfsdk:"application"`
+	OptimizeIoTConnectivity types.Bool   `tfsdk:"optimize_iot_connectivity"`
 }
 
 func (r *wlanResource) Metadata(
@@ -159,6 +161,26 @@ func (r *wlanResource) Schema(
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
+			},
+
+			"application": schema.StringAttribute{
+				MarkdownDescription: "The application type for this WLAN. Must be `standard`, `hotspot`, or `iot`. " +
+					"`hotspot` enables guest behavior (captive portal); `iot` enables IoT-optimized behavior. " +
+					"Default: `standard`.",
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("standard"),
+				Validators: []validator.String{
+					stringvalidator.OneOf("standard", "hotspot", "iot"),
+				},
+			},
+
+			"optimize_iot_connectivity": schema.BoolAttribute{
+				MarkdownDescription: "Enable IoT-specific radio optimizations that improve connection reliability " +
+					"for IoT devices. Only meaningful when `application = \"iot\"`. Default: `false`.",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
 			},
 		},
 	}
@@ -416,6 +438,12 @@ func (r *wlanResource) applyPlanToState(plan, state *wlanResourceModel) {
 	if !plan.WPA3Transition.IsNull() && !plan.WPA3Transition.IsUnknown() {
 		state.WPA3Transition = plan.WPA3Transition
 	}
+	if !plan.Application.IsNull() && !plan.Application.IsUnknown() {
+		state.Application = plan.Application
+	}
+	if !plan.OptimizeIoTConnectivity.IsNull() && !plan.OptimizeIoTConnectivity.IsUnknown() {
+		state.OptimizeIoTConnectivity = plan.OptimizeIoTConnectivity
+	}
 }
 
 func (r *wlanResource) modelToAPI(m *wlanResourceModel) *unifi.WLAN {
@@ -457,6 +485,20 @@ func (r *wlanResource) modelToAPI(m *wlanResourceModel) *unifi.WLAN {
 		wlan.WPA3Transition = m.WPA3Transition.ValueBool()
 	}
 
+	// Application is mutually exclusive: standard (default), hotspot (is_guest),
+	// or iot (enhanced_iot). Always set both flags so switching between values
+	// clears the previous one on the controller.
+	app := "standard"
+	if !m.Application.IsNull() && !m.Application.IsUnknown() {
+		app = m.Application.ValueString()
+	}
+	wlan.IsGuest = app == "hotspot"
+	wlan.EnhancedIot = app == "iot"
+
+	if !m.OptimizeIoTConnectivity.IsNull() {
+		wlan.OptimizeIotWifiConnectivity = m.OptimizeIoTConnectivity.ValueBool()
+	}
+
 	return wlan
 }
 
@@ -494,4 +536,15 @@ func (r *wlanResource) apiToModel(wlan *unifi.WLAN, m *wlanResourceModel, site s
 
 	m.WPA3Support = types.BoolValue(wlan.WPA3Support)
 	m.WPA3Transition = types.BoolValue(wlan.WPA3Transition)
+
+	switch {
+	case wlan.IsGuest:
+		m.Application = types.StringValue("hotspot")
+	case wlan.EnhancedIot:
+		m.Application = types.StringValue("iot")
+	default:
+		m.Application = types.StringValue("standard")
+	}
+
+	m.OptimizeIoTConnectivity = types.BoolValue(wlan.OptimizeIotWifiConnectivity)
 }
