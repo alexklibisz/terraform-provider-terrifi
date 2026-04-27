@@ -76,7 +76,7 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 		blocks = generate.ClientGroupBlocks(groups)
 
 	case "terrifi_device":
-		devices, err := client.ApiClient.ListDevice(ctx, site)
+		devices, err := client.ListDevice(ctx, site)
 		if err != nil {
 			return fmt.Errorf("listing devices: %w", err)
 		}

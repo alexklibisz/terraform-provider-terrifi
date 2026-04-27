@@ -389,7 +389,7 @@ func (r *deviceResource) Create(
 	mac := strings.ToLower(plan.MAC.ValueString())
 
 	// Look up the existing device by MAC — it must already be adopted.
-	existing, err := r.client.ApiClient.GetDeviceByMAC(ctx, site, mac)
+	existing, err := r.client.GetDeviceByMAC(ctx, site, mac)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Device Not Found",
@@ -408,7 +408,7 @@ func (r *deviceResource) Create(
 	}
 
 	// Re-read to get full state including runtime fields (state, ip, etc.).
-	device, err := r.client.ApiClient.GetDevice(ctx, site, existing.ID)
+	device, err := r.client.GetDevice(ctx, site, existing.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Device After Create", err.Error())
 		return
@@ -435,7 +435,7 @@ func (r *deviceResource) Read(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	device, err := r.client.ApiClient.GetDevice(ctx, site, state.ID.ValueString())
+	device, err := r.client.GetDevice(ctx, site, state.ID.ValueString())
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			resp.State.RemoveResource(ctx)
@@ -475,7 +475,7 @@ func (r *deviceResource) Update(
 	}
 
 	// Re-read to get full state including runtime fields.
-	device, err := r.client.ApiClient.GetDevice(ctx, site, state.ID.ValueString())
+	device, err := r.client.GetDevice(ctx, site, state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error Reading Device After Update", err.Error())
 		return
@@ -529,7 +529,7 @@ func (r *deviceResource) ImportState(
 		resolvedSite = r.client.SiteOrDefault(types.StringNull())
 	}
 
-	device, err := r.client.ApiClient.GetDeviceByMAC(ctx, resolvedSite, mac)
+	device, err := r.client.GetDeviceByMAC(ctx, resolvedSite, mac)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Device Not Found",

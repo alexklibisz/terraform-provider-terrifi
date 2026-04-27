@@ -1,24 +1,39 @@
 package provider
 
-// TODO(go-unifi): This file is a workaround for the SDK's UpdateDevice method.
-// The SDK's UpdateDevice (1) re-fetches the device by MAC internally, (2) diffs
-// against the target using JSON marshal/unmarshal, and (3) sends only changed
-// fields. When the re-fetched device differs from the target in unexpected ways
-// (e.g., stat counters that changed between reads, or structural differences
-// between list vs. single-device endpoints), the diff includes noise that
-// confuses the controller, causing it to return empty results (our "not found:
-// type=" error).
+// TODO(go-unifi): This file contains two workarounds for go-unifi SDK bugs
+// affecting device CRUD.
 //
-// This workaround sends a minimal PUT payload containing only the fields we
-// actually manage, avoiding the fragile diff mechanism entirely.
-//
+// 1. UpdateDevice diff mechanism. The SDK's UpdateDevice (1) re-fetches the
+// device by MAC internally, (2) diffs against the target using JSON
+// marshal/unmarshal, and (3) sends only changed fields. When the re-fetched
+// device differs from the target in unexpected ways (e.g., stat counters that
+// changed between reads, or structural differences between list vs.
+// single-device endpoints), the diff includes noise that confuses the
+// controller, causing it to return empty results (our "not found: type="
+// error). This workaround sends a minimal PUT payload containing only the
+// fields we actually manage, avoiding the fragile diff mechanism entirely.
 // Fix needed in SDK: UpdateDevice's diff approach should be more robust, or
 // provide a way to do a simple field-level PUT without the diff.
+//
+// 2. DeviceRadioTable.TxPower unmarshal. The SDK declares TxPower as a Go
+// string with json tag `tx_power`, but the controller emits a JSON number for
+// some devices (e.g. an integer dBm value), so the SDK's UnmarshalJSON for
+// DeviceRadioTable fails with: "unable to unmarshal alias: json: cannot
+// unmarshal number into Go struct field .Alias.tx_power of type string". This
+// blocks every Read on affected sites. We bypass GetDevice/GetDeviceByMAC/
+// ListDevice in the SDK and call the v1 stat/device endpoints ourselves,
+// pre-processing the raw JSON to wrap numeric tx_power values in quotes
+// before unmarshaling into unifi.Device.
+// Fix needed in SDK: TxPower should accept either a string or a number on
+// the wire (e.g. via a custom UnmarshalJSON that uses json.Number).
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
@@ -151,7 +166,7 @@ func (c *Client) UpdateDevice(ctx context.Context, site string, id string, m *de
 	if len(plannedByRadio) > 0 {
 		// Read-modify-write: fetch current device to preserve non-managed radio
 		// fields and entries for radios not mentioned in the plan.
-		existing, err := c.ApiClient.GetDevice(ctx, site, id)
+		existing, err := c.GetDevice(ctx, site, id)
 		if err != nil {
 			return fmt.Errorf("reading device for radio settings merge: %w", err)
 		}
@@ -186,4 +201,98 @@ func (c *Client) UpdateDevice(ctx context.Context, site string, id string, m *de
 	}
 
 	return nil
+}
+
+// txPowerNumberRE matches a JSON `"tx_power": <number>` pair so we can wrap the
+// number in quotes before handing the bytes to the SDK's UnmarshalJSON, which
+// only accepts a string. The controller emits the field as a number for some
+// devices (notably APs reporting dBm as an integer).
+var txPowerNumberRE = regexp.MustCompile(`"tx_power"\s*:\s*(-?\d+(?:\.\d+)?)`)
+
+// fixTxPowerBytes coerces JSON numeric tx_power values into strings so the SDK's
+// DeviceRadioTable.UnmarshalJSON does not fail. See the file-level TODO for
+// details.
+func fixTxPowerBytes(b []byte) []byte {
+	return txPowerNumberRE.ReplaceAll(b, []byte(`"tx_power":"$1"`))
+}
+
+// deviceListResponse is the v1 stat/device envelope. We unmarshal into
+// json.RawMessage first so we can patch the bytes before decoding into
+// unifi.Device.
+type deviceListResponse struct {
+	Meta struct {
+		RC  string `json:"rc"`
+		Msg string `json:"msg,omitempty"`
+	} `json:"meta"`
+	Data []json.RawMessage `json:"data"`
+}
+
+// fetchDeviceList performs a GET against the v1 stat/device endpoint, applies
+// the tx_power coercion, and decodes each entry into unifi.Device.
+func (c *Client) fetchDeviceList(ctx context.Context, site, suffix string) ([]unifi.Device, error) {
+	url := fmt.Sprintf("%s%s/api/s/%s/stat/device", c.BaseURL, c.APIPath, site)
+	if suffix != "" {
+		url += "/" + suffix
+	}
+
+	var raw json.RawMessage
+	if err := c.doV2Request(ctx, http.MethodGet, url, nil, &raw); err != nil {
+		return nil, err
+	}
+
+	var envelope deviceListResponse
+	if err := json.Unmarshal(fixTxPowerBytes(raw), &envelope); err != nil {
+		return nil, fmt.Errorf("decoding device envelope: %w", err)
+	}
+
+	if envelope.Meta.RC != "" && envelope.Meta.RC != "ok" {
+		return nil, fmt.Errorf("controller returned rc=%s msg=%s", envelope.Meta.RC, envelope.Meta.Msg)
+	}
+
+	devices := make([]unifi.Device, 0, len(envelope.Data))
+	for i, item := range envelope.Data {
+		var d unifi.Device
+		if err := json.Unmarshal(item, &d); err != nil {
+			return nil, fmt.Errorf("decoding device[%d]: %w", i, err)
+		}
+		devices = append(devices, d)
+	}
+	return devices, nil
+}
+
+// ListDevice returns all devices for a site, working around the SDK's
+// tx_power unmarshal bug.
+func (c *Client) ListDevice(ctx context.Context, site string) ([]unifi.Device, error) {
+	return c.fetchDeviceList(ctx, site, "")
+}
+
+// GetDeviceByMAC fetches a device by MAC, working around the SDK's tx_power
+// unmarshal bug. The controller's stat/device/<mac> endpoint returns a single
+// device when a MAC is supplied.
+func (c *Client) GetDeviceByMAC(ctx context.Context, site, mac string) (*unifi.Device, error) {
+	devices, err := c.fetchDeviceList(ctx, site, strings.ToLower(mac))
+	if err != nil {
+		return nil, err
+	}
+	if len(devices) == 0 {
+		return nil, &unifi.NotFoundError{}
+	}
+	d := devices[0]
+	return &d, nil
+}
+
+// GetDevice fetches a device by its controller ID. The v1 stat/device endpoint
+// only supports lookup by MAC, so we list and filter, matching the SDK's
+// behavior while applying our tx_power workaround.
+func (c *Client) GetDevice(ctx context.Context, site, id string) (*unifi.Device, error) {
+	devices, err := c.ListDevice(ctx, site)
+	if err != nil {
+		return nil, err
+	}
+	for i := range devices {
+		if devices[i].ID == id {
+			return &devices[i], nil
+		}
+	}
+	return nil, &unifi.NotFoundError{}
 }
