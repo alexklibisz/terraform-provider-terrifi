@@ -5,7 +5,7 @@ import (
 )
 
 // ClientGroupBlocks generates import + resource blocks for client groups.
-func ClientGroupBlocks(groups []unifi.ClientGroup) []ResourceBlock {
+func ClientGroupBlocks(groups []unifi.NetworkMembersGroup) []ResourceBlock {
 	blocks := make([]ResourceBlock, 0, len(groups))
 	for _, g := range groups {
 		block := ResourceBlock{
