@@ -17,6 +17,12 @@ import (
 	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
+// clientGroupType is the type value the v2 network-members-group API uses for
+// client groups (the "Groups" feature visible in the UniFi UI). The endpoint
+// also supports "USERS" (legacy QoS user groups), which terrifi does not
+// manage via this resource.
+const clientGroupType = "CLIENTS"
+
 var (
 	_ resource.Resource                = &clientGroupResource{}
 	_ resource.ResourceWithImportState = &clientGroupResource{}
@@ -50,7 +56,7 @@ func (r *clientGroupResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a client group (client group) on the UniFi controller. " +
+		MarkdownDescription: "Manages a client group on the UniFi controller. " +
 			"Client groups can be referenced when assigning client devices.",
 
 		Attributes: map[string]schema.Attribute{
@@ -118,7 +124,7 @@ func (r *clientGroupResource) Create(
 	site := r.client.SiteOrDefault(plan.Site)
 	group := r.modelToAPI(&plan)
 
-	created, err := r.client.CreateClientGroup(ctx, site, group)
+	created, err := r.client.CreateNetworkMembersGroup(ctx, site, group)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Client Group", err.Error())
 		return
@@ -141,7 +147,7 @@ func (r *clientGroupResource) Read(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	group, err := r.client.GetClientGroup(ctx, site, state.ID.ValueString())
+	group, err := r.client.GetNetworkMembersGroup(ctx, site, state.ID.ValueString())
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			resp.State.RemoveResource(ctx)
@@ -176,7 +182,7 @@ func (r *clientGroupResource) Update(
 	group := r.modelToAPI(&state)
 	group.ID = state.ID.ValueString()
 
-	updated, err := r.client.UpdateClientGroup(ctx, site, group)
+	updated, err := r.client.UpdateNetworkMembersGroup(ctx, site, group)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Client Group", err.Error())
 		return
@@ -206,7 +212,7 @@ func (r *clientGroupResource) Delete(
 	// accommodates the controller's eventual consistency.
 	const maxRetries = 5
 	for i := range maxRetries {
-		err := r.client.DeleteClientGroup(ctx, site, state.ID.ValueString())
+		err := r.client.DeleteNetworkMembersGroup(ctx, site, state.ID.ValueString())
 		if err == nil {
 			return
 		}
@@ -245,13 +251,17 @@ func (r *clientGroupResource) applyPlanToState(plan, state *clientGroupResourceM
 	}
 }
 
-func (r *clientGroupResource) modelToAPI(m *clientGroupResourceModel) *unifi.ClientGroup {
-	return &unifi.ClientGroup{
-		Name: m.Name.ValueString(),
+func (r *clientGroupResource) modelToAPI(m *clientGroupResourceModel) *unifi.NetworkMembersGroup {
+	// Members are managed on the client device side via network_members_group_ids.
+	// Always send an empty slice rather than nil so the API gets a concrete list.
+	return &unifi.NetworkMembersGroup{
+		Name:    m.Name.ValueString(),
+		Type:    clientGroupType,
+		Members: []string{},
 	}
 }
 
-func (r *clientGroupResource) apiToModel(group *unifi.ClientGroup, m *clientGroupResourceModel, site string) {
+func (r *clientGroupResource) apiToModel(group *unifi.NetworkMembersGroup, m *clientGroupResourceModel, site string) {
 	m.ID = types.StringValue(group.ID)
 	m.Site = types.StringValue(site)
 	m.Name = types.StringValue(group.Name)

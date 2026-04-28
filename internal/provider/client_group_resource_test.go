@@ -26,6 +26,9 @@ func TestClientGroupModelToAPI(t *testing.T) {
 		group := r.modelToAPI(model)
 
 		assert.Equal(t, "IoT Devices", group.Name)
+		assert.Equal(t, "CLIENTS", group.Type)
+		assert.NotNil(t, group.Members)
+		assert.Empty(t, group.Members)
 	})
 }
 
@@ -33,9 +36,10 @@ func TestClientGroupAPIToModel(t *testing.T) {
 	r := &clientGroupResource{}
 
 	t.Run("ID, name, and site mapping", func(t *testing.T) {
-		group := &unifi.ClientGroup{
+		group := &unifi.NetworkMembersGroup{
 			ID:   "group123",
 			Name: "IoT Devices",
+			Type: "CLIENTS",
 		}
 
 		var model clientGroupResourceModel
@@ -47,9 +51,10 @@ func TestClientGroupAPIToModel(t *testing.T) {
 	})
 
 	t.Run("custom site", func(t *testing.T) {
-		group := &unifi.ClientGroup{
+		group := &unifi.NetworkMembersGroup{
 			ID:   "group456",
 			Name: "Cameras",
+			Type: "CLIENTS",
 		}
 
 		var model clientGroupResourceModel

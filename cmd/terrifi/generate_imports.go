@@ -8,6 +8,7 @@ import (
 	"github.com/alexklibisz/terrifi/internal/generate"
 	"github.com/alexklibisz/terrifi/internal/provider"
 	"github.com/spf13/cobra"
+	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 var validResourceTypes = []string{
@@ -69,11 +70,20 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 		blocks = generate.ClientDeviceBlocks(clients, overrides)
 
 	case "terrifi_client_group":
-		groups, err := client.ListClientGroup(ctx, site)
+		groups, err := client.ListNetworkMembersGroups(ctx, site)
 		if err != nil {
 			return fmt.Errorf("listing client groups: %w", err)
 		}
-		blocks = generate.ClientGroupBlocks(groups)
+		// Only include CLIENTS-type groups. The network-members-group endpoint
+		// also returns USERS-type groups (legacy QoS user groups), which don't
+		// correspond to terrifi_client_group.
+		filtered := make([]unifi.NetworkMembersGroup, 0, len(groups))
+		for _, g := range groups {
+			if g.Type == "CLIENTS" {
+				filtered = append(filtered, g)
+			}
+		}
+		blocks = generate.ClientGroupBlocks(filtered)
 
 	case "terrifi_device":
 		devices, err := client.ListDevice(ctx, site)

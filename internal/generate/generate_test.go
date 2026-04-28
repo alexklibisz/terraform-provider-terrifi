@@ -844,14 +844,16 @@ func TestWLANBlocks(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestClientGroupBlocks(t *testing.T) {
-	groups := []unifi.ClientGroup{
+	groups := []unifi.NetworkMembersGroup{
 		{
 			ID:   "grp1",
 			Name: "WiFi Smart Plugs",
+			Type: "CLIENTS",
 		},
 		{
 			ID:   "grp2",
 			Name: "IoT Devices",
+			Type: "CLIENTS",
 		},
 	}
 
