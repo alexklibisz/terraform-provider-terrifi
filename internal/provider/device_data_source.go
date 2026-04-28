@@ -158,7 +158,7 @@ func (d *deviceDataSource) Read(
 
 	if !config.MAC.IsNull() && !config.MAC.IsUnknown() {
 		mac := strings.ToLower(config.MAC.ValueString())
-		device, err = d.client.ApiClient.GetDeviceByMAC(ctx, site, mac)
+		device, err = d.client.GetDeviceByMAC(ctx, site, mac)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Device Not Found",
@@ -183,7 +183,7 @@ func (d *deviceDataSource) Read(
 }
 
 func (d *deviceDataSource) findDeviceByName(ctx context.Context, site, name string) (*unifi.Device, error) {
-	devices, err := d.client.ApiClient.ListDevice(ctx, site)
+	devices, err := d.client.ListDevice(ctx, site)
 	if err != nil {
 		return nil, err
 	}
