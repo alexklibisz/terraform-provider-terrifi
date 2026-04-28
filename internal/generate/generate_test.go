@@ -848,12 +848,12 @@ func TestClientGroupBlocks(t *testing.T) {
 		{
 			ID:   "grp1",
 			Name: "WiFi Smart Plugs",
-			Type: "client",
+			Type: "CLIENTS",
 		},
 		{
 			ID:   "grp2",
 			Name: "IoT Devices",
-			Type: "client",
+			Type: "CLIENTS",
 		},
 	}
 

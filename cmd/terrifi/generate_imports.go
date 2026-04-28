@@ -74,12 +74,12 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("listing client groups: %w", err)
 		}
-		// Only include client-type groups. The network-members-group endpoint
-		// may also contain other group kinds (e.g. device groups) which don't
+		// Only include CLIENTS-type groups. The network-members-group endpoint
+		// also returns USERS-type groups (legacy QoS user groups), which don't
 		// correspond to terrifi_client_group.
 		filtered := make([]unifi.NetworkMembersGroup, 0, len(groups))
 		for _, g := range groups {
-			if g.Type == "client" {
+			if g.Type == "CLIENTS" {
 				filtered = append(filtered, g)
 			}
 		}

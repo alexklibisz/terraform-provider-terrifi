@@ -18,8 +18,10 @@ import (
 )
 
 // clientGroupType is the type value the v2 network-members-group API uses for
-// client groups (the "Groups" feature visible in the UniFi UI).
-const clientGroupType = "client"
+// client groups (the "Groups" feature visible in the UniFi UI). The endpoint
+// also supports "USERS" (legacy QoS user groups), which terrifi does not
+// manage via this resource.
+const clientGroupType = "CLIENTS"
 
 var (
 	_ resource.Resource                = &clientGroupResource{}
