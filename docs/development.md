@@ -129,10 +129,33 @@ git fetch origin pull/152/head:pr-152 && git checkout pr-152
 git checkout <branch>
 
 task build
-"$(go env GOBIN)/terrifi" generate-imports terrifi_device
 ```
 
-`task build` installs the CLI to `$GOBIN`. Add `$GOBIN` to your `PATH` if you want to invoke `terrifi` directly.
+`task build` installs the CLI to the same directory `go install` uses. That's `$GOBIN` if it's set, otherwise `$(go env GOPATH)/bin` (typically `~/go/bin`). The `Taskfile.yml` resolves this with `GOBIN=$(go env GOBIN); echo "${GOBIN:-$(go env GOPATH)/bin}"`.
+
+#### Run without changing your PATH
+
+Invoke the binary by its full path:
+
+```sh
+INSTALL_DIR="$(go env GOBIN)"
+INSTALL_DIR="${INSTALL_DIR:-$(go env GOPATH)/bin}"
+"$INSTALL_DIR/terrifi" generate-imports terrifi_device
+```
+
+#### Run as `terrifi` from anywhere
+
+Add the install dir to your `PATH`. For the current shell only:
+
+```sh
+INSTALL_DIR="$(go env GOBIN)"
+INSTALL_DIR="${INSTALL_DIR:-$(go env GOPATH)/bin}"
+export PATH="$INSTALL_DIR:$PATH"
+
+terrifi generate-imports terrifi_device
+```
+
+To make it persistent, append the same `export PATH=...` line to your shell's rc file (`~/.zshrc`, `~/.bashrc`, etc.) and start a new shell. Most Go developers already have `$(go env GOPATH)/bin` on their `PATH` for this reason.
 
 ### From a pre-release GitHub release
 
