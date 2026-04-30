@@ -15,17 +15,19 @@ package provider
 // Fix needed in SDK: UpdateDevice's diff approach should be more robust, or
 // provide a way to do a simple field-level PUT without the diff.
 //
-// 2. DeviceRadioTable.TxPower unmarshal. The SDK declares TxPower as a Go
-// string with json tag `tx_power`, but the controller emits a JSON number for
-// some devices (e.g. an integer dBm value), so the SDK's UnmarshalJSON for
-// DeviceRadioTable fails with: "unable to unmarshal alias: json: cannot
-// unmarshal number into Go struct field .Alias.tx_power of type string". This
-// blocks every Read on affected sites. We bypass GetDevice/GetDeviceByMAC/
+// 2. DeviceRadioTable.TxPower and DeviceRadioTable.Channel unmarshal. The SDK
+// declares both as Go strings (json tags `tx_power` and `channel`), but the
+// controller emits them as JSON numbers for some devices (e.g. an integer dBm
+// tx_power value, or a numeric channel on devices like the Dream Router 7 and
+// USW Flex XG), so the SDK's UnmarshalJSON for DeviceRadioTable fails with:
+// "unable to unmarshal alias: json: cannot unmarshal number into Go struct
+// field .Alias.tx_power of type string" (or .Alias.channel). This blocks
+// every Read on affected sites. We bypass GetDevice/GetDeviceByMAC/
 // ListDevice in the SDK and call the v1 stat/device endpoints ourselves,
-// pre-processing the raw JSON to wrap numeric tx_power values in quotes
-// before unmarshaling into unifi.Device.
-// Fix needed in SDK: TxPower should accept either a string or a number on
-// the wire (e.g. via a custom UnmarshalJSON that uses json.Number).
+// pre-processing the raw JSON to wrap numeric tx_power and channel values in
+// quotes before unmarshaling into unifi.Device.
+// Fix needed in SDK: TxPower and Channel should accept either a string or a
+// number on the wire (e.g. via a custom UnmarshalJSON that uses json.Number).
 
 import (
 	"context"
@@ -209,16 +211,24 @@ func (c *Client) UpdateDevice(ctx context.Context, site string, id string, m *de
 // devices (notably APs reporting dBm as an integer).
 var txPowerNumberRE = regexp.MustCompile(`"tx_power"\s*:\s*(-?\d+(?:\.\d+)?)`)
 
-// fixTxPowerBytes coerces JSON numeric tx_power values into strings so the SDK's
-// DeviceRadioTable.UnmarshalJSON does not fail. See the file-level TODO for
-// details.
-func fixTxPowerBytes(b []byte) []byte {
-	return txPowerNumberRE.ReplaceAll(b, []byte(`"tx_power":"$1"`))
+// channelNumberRE matches a JSON `"channel": <number>` pair so we can wrap the
+// number in quotes before handing the bytes to the SDK's UnmarshalJSON, which
+// only accepts a string. Some controllers (e.g. Dream Router 7, USW Flex XG)
+// emit the field as a number.
+var channelNumberRE = regexp.MustCompile(`"channel"\s*:\s*(-?\d+(?:\.\d+)?)`)
+
+// fixRadioTableBytes coerces JSON numeric tx_power and channel values into
+// strings so the SDK's DeviceRadioTable.UnmarshalJSON does not fail. See the
+// file-level TODO for details.
+func fixRadioTableBytes(b []byte) []byte {
+	b = txPowerNumberRE.ReplaceAll(b, []byte(`"tx_power":"$1"`))
+	b = channelNumberRE.ReplaceAll(b, []byte(`"channel":"$1"`))
+	return b
 }
 
 // deviceListResponse is the v1 stat/device envelope. We unmarshal into
 // json.RawMessage first so we can patch the bytes before decoding into
-// unifi.Device.
+// unifi.Device. See fixRadioTableBytes.
 type deviceListResponse struct {
 	Meta struct {
 		RC  string `json:"rc"`
@@ -228,7 +238,7 @@ type deviceListResponse struct {
 }
 
 // fetchDeviceList performs a GET against the v1 stat/device endpoint, applies
-// the tx_power coercion, and decodes each entry into unifi.Device.
+// the radio_table coercions, and decodes each entry into unifi.Device.
 func (c *Client) fetchDeviceList(ctx context.Context, site, suffix string) ([]unifi.Device, error) {
 	url := fmt.Sprintf("%s%s/api/s/%s/stat/device", c.BaseURL, c.APIPath, site)
 	if suffix != "" {
@@ -241,7 +251,7 @@ func (c *Client) fetchDeviceList(ctx context.Context, site, suffix string) ([]un
 	}
 
 	var envelope deviceListResponse
-	if err := json.Unmarshal(fixTxPowerBytes(raw), &envelope); err != nil {
+	if err := json.Unmarshal(fixRadioTableBytes(raw), &envelope); err != nil {
 		return nil, fmt.Errorf("decoding device envelope: %w", err)
 	}
 
@@ -261,14 +271,14 @@ func (c *Client) fetchDeviceList(ctx context.Context, site, suffix string) ([]un
 }
 
 // ListDevice returns all devices for a site, working around the SDK's
-// tx_power unmarshal bug.
+// tx_power and channel unmarshal bugs.
 func (c *Client) ListDevice(ctx context.Context, site string) ([]unifi.Device, error) {
 	return c.fetchDeviceList(ctx, site, "")
 }
 
 // GetDeviceByMAC fetches a device by MAC, working around the SDK's tx_power
-// unmarshal bug. The controller's stat/device/<mac> endpoint returns a single
-// device when a MAC is supplied.
+// and channel unmarshal bugs. The controller's stat/device/<mac> endpoint
+// returns a single device when a MAC is supplied.
 func (c *Client) GetDeviceByMAC(ctx context.Context, site, mac string) (*unifi.Device, error) {
 	devices, err := c.fetchDeviceList(ctx, site, strings.ToLower(mac))
 	if err != nil {
@@ -283,7 +293,7 @@ func (c *Client) GetDeviceByMAC(ctx context.Context, site, mac string) (*unifi.D
 
 // GetDevice fetches a device by its controller ID. The v1 stat/device endpoint
 // only supports lookup by MAC, so we list and filter, matching the SDK's
-// behavior while applying our tx_power workaround.
+// behavior while applying our tx_power and channel workarounds.
 func (c *Client) GetDevice(ctx context.Context, site, id string) (*unifi.Device, error) {
 	devices, err := c.ListDevice(ctx, site)
 	if err != nil {
