@@ -113,6 +113,45 @@ provider_installation {
 
 With `dev_overrides` active, skip `tofu init` and run `tofu plan` directly.
 
+## Testing an unreleased CLI
+
+The `terrifi` CLI (e.g., `terrifi generate-imports`) can be tested in two ways before a fix is released.
+
+### From a branch or pull request
+
+Build from source — useful for verifying a PR fix:
+
+```sh
+# A specific PR (e.g., #152):
+git fetch origin pull/152/head:pr-152 && git checkout pr-152
+
+# Or any branch:
+git checkout <branch>
+
+task build
+"$(go env GOBIN)/terrifi" generate-imports terrifi_device
+```
+
+`task build` installs the CLI to `$GOBIN`. Add `$GOBIN` to your `PATH` if you want to invoke `terrifi` directly.
+
+### From a pre-release GitHub release
+
+Pre-release tags (e.g. `v0.4.0-RC2`) publish a CLI archive named `terrifi-cli_<version>_<os>_<arch>.zip`:
+
+```sh
+VERSION="0.4.0-RC2"
+OS="linux"
+ARCH="amd64"
+OWNER="alexklibisz"
+PROVIDER="terraform-provider-terrifi"
+
+curl -L "https://github.com/${OWNER}/${PROVIDER}/releases/download/v${VERSION}/terrifi-cli_${VERSION}_${OS}_${ARCH}.zip" \
+  -o /tmp/terrifi-cli-${VERSION}.zip && \
+  unzip -o /tmp/terrifi-cli-${VERSION}.zip -d ~/terrifi-cli-${VERSION}/
+
+~/terrifi-cli-${VERSION}/terrifi --help
+```
+
 ## Releasing
 
 1. Go to the [Tag workflow](../../actions/workflows/tag.yml) in GitHub Actions.
