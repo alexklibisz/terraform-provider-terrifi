@@ -20,7 +20,7 @@ This does three things:
 2. Builds the `terrifi` CLI binary and installs it to your `GOBIN`
 3. Generates a `.terraformrc` file with `dev_overrides` pointing at the locally-built provider
 
-## Testing locally with a Terraform/OpenTofu project
+## Testing the provider locally with a Terraform/OpenTofu project
 
 After running `task build`, you can use the locally-built provider in any Terraform/OpenTofu project:
 
@@ -45,6 +45,44 @@ After running `task build`, you can use the locally-built provider in any Terraf
     ```
 
 The `dev_overrides` in `.terraformrc` tell Terraform/OpenTofu to use the locally-built binary instead of downloading from the registry. No `terraform init` or `tofu init` is needed.
+
+## Testing the CLI locally
+
+1. Build the CLI:
+
+    ```sh
+    $ cd /path/to/terrifi
+    $ task build:cli
+    ```
+
+2. Run it with `--version` to verify the install:
+
+    ```sh
+    $ terrifi --version
+    terrifi version v0.9.2-0.20260430142350-658b70734fe1
+    ```
+
+You should see a version that ends with a Git hash.
+
+### Switch back to the released CLI
+
+```sh
+$ go install github.com/alexklibisz/terrifi/cmd/terrifi@latest
+$ terrifi --version
+terrifi version v0.9.1
+```
+
+### Troubleshooting
+
+The `task build:cli` puts the binary ont
+If you don't, that means `task build:cli` wasn't able to get the binary onto your `$GOBIN`, or that your `$GOBIN` is not on your `$PATH`.
+
+```sh
+$ echo $GOBIN
+/Users/alex/.asdf/installs/golang/1.26.1/bin
+$ which terrifi
+/Users/alex/.asdf/installs/golang/1.26.1/bin/terrifi
+```
 
 ## Running tests
 
