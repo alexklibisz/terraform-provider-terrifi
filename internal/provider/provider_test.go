@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // testAccProtoV6ProviderFactories creates a provider factory for acceptance tests.
@@ -28,6 +27,8 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 //   - No TF_ACC env var → run unit tests only (fast, no network)
 //   - TF_ACC=1 + TERRIFI_ACC_TARGET=docker → spin up Docker, run acceptance tests
 //   - TF_ACC=1 + TERRIFI_ACC_TARGET=hardware → use existing env vars, run acceptance tests
+//   - TF_ACC=1 + TERRIFI_ACC_TARGET=uos → expects UNIFI_API/UNIFI_API_KEY in env
+//     (set upstream by testing/bootstrap.sh against a running UOS Server)
 func TestMain(m *testing.M) {
 	if os.Getenv("TF_ACC") == "" {
 		// Unit tests only — no Docker, no env vars needed.
@@ -46,8 +47,12 @@ func TestMain(m *testing.M) {
 		// Hardware mode: env vars already set by direnv/.envrc.local.
 		// Just run the tests directly.
 		os.Exit(m.Run())
+	case "uos":
+		// UOS Server mode: env vars set upstream by testing/bootstrap.sh
+		// (typically `eval "$(testing/bootstrap.sh)"`). Just run the tests.
+		os.Exit(m.Run())
 	default:
-		fmt.Fprintf(os.Stderr, "unknown TERRIFI_ACC_TARGET: %s (expected 'docker' or 'hardware')\n", target)
+		fmt.Fprintf(os.Stderr, "unknown TERRIFI_ACC_TARGET: %s (expected 'docker', 'hardware', or 'uos')\n", target)
 		os.Exit(1)
 	}
 }
@@ -129,11 +134,12 @@ func waitForAPI(ctx context.Context, endpoint, user, pass string) error {
 	retryDelay := 3 * time.Second
 
 	for i := range maxRetries {
-		client, err := unifi.New(ctx, &unifi.Config{
-			BaseURL:       endpoint,
+		client, err := NewClient(ctx, ClientConfig{
+			APIURL:        endpoint,
 			Username:      user,
 			Password:      pass,
 			AllowInsecure: true,
+			Site:          "default",
 		})
 		if err != nil {
 			if i%10 == 0 {

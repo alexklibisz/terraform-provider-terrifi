@@ -1,57 +1,94 @@
 package provider
 
-// TODO(go-unifi): This file works around bugs in the go-unifi SDK
-// (github.com/ubiquiti-community/go-unifi) for the v2 network-members-group
-// endpoint. When the upstream SDK fixes these issues, this file can be deleted
-// and the client_group resource can use the SDK's built-in methods directly.
-// The upstream bugs are:
+// Local CRUD methods for the v2 network-members-group endpoint. These shadow
+// the promoted go-unifi methods on *Client and use the local internal/unifi
+// types instead, removing the SDK dependency for this resource — see
+// issue #157.
 //
-//  1. SDK's CreateNetworkMembersGroup POSTs to
-//     `v2/api/site/{site}/network-members-groups` (plural). The controller
-//     only exposes POST on the singular path
-//     `v2/api/site/{site}/network-members-group`; the plural path returns 405.
-//     Fix needed in SDK: change the POST URL to the singular form.
-//
-//  2. SDK's do() only treats HTTP 200 as success. The v2
-//     network-members-group POST returns 201 Created and DELETE returns 204
-//     No Content, both of which the SDK misinterprets as errors.
-//     Fix needed in SDK: accept any 2xx status code as success.
+// One non-obvious URL quirk: LIST uses the plural path
+// (/network-members-groups) while every other verb uses the singular path
+// (/network-members-group[/id]). This is what the controller actually
+// expects; the SDK's CreateNetworkMembersGroup posting to the plural URL
+// was the original motivation for bypassing it.
 
 import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
-// CreateNetworkMembersGroup creates a network-members-group via the v2 API,
-// bypassing the SDK to avoid bugs #1 (wrong POST URL) and #2 (201 status
-// treated as error).
-func (c *Client) CreateNetworkMembersGroup(
-	ctx context.Context,
-	site string,
-	d *unifi.NetworkMembersGroup,
-) (*unifi.NetworkMembersGroup, error) {
+// CreateNetworkMembersGroup posts a new group to the singular URL.
+func (c *Client) CreateNetworkMembersGroup(ctx context.Context, site string, d *unifi.NetworkMembersGroup) (*unifi.NetworkMembersGroup, error) {
 	payload := *d
 	if payload.Members == nil {
 		payload.Members = []string{}
 	}
 
 	var result unifi.NetworkMembersGroup
-	err := c.doV2Request(ctx, http.MethodPost,
+	if err := c.doClientGroupRequest(ctx, http.MethodPost,
 		fmt.Sprintf("%s%s/v2/api/site/%s/network-members-group", c.BaseURL, c.APIPath, site),
-		payload, &result)
-	if err != nil {
+		payload, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-// DeleteNetworkMembersGroup deletes a network-members-group via the v2 API,
-// bypassing the SDK to avoid bug #2 (204 No Content treated as error).
-func (c *Client) DeleteNetworkMembersGroup(ctx context.Context, site string, id string) error {
-	return c.doV2Request(ctx, http.MethodDelete,
+// GetNetworkMembersGroup reads a group by ID.
+func (c *Client) GetNetworkMembersGroup(ctx context.Context, site, id string) (*unifi.NetworkMembersGroup, error) {
+	var result unifi.NetworkMembersGroup
+	if err := c.doClientGroupRequest(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/site/%s/network-members-group/%s", c.BaseURL, c.APIPath, site, id),
-		struct{}{}, nil)
+		nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdateNetworkMembersGroup writes the full group at its ID.
+func (c *Client) UpdateNetworkMembersGroup(ctx context.Context, site string, d *unifi.NetworkMembersGroup) (*unifi.NetworkMembersGroup, error) {
+	payload := *d
+	if payload.Members == nil {
+		payload.Members = []string{}
+	}
+
+	var result unifi.NetworkMembersGroup
+	if err := c.doClientGroupRequest(ctx, http.MethodPut,
+		fmt.Sprintf("%s%s/v2/api/site/%s/network-members-group/%s", c.BaseURL, c.APIPath, site, d.ID),
+		payload, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DeleteNetworkMembersGroup removes a group by ID.
+func (c *Client) DeleteNetworkMembersGroup(ctx context.Context, site, id string) error {
+	return c.doClientGroupRequest(ctx, http.MethodDelete,
+		fmt.Sprintf("%s%s/v2/api/site/%s/network-members-group/%s", c.BaseURL, c.APIPath, site, id),
+		nil, nil)
+}
+
+// ListNetworkMembersGroups returns all groups for the site. Uses the plural
+// URL; see the file-level note above.
+func (c *Client) ListNetworkMembersGroups(ctx context.Context, site string) ([]unifi.NetworkMembersGroup, error) {
+	var result []unifi.NetworkMembersGroup
+	if err := c.doClientGroupRequest(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/v2/api/site/%s/network-members-groups", c.BaseURL, c.APIPath, site),
+		nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// doClientGroupRequest reuses the shared HTTP layer but translates 404
+// responses into the local *unifi.NotFoundError so resource Read() can
+// distinguish "deleted externally" from real errors.
+func (c *Client) doClientGroupRequest(ctx context.Context, method, url string, body, result any) error {
+	err := c.doV2Request(ctx, method, url, body, result)
+	if err != nil && strings.Contains(err.Error(), "(404)") {
+		return &unifi.NotFoundError{}
+	}
+	return err
 }

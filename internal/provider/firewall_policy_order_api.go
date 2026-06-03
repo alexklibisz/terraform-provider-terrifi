@@ -1,9 +1,9 @@
 package provider
 
-// TODO(go-unifi): This file implements the batch-reorder endpoint for firewall
-// policies, which is not supported by the go-unifi SDK. When the SDK adds
-// support for PUT /v2/api/site/{site}/firewall-policies/batch-reorder, this
-// file can be deleted and the resource can use the SDK's built-in method.
+// Local implementation of the batch-reorder endpoint for firewall policies
+// (PUT /v2/api/site/{site}/firewall-policies/batch-reorder). The endpoint is
+// not exposed by the go-unifi SDK; this file is the only place that talks to
+// it. Pairs with firewall_policy_api.go for read-side ordering inspection.
 
 import (
 	"context"

@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/stretchr/testify/assert"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // ---------------------------------------------------------------------------
@@ -180,7 +180,7 @@ func requireAdoptedDevice(t *testing.T) {
 func findFirstAdoptedDevice(t *testing.T) *unifi.Device {
 	t.Helper()
 	client := testAccGetClient(t)
-	devices, err := client.ApiClient.ListDevice(t.Context(), "default")
+	devices, err := client.ListDevice(t.Context(), "default")
 	if err != nil {
 		t.Fatalf("failed to list devices: %s", err)
 	}
@@ -197,7 +197,7 @@ func findFirstAdoptedDevice(t *testing.T) *unifi.Device {
 func findFirstAdoptedAP(t *testing.T) *unifi.Device {
 	t.Helper()
 	client := testAccGetClient(t)
-	devices, err := client.ApiClient.ListDevice(t.Context(), "default")
+	devices, err := client.ListDevice(t.Context(), "default")
 	if err != nil {
 		t.Fatalf("failed to list devices: %s", err)
 	}

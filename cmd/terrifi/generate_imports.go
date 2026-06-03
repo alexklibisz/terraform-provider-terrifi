@@ -8,7 +8,7 @@ import (
 	"github.com/alexklibisz/terrifi/internal/generate"
 	"github.com/alexklibisz/terrifi/internal/provider"
 	"github.com/spf13/cobra"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 var validResourceTypes = []string{

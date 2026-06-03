@@ -1,28 +1,25 @@
 package provider
 
-// TODO(go-unifi): This file works around bugs in the go-unifi SDK for firewall
-// policy CRUD operations. When the upstream SDK fixes these issues, this file
-// can be deleted and the resource can use the SDK's built-in methods directly
-// (c.ApiClient.Create/Update/DeleteFirewallPolicy). The bugs are:
+// Local CRUD methods for the v2 firewall-policies endpoint. These shadow the
+// promoted go-unifi methods on *Client and use the local internal/unifi types
+// instead, removing the SDK dependency for this resource — see issue #157.
 //
-//  1. SDK's DeleteFirewallPolicy only treats HTTP 200 as success. The v2
-//     firewall policy DELETE endpoint returns 204 No Content on success, which
-//     the SDK misinterprets as an error. (Same bug as firewall zones.)
-//     Fix needed in SDK: accept any 2xx status code as success.
+// The controller's wire-format quirks for this endpoint:
 //
-//  2. SDK serializes all boolean fields without omitempty (enabled, logging,
-//     match_ip_sec, create_allow_respond, predefined, match_opposite_protocol)
-//     and sends `connection_states: null`, which may cause API issues.
-//     Fix needed in SDK: add omitempty to boolean fields and handle nil slices.
+//  1. DELETE returns 204 No Content. doV2Request treats any 2xx as success.
 //
-//  3. SDK's UpdateFirewallPolicy does not include `_id` in the PUT request
-//     body (only in the URL path). The v2 API requires it in both places.
-//     Fix needed in SDK: include ID in the request body for PUT calls.
+//  2. The boolean fields the controller cares about (enabled, logging,
+//     match_ip_sec, create_allow_respond) cannot be serialized as plain bool
+//     because we need to distinguish "send false" from "omit entirely" for a
+//     few of them. The bespoke firewallPolicyCreateRequest below uses *bool
+//     with omitempty for that fine-grained control.
 //
-//  4. SDK's FirewallPolicySource/Destination structs define `port` as *int64,
-//     but the v2 API returns `port` as a JSON string (e.g. "443"). The SDK
-//     fails to unmarshal this, breaking all GET/list operations.
-//     Fix needed in SDK: use json.Number or a custom unmarshaler for port.
+//  3. PUT requires `_id` in the body (not just the URL); firewallPolicyUpdateRequest
+//     embeds it so it always ships.
+//
+//  4. The endpoint emits `port` (inside source/destination) as a JSON string
+//     on read but expects a number on write. firewallPolicyEndpointResponse
+//     stores it as json.RawMessage and parsePort() coerces both shapes.
 
 import (
 	"context"
@@ -31,7 +28,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // firewallPolicyCreateRequest is the payload for POST /v2/api/site/{site}/firewall-policies.
@@ -162,11 +159,9 @@ func (c *Client) ListFirewallPolicies(ctx context.Context, site string) ([]*unif
 	return policies, nil
 }
 
-// TODO(go-unifi): GetFirewallPolicy uses a custom implementation because the
-// SDK's generated FirewallPolicySource/Destination struct defines `port` as
-// *int64, but the v2 API returns `port` as a JSON string (e.g. "443"). The SDK
-// fails to unmarshal this. When the SDK fixes the port field type (or adds a
-// custom unmarshaler), this can be replaced with c.ApiClient.GetFirewallPolicy().
+// GetFirewallPolicy lists all policies and filters by ID. The v2 endpoint
+// does not expose a per-ID GET, and listing-then-filtering matches the
+// pattern used by GetFirewallZone.
 func (c *Client) GetFirewallPolicy(ctx context.Context, site string, id string) (*firewallPolicyFull, error) {
 	var rawPolicies []firewallPolicyResponse
 	err := c.doV2Request(ctx, http.MethodGet,

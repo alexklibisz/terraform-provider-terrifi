@@ -61,6 +61,19 @@ tasks:
     cmds:
       - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
+  test:acc:uos:
+    desc: Run acceptance tests against a UOS Server (bootstrap.sh must have populated env vars)
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: uos
+    cmds:
+      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+
+  uos:bootstrap:
+    desc: Wrap testing/bootstrap.sh — provisions a fresh UOS Server and prints UNIFI_* env vars on stdout
+    cmds:
+      - bash testing/bootstrap.sh
+
   test:cli:
     desc: Run CLI + generate unit tests
     env:

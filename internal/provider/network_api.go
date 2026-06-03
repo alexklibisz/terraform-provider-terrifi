@@ -1,165 +1,122 @@
 package provider
 
-// TODO(go-unifi): The SDK declares several Network fields (e.g.
-// IPV6RaPreferredLifetime) as *int64, but the controller emits them as JSON
-// strings on some sites, so unmarshal fails with: "unable to unmarshal alias:
-// json: cannot unmarshal string into Go struct field .Alias.<field> of type
-// int64". This file bypasses the SDK's listNetwork/getNetwork (which use the
-// embedded ApiClient's do()) and pre-processes the raw JSON to coerce known
-// string-encoded numeric fields back into JSON numbers before decoding into
-// unifi.Network.
-// Fix needed in SDK: affected fields should accept either a string or a number
-// on the wire (e.g. via a custom UnmarshalJSON using json.Number).
+// Local CRUD methods for the v1 REST networkconf endpoint. These shadow the
+// promoted go-unifi methods on *Client and use the local internal/unifi types
+// instead, removing the SDK dependency for this resource — see issue #157.
+//
+// Replaces the previous SDK-bypass layer that pre-processed raw JSON to coerce
+// ipv6_ra_preferred_lifetime (issue #154). The local unifi.Network type does
+// not declare that field at all, so the coercion is no longer needed: unknown
+// wire fields are silently ignored by json.Unmarshal.
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
+	"strings"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
-// ipv6RaPreferredLifetimeStringRE matches `"ipv6_ra_preferred_lifetime": "<digits>"`
-// so we can strip the quotes before handing the bytes to the SDK's
-// Network.UnmarshalJSON, which expects a JSON number for the underlying *int64.
-var ipv6RaPreferredLifetimeStringRE = regexp.MustCompile(`"ipv6_ra_preferred_lifetime"\s*:\s*"(-?\d+)"`)
-
-// ipv6RaPreferredLifetimeEmptyRE matches `"ipv6_ra_preferred_lifetime": ""` so
-// we can replace it with null (the SDK field is *int64, so null is the correct
-// representation of "unset").
-var ipv6RaPreferredLifetimeEmptyRE = regexp.MustCompile(`"ipv6_ra_preferred_lifetime"\s*:\s*""`)
-
-// fixNetworkBytes coerces JSON-string-encoded numeric Network fields back to
-// JSON numbers so the SDK's UnmarshalJSON succeeds. See the file-level TODO
-// for details.
-func fixNetworkBytes(b []byte) []byte {
-	b = ipv6RaPreferredLifetimeEmptyRE.ReplaceAll(b, []byte(`"ipv6_ra_preferred_lifetime":null`))
-	b = ipv6RaPreferredLifetimeStringRE.ReplaceAll(b, []byte(`"ipv6_ra_preferred_lifetime":$1`))
-	return b
+type networkEnvelope struct {
+	Meta json.RawMessage `json:"meta"`
+	Data []unifi.Network `json:"data"`
 }
 
-// networkListResponse is the v1 rest/networkconf envelope. We unmarshal into
-// json.RawMessage first so we can patch the bytes before decoding into
-// unifi.Network. See fixNetworkBytes.
-type networkListResponse struct {
-	Meta struct {
-		RC  string `json:"rc"`
-		Msg string `json:"msg,omitempty"`
-	} `json:"meta"`
-	Data []json.RawMessage `json:"data"`
-}
-
-// fetchNetworkList performs a GET against the v1 rest/networkconf endpoint,
-// applies the field coercions, and decodes each entry into unifi.Network.
-// When suffix is non-empty it is appended as `/<suffix>` (used to fetch a
-// single network by ID).
-func (c *Client) fetchNetworkList(ctx context.Context, site, suffix string) ([]unifi.Network, error) {
-	url := fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site)
-	if suffix != "" {
-		url += "/" + suffix
-	}
-
-	var raw json.RawMessage
-	if err := c.doV2Request(ctx, http.MethodGet, url, nil, &raw); err != nil {
+// CreateNetwork posts a new network to /api/s/{site}/rest/networkconf.
+func (c *Client) CreateNetwork(ctx context.Context, site string, d *unifi.Network) (*unifi.Network, error) {
+	var resp networkEnvelope
+	if err := c.doNetworkRequest(ctx, http.MethodPost,
+		fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site),
+		d, &resp); err != nil {
 		return nil, err
 	}
-
-	var envelope networkListResponse
-	if err := json.Unmarshal(fixNetworkBytes(raw), &envelope); err != nil {
-		return nil, fmt.Errorf("decoding network envelope: %w", err)
+	if err := checkV1Meta(resp.Meta); err != nil {
+		return nil, err
 	}
-
-	if envelope.Meta.RC != "" && envelope.Meta.RC != "ok" {
-		return nil, fmt.Errorf("controller returned rc=%s msg=%s", envelope.Meta.RC, envelope.Meta.Msg)
+	if len(resp.Data) != 1 {
+		return nil, &unifi.NotFoundError{}
 	}
-
-	networks := make([]unifi.Network, 0, len(envelope.Data))
-	for i, item := range envelope.Data {
-		var n unifi.Network
-		if err := json.Unmarshal(item, &n); err != nil {
-			return nil, fmt.Errorf("decoding network[%d]: %w", i, err)
-		}
-		networks = append(networks, n)
-	}
-	return networks, nil
+	return &resp.Data[0], nil
 }
 
-// ListNetwork returns all networks for a site, working around the SDK's
-// unmarshal bugs for string-encoded numeric fields. Matches the SDK signature
-// so it overrides the embedded ApiClient.ListNetwork via method promotion.
+// GetNetwork reads a network by ID.
+func (c *Client) GetNetwork(ctx context.Context, site, id string) (*unifi.Network, error) {
+	var resp networkEnvelope
+	if err := c.doNetworkRequest(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/api/s/%s/rest/networkconf/%s", c.BaseURL, c.APIPath, site, id),
+		nil, &resp); err != nil {
+		return nil, err
+	}
+	if err := checkV1Meta(resp.Meta); err != nil {
+		return nil, err
+	}
+	if len(resp.Data) != 1 {
+		return nil, &unifi.NotFoundError{}
+	}
+	return &resp.Data[0], nil
+}
+
+// UpdateNetwork writes the full network at its ID.
+func (c *Client) UpdateNetwork(ctx context.Context, site string, d *unifi.Network) (*unifi.Network, error) {
+	var resp networkEnvelope
+	if err := c.doNetworkRequest(ctx, http.MethodPut,
+		fmt.Sprintf("%s%s/api/s/%s/rest/networkconf/%s", c.BaseURL, c.APIPath, site, d.ID),
+		d, &resp); err != nil {
+		return nil, err
+	}
+	if err := checkV1Meta(resp.Meta); err != nil {
+		return nil, err
+	}
+	if len(resp.Data) == 1 {
+		return &resp.Data[0], nil
+	}
+	// UDM SE returns an empty data array on successful PUT; fall back to GET.
+	return c.GetNetwork(ctx, site, d.ID)
+}
+
+// DeleteNetwork removes the network by ID. The v1 endpoint requires the network
+// name in the request body alongside the URL ID — matches the SDK signature.
+func (c *Client) DeleteNetwork(ctx context.Context, site, id, name string) error {
+	var resp networkEnvelope
+	body := struct {
+		Name string `json:"name"`
+	}{Name: name}
+	if err := c.doNetworkRequest(ctx, http.MethodDelete,
+		fmt.Sprintf("%s%s/api/s/%s/rest/networkconf/%s", c.BaseURL, c.APIPath, site, id),
+		body, &resp); err != nil {
+		return err
+	}
+	return checkV1Meta(resp.Meta)
+}
+
+// ListNetwork returns all networks for a site. Matches the SDK signature
+// (variadic params) so it overrides the embedded ApiClient.ListNetwork via
+// method promotion.
 func (c *Client) ListNetwork(ctx context.Context, site string, params ...[]struct {
 	key string
 	val string
 }) ([]unifi.Network, error) {
-	return c.fetchNetworkList(ctx, site, "")
-}
-
-// GetNetwork fetches a network by ID, working around the SDK's unmarshal bugs
-// for string-encoded numeric fields. Matches the SDK signature so it overrides
-// the embedded ApiClient.GetNetwork via method promotion.
-func (c *Client) GetNetwork(ctx context.Context, site, id string) (*unifi.Network, error) {
-	networks, err := c.fetchNetworkList(ctx, site, id)
-	if err != nil {
+	var resp networkEnvelope
+	if err := c.doNetworkRequest(ctx, http.MethodGet,
+		fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site),
+		nil, &resp); err != nil {
 		return nil, err
 	}
-	if len(networks) != 1 {
-		return nil, &unifi.NotFoundError{}
-	}
-	n := networks[0]
-	return &n, nil
-}
-
-// sendNetwork issues a write (POST or PUT) against the v1 rest/networkconf
-// endpoint with the given body and returns the decoded result, applying the
-// same field coercions as the read paths. Shared by CreateNetwork and
-// UpdateNetwork.
-func (c *Client) sendNetwork(ctx context.Context, method, site, suffix string, body *unifi.Network) (*unifi.Network, error) {
-	url := fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site)
-	if suffix != "" {
-		url += "/" + suffix
-	}
-
-	var raw json.RawMessage
-	if err := c.doV2Request(ctx, method, url, body, &raw); err != nil {
+	if err := checkV1Meta(resp.Meta); err != nil {
 		return nil, err
 	}
-
-	var envelope networkListResponse
-	if err := json.Unmarshal(fixNetworkBytes(raw), &envelope); err != nil {
-		return nil, fmt.Errorf("decoding network envelope: %w", err)
-	}
-
-	if envelope.Meta.RC != "" && envelope.Meta.RC != "ok" {
-		return nil, fmt.Errorf("controller returned rc=%s msg=%s", envelope.Meta.RC, envelope.Meta.Msg)
-	}
-
-	// UDM SE returns an empty data array on successful PUT; fall back to GET in
-	// that case to mirror the SDK's updateNetwork behavior.
-	if len(envelope.Data) == 0 && method == http.MethodPut {
-		return c.GetNetwork(ctx, site, body.ID)
-	}
-
-	if len(envelope.Data) != 1 {
-		return nil, &unifi.NotFoundError{}
-	}
-
-	var n unifi.Network
-	if err := json.Unmarshal(envelope.Data[0], &n); err != nil {
-		return nil, fmt.Errorf("decoding network: %w", err)
-	}
-	return &n, nil
+	return resp.Data, nil
 }
 
-// CreateNetwork creates a network, working around the SDK's unmarshal bugs in
-// the response payload.
-func (c *Client) CreateNetwork(ctx context.Context, site string, d *unifi.Network) (*unifi.Network, error) {
-	return c.sendNetwork(ctx, http.MethodPost, site, "", d)
-}
-
-// UpdateNetwork updates a network, working around the SDK's unmarshal bugs in
-// the response payload.
-func (c *Client) UpdateNetwork(ctx context.Context, site string, d *unifi.Network) (*unifi.Network, error) {
-	return c.sendNetwork(ctx, http.MethodPut, site, d.ID, d)
+// doNetworkRequest reuses the shared HTTP layer but translates 404 responses
+// into the local *unifi.NotFoundError so resource Read() can distinguish
+// "deleted externally" from real errors.
+func (c *Client) doNetworkRequest(ctx context.Context, method, url string, body, result any) error {
+	err := c.doV2Request(ctx, method, url, body, result)
+	if err != nil && strings.Contains(err.Error(), "(404)") {
+		return &unifi.NotFoundError{}
+	}
+	return err
 }

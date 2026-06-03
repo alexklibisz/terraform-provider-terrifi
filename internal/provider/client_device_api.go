@@ -1,14 +1,16 @@
 package provider
 
-// TODO(go-unifi): This file works around a bug in the go-unifi SDK for Client
-// CRUD. The SDK's Client struct serializes boolean fields use_fixedip,
-// local_dns_record_enabled, and fixed_ap_enabled without omitempty, which means
-// they always appear as false in the JSON body. This can clear settings managed
-// outside Terraform (like fixed AP binding). A custom request struct lets us
-// control exactly which fields are serialized.
+// Local CRUD methods for the v1 REST user endpoint (client devices). These
+// shadow the promoted go-unifi methods on *Client and use the local
+// internal/unifi.Client type instead, removing the SDK dependency for this
+// resource — see issue #157.
 //
-// When the upstream SDK adds omitempty to these fields, this file can be deleted
-// and the resource can use the SDK's built-in createClient/updateClient methods.
+// The endpoint requires precise control over which boolean toggles are sent:
+// use_fixedip, local_dns_record_enabled, and fixed_ap_enabled clear
+// controller-managed state if serialized as bare false. The bespoke
+// clientDeviceRequest struct below uses *bool with omitempty so we only
+// transmit fields the provider is authoritative over. PUT additionally
+// requires the _id in the body via clientDeviceUpdateRequest.
 
 import (
 	"context"
@@ -17,7 +19,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // clientDeviceRequest is the payload for POST/PUT to api/s/{site}/rest/user.

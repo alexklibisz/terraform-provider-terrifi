@@ -10,7 +10,7 @@ import (
 
 	"github.com/alexklibisz/terrifi/internal/provider"
 	"github.com/spf13/cobra"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // forgetBatchSize bounds the number of MACs sent in a single stamgr forget-sta

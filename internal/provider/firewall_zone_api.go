@@ -1,76 +1,43 @@
 package provider
 
-// TODO(go-unifi): This entire file is a workaround for bugs in the go-unifi
-// SDK (github.com/ubiquiti-community/go-unifi). When the upstream SDK fixes
-// these issues, this file can be deleted and the firewall zone resource can
-// use the SDK's built-in methods directly (c.ApiClient.Get/Create/Update/
-// DeleteFirewallZone). The upstream bugs are:
+// Local CRUD methods for the v2 firewall/zone endpoint. These shadow the
+// promoted go-unifi methods on *Client and use the local internal/unifi types
+// instead, removing the SDK dependency for this resource — see issue #157.
 //
-//  1. unifi.FirewallZone serializes `"default_zone": false` (no omitempty),
-//     which the UniFi v2 API rejects with 400 Bad Request.
-//     Fix needed in SDK: add `omitempty` to the DefaultZone field tag in
-//     FirewallZone, or remove the field if it's not a real v2 API concept.
+// Notes about wire-format quirks the controller has (these are not SDK bugs
+// — they are controller behavior that any client must handle):
 //
-//  2. SDK's UpdateFirewallZone does not include `"_id"` in the PUT request
-//     body (only in the URL path). The v2 API requires it in both places and
-//     returns 500 ("The given id must not be null") without it.
-//     Fix needed in SDK: include ID in the request body for PUT calls on the
-//     v2 firewall zone endpoint.
+//  1. The Create/Update endpoint rejects a body containing `default_zone:
+//     false` with HTTP 400. The local unifi.FirewallZone type omits the
+//     DefaultZone field entirely, so json.Marshal never emits it.
 //
-//  3. SDK's DeleteFirewallZone only treats HTTP 200 as success. The v2
-//     firewall zone DELETE endpoint returns 204 No Content on success, which
-//     the SDK misinterprets as an error.
-//     Fix needed in SDK: accept any 2xx status code as success, or
-//     specifically handle 204 for delete operations.
+//  2. PUT requires `_id` in the request body (not just in the URL path) and
+//     returns 500 ("The given id must not be null") without it. The local
+//     unifi.FirewallZone declares ID with `json:"_id,omitempty"`, so a
+//     non-empty ID is always serialized on update.
 //
-//  4. SDK's GetFirewallZone uses the v1 REST endpoint, which does not
-//     consistently return the `network_ids` field. Since Create and Update
-//     use the v2 endpoint (which does return network_ids), this mismatch
-//     causes Terraform to see empty network_ids on refresh, producing a
-//     non-empty plan diff and flaky acceptance tests.
-//     Fix needed in SDK: use the v2 GET endpoint for firewall zones.
+//  3. DELETE returns 204 No Content. doV2Request accepts any 2xx status,
+//     so this is handled transparently.
+//
+//  4. The v2 endpoint does not expose a per-ID GET, so we list all zones and
+//     filter by ID — this also ensures `network_ids` is consistently
+//     populated (the v1 single-zone endpoint would have returned without it).
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
-// firewallZoneCreateRequest is the minimal payload for POST /v2/api/site/{site}/firewall/zone.
-// Uses a bespoke struct (rather than unifi.FirewallZone) to avoid SDK bug #1 above.
-type firewallZoneCreateRequest struct {
-	Name       string   `json:"name,omitempty"`
-	NetworkIDs []string `json:"network_ids"`
-}
-
-// firewallZoneUpdateRequest is the minimal payload for PUT /v2/api/site/{site}/firewall/zone/{id}.
-// Includes _id to work around SDK bug #2 above.
-type firewallZoneUpdateRequest struct {
-	ID         string   `json:"_id"`
-	Name       string   `json:"name,omitempty"`
-	NetworkIDs []string `json:"network_ids"`
-}
-
-// GetFirewallZone reads a firewall zone via the v2 API, bypassing the SDK
-// to avoid bug #4 (v1 endpoint doesn't return network_ids consistently).
-// The v2 API does not support GET on individual zones, so we list all zones
-// and filter by ID (same pattern as GetFirewallPolicy).
-// This method shadows the SDK's promoted GetFirewallZone on ApiClient.
+// GetFirewallZone reads a firewall zone by ID via the v2 list endpoint
+// (the v2 API does not support per-ID GET).
 func (c *Client) GetFirewallZone(ctx context.Context, site string, id string) (*unifi.FirewallZone, error) {
-	var zones []unifi.FirewallZone
-	err := c.doV2Request(ctx, http.MethodGet,
-		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", c.BaseURL, c.APIPath, site),
-		struct{}{}, &zones)
+	zones, err := c.ListFirewallZone(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-
 	for i := range zones {
 		if zones[i].ID == id {
 			return &zones[i], nil
@@ -79,124 +46,57 @@ func (c *Client) GetFirewallZone(ctx context.Context, site string, id string) (*
 	return nil, &unifi.NotFoundError{}
 }
 
-// CreateFirewallZone creates a firewall zone via the v2 API, bypassing the
-// SDK to avoid bug #1 (default_zone serialization).
-func (c *Client) CreateFirewallZone(ctx context.Context, site string, d *unifi.FirewallZone) (*unifi.FirewallZone, error) {
-	payload := firewallZoneCreateRequest{
-		Name:       d.Name,
-		NetworkIDs: d.NetworkIDs,
-	}
-	if payload.NetworkIDs == nil {
-		payload.NetworkIDs = []string{}
-	}
-
-	var result unifi.FirewallZone
-	err := c.doV2Request(ctx, http.MethodPost,
+// ListFirewallZone returns all firewall zones for the site.
+func (c *Client) ListFirewallZone(ctx context.Context, site string) ([]unifi.FirewallZone, error) {
+	var zones []unifi.FirewallZone
+	if err := c.doV2Request(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", c.BaseURL, c.APIPath, site),
-		payload, &result)
-	if err != nil {
+		nil, &zones); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return zones, nil
 }
 
-// UpdateFirewallZone updates a firewall zone via the v2 API, bypassing the
-// SDK to avoid bugs #1 (default_zone) and #2 (_id in PUT body).
-func (c *Client) UpdateFirewallZone(ctx context.Context, site string, d *unifi.FirewallZone) (*unifi.FirewallZone, error) {
-	payload := firewallZoneUpdateRequest{
-		ID:         d.ID,
-		Name:       d.Name,
-		NetworkIDs: d.NetworkIDs,
-	}
-	if payload.NetworkIDs == nil {
-		payload.NetworkIDs = []string{}
-	}
-
+// CreateFirewallZone creates a firewall zone via the v2 endpoint.
+func (c *Client) CreateFirewallZone(ctx context.Context, site string, d *unifi.FirewallZone) (*unifi.FirewallZone, error) {
+	payload := normalizeFirewallZone(d)
 	var result unifi.FirewallZone
-	err := c.doV2Request(ctx, http.MethodPut,
-		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone/%s", c.BaseURL, c.APIPath, site, d.ID),
-		payload, &result)
-	if err != nil {
+	if err := c.doV2Request(ctx, http.MethodPost,
+		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", c.BaseURL, c.APIPath, site),
+		payload, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-// DeleteFirewallZone deletes a firewall zone via the v2 API, bypassing the
-// SDK to avoid bug #3 (204 No Content treated as error).
+// UpdateFirewallZone updates a firewall zone via the v2 endpoint. The local
+// FirewallZone struct includes `_id` in the marshaled body, satisfying the
+// controller's PUT requirement (see file-level note 2).
+func (c *Client) UpdateFirewallZone(ctx context.Context, site string, d *unifi.FirewallZone) (*unifi.FirewallZone, error) {
+	payload := normalizeFirewallZone(d)
+	var result unifi.FirewallZone
+	if err := c.doV2Request(ctx, http.MethodPut,
+		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone/%s", c.BaseURL, c.APIPath, site, d.ID),
+		payload, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// DeleteFirewallZone deletes a firewall zone via the v2 endpoint.
 func (c *Client) DeleteFirewallZone(ctx context.Context, site string, id string) error {
 	return c.doV2Request(ctx, http.MethodDelete,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone/%s", c.BaseURL, c.APIPath, site, id),
 		struct{}{}, nil)
 }
 
-// doV2Request makes an authenticated HTTP request to the UniFi v2 API.
-// It is shared by firewall zone and firewall policy operations.
-//
-// When response caching is enabled (c.cache != nil), GET responses are cached
-// by URL and subsequent GETs return cached bytes without hitting the controller.
-// Any non-GET request (POST, PUT, DELETE) invalidates the entire cache to ensure
-// subsequent reads see fresh data.
-func (c *Client) doV2Request(ctx context.Context, method, url string, body any, result any) error {
-	// Cache hit path: return cached bytes for GET requests without making an HTTP call.
-	if method == http.MethodGet && c.cache != nil {
-		if cached, ok := c.cache.get(url); ok {
-			if result != nil && len(cached) > 0 {
-				if err := json.Unmarshal(cached, result); err != nil {
-					return fmt.Errorf("unmarshaling cached response: %w", err)
-				}
-			}
-			return nil
-		}
+// normalizeFirewallZone ensures NetworkIDs is a non-nil slice so it serializes
+// as [] rather than null. The controller treats a missing network_ids field
+// as "leave unchanged"; we always want to send the authoritative set.
+func normalizeFirewallZone(d *unifi.FirewallZone) unifi.FirewallZone {
+	out := *d
+	if out.NetworkIDs == nil {
+		out.NetworkIDs = []string{}
 	}
-
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("marshaling request body: %w", err)
-	}
-
-	req, err := retryablehttp.NewRequestWithContext(ctx, method, url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// Replicate the SDK's auth logic: API key takes precedence over CSRF token.
-	if c.APIKey != "" {
-		req.Header.Set("X-API-Key", c.APIKey)
-	} else if c.csrf != "" {
-		req.Header.Set("X-Csrf-Token", c.csrf)
-	}
-
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return fmt.Errorf("performing request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("reading response: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("(%d) for %s %s\npayload: %s\nresponse: %s", resp.StatusCode, method, url, string(bodyBytes), string(respBytes))
-	}
-
-	// Cache management: store GET responses, invalidate on writes.
-	if c.cache != nil {
-		if method == http.MethodGet {
-			c.cache.set(url, respBytes)
-		} else {
-			c.cache.invalidateAll()
-		}
-	}
-
-	if result != nil && len(respBytes) > 0 {
-		if err := json.Unmarshal(respBytes, result); err != nil {
-			return fmt.Errorf("unmarshaling response: %w", err)
-		}
-	}
-
-	return nil
+	return out
 }
