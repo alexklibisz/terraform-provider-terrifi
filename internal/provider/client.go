@@ -15,27 +15,23 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	ui "github.com/ubiquiti-community/go-unifi/unifi"
 )
 
-// Client wraps the go-unifi API client with site information.
-// The go-unifi SDK (github.com/ubiquiti-community/go-unifi) provides typed Go structs
-// and CRUD methods for every UniFi API endpoint. We wrap it to carry the default site
-// name alongside the API client so resources can fall back to it.
+// Client wraps a retryablehttp.Client plus the controller's discovered API
+// path prefix and the per-session CSRF token. Resources call CRUD methods
+// declared in the various *_api.go files via this type.
 type Client struct {
-	*ui.ApiClient
 	Site    string
 	BaseURL string
-	APIPath string // API path prefix, e.g. "/proxy/network" for UniFi OS, empty for legacy
-	APIKey  string // Stored separately because the SDK's apiKey field is private
+	APIPath string // "/proxy/network" on UniFi OS, "" on legacy controllers
+	APIKey  string
 	HTTP    *retryablehttp.Client
-	csrf    string // CSRF token for custom v2/v1 API requests that bypass the SDK
-	cache   *responseCache // nil when response caching is disabled (zero overhead)
+	csrf    string         // session CSRF token; empty when authenticating via API key
+	cache   *responseCache // nil when response caching is disabled
 }
 
-// SiteOrDefault returns the given site if non-empty, otherwise falls back to the
-// provider's default site. Every resource calls this to resolve which site to operate on,
-// since the site attribute is optional on individual resources.
+// SiteOrDefault returns the given site if non-empty, otherwise the provider's
+// default site. Every resource calls this to resolve which site to operate on.
 func (c *Client) SiteOrDefault(site types.String) string {
 	if v := site.ValueString(); v != "" {
 		return v
@@ -44,20 +40,19 @@ func (c *Client) SiteOrDefault(site types.String) string {
 }
 
 // ClientConfig holds the configuration needed to create an authenticated
-// UniFi API client. It can be populated from Terraform attributes, env vars,
-// or both (via ClientConfigFromEnv).
+// UniFi API client.
 type ClientConfig struct {
-	APIURL           string
-	Username         string
-	Password         string
-	APIKey           string
-	Site             string
-	AllowInsecure    bool
-	ResponseCaching  bool
+	APIURL          string
+	Username        string
+	Password        string
+	APIKey          string
+	Site            string
+	AllowInsecure   bool
+	ResponseCaching bool
 }
 
 // ClientConfigFromEnv reads UniFi connection configuration from environment
-// variables. This is the same set of env vars that the Terraform provider reads.
+// variables. The same set of vars the Terraform provider reads at configure time.
 func ClientConfigFromEnv() ClientConfig {
 	cfg := ClientConfig{
 		APIURL:   os.Getenv("UNIFI_API"),
@@ -78,17 +73,11 @@ func ClientConfigFromEnv() ClientConfig {
 	return cfg
 }
 
-// NewClient creates an authenticated UniFi API client from the given config.
-// It handles HTTP client setup, TLS configuration, authentication (API key or
-// username/password), and API path discovery.
-//
-// TODO(go-unifi): The SDK's New() constructor creates its own internal HTTP client
-// and does not expose it or the CSRF token. Because we need to make custom HTTP
-// requests for v2/v1 endpoints that bypass the SDK (firewall zones, firewall
-// policies, client devices), we create a separate retryablehttp.Client and
-// perform an independent login to obtain our own session cookie + CSRF token.
-// If the SDK ever exposes a Do() method or the CSRF token, this dual-login
-// approach can be eliminated.
+// NewClient creates an authenticated UniFi API client. It probes the
+// controller to discover the API path prefix (UniFi OS vs. legacy) and, when
+// authenticating with username/password, performs a login to obtain a session
+// cookie and CSRF token. API-key auth needs no login — the key is sent as a
+// header on every request.
 func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 	if cfg.APIURL == "" {
 		return nil, fmt.Errorf("API URL is required (set UNIFI_API or pass api_url)")
@@ -97,23 +86,6 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("either API key or both username and password are required")
 	}
 
-	// Create the SDK client using the v1.33.36+ constructor.
-	// This handles HTTP setup, TLS, login, and API path discovery internally.
-	sdkClient, err := ui.New(ctx, &ui.Config{
-		BaseURL:       cfg.APIURL,
-		APIKey:        cfg.APIKey,
-		Username:      cfg.Username,
-		Password:      cfg.Password,
-		AllowInsecure: cfg.AllowInsecure,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("initializing SDK client: %w", err)
-	}
-
-	// Create a separate HTTP client for custom v2/v1 API requests that bypass
-	// the SDK (firewall zones, firewall policies, client devices). The SDK
-	// doesn't expose its internal HTTP client or CSRF token, so we maintain
-	// our own authenticated session for these requests.
 	httpClient := newRetryableHTTPClient(cfg.AllowInsecure)
 
 	apiPath, err := discoverAPIPath(ctx, httpClient, cfg.APIURL)
@@ -122,14 +94,14 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 	}
 
 	var csrf string
-	if cfg.APIKey == "" && cfg.Username != "" && cfg.Password != "" {
+	if cfg.APIKey == "" {
 		loginPath := "/api/login"
 		if apiPath == "/proxy/network" {
 			loginPath = "/api/auth/login"
 		}
 		csrf, err = loginForCustomRequests(ctx, httpClient, cfg.APIURL, loginPath, cfg.Username, cfg.Password)
 		if err != nil {
-			return nil, fmt.Errorf("custom client login failed: %w", err)
+			return nil, fmt.Errorf("login failed: %w", err)
 		}
 	}
 
@@ -139,18 +111,19 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 	}
 
 	return &Client{
-		ApiClient: sdkClient,
-		Site:      cfg.Site,
-		BaseURL:   cfg.APIURL,
-		APIPath:   apiPath,
-		APIKey:    cfg.APIKey,
-		HTTP:      httpClient,
-		csrf:      csrf,
-		cache:     cache,
+		Site:    cfg.Site,
+		BaseURL: cfg.APIURL,
+		APIPath: apiPath,
+		APIKey:  cfg.APIKey,
+		HTTP:    httpClient,
+		csrf:    csrf,
+		cache:   cache,
 	}, nil
 }
 
-// newRetryableHTTPClient creates a retryablehttp.Client configured for UniFi API access.
+// newRetryableHTTPClient creates a retryablehttp.Client configured for UniFi
+// API access: 30s request timeout, optional TLS-bypass, in-memory cookie jar
+// for session persistence.
 func newRetryableHTTPClient(allowInsecure bool) *retryablehttp.Client {
 	c := retryablehttp.NewClient()
 	c.HTTPClient.Timeout = 30 * time.Second
@@ -172,9 +145,9 @@ func newRetryableHTTPClient(allowInsecure bool) *retryablehttp.Client {
 	return c
 }
 
-// loginForCustomRequests authenticates with the UniFi controller using the given
-// HTTP client, establishing a session for custom v2/v1 API requests. Returns
-// the CSRF token from the login response (empty string for legacy controllers).
+// loginForCustomRequests authenticates with the UniFi controller, establishing
+// the session cookie used by all subsequent HTTP calls. Returns the CSRF token
+// from the response headers (empty string for legacy controllers).
 func loginForCustomRequests(ctx context.Context, httpClient *retryablehttp.Client, baseURL, loginPath, user, pass string) (string, error) {
 	payload, _ := json.Marshal(struct {
 		Username string `json:"username"`
@@ -198,27 +171,22 @@ func loginForCustomRequests(ctx context.Context, httpClient *retryablehttp.Clien
 		return "", fmt.Errorf("login returned status %d", resp.StatusCode)
 	}
 
-	// Extract CSRF token from response headers. UniFi OS uses X-Csrf-Token;
-	// newer firmware may use X-Updated-Csrf-Token.
 	csrf := resp.Header.Get("X-Updated-Csrf-Token")
 	if csrf == "" {
 		csrf = resp.Header.Get("X-Csrf-Token")
 	}
-
 	return csrf, nil
 }
 
 // discoverAPIPath probes the UniFi controller to determine the API path prefix.
 // UniFi OS controllers return HTTP 200 on GET / and use "/proxy/network" as the
-// API path prefix. Legacy controllers return HTTP 302 and use no prefix.
-// This replicates the logic in the go-unifi SDK's setAPIUrlStyle method.
+// API path prefix. Legacy controllers redirect (302) and use no prefix.
 func discoverAPIPath(ctx context.Context, c *retryablehttp.Client, baseURL string) (string, error) {
 	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating probe request: %w", err)
 	}
 
-	// Disable redirects for this probe — we need to see the raw status code.
 	origCheckRedirect := c.HTTPClient.CheckRedirect
 	c.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse

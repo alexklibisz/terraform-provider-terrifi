@@ -3,7 +3,7 @@ package generate
 import (
 	"sort"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // FirewallPolicyOrderBlocks generates import + resource blocks for firewall

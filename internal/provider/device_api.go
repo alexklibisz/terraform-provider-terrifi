@@ -1,33 +1,23 @@
 package provider
 
-// TODO(go-unifi): This file contains two workarounds for go-unifi SDK bugs
-// affecting device CRUD.
+// Local CRUD methods for the v1 device endpoint. These shadow the promoted
+// go-unifi methods on *Client and use the local internal/unifi.Device type
+// instead, removing the SDK dependency for this resource — see issue #157.
 //
-// 1. UpdateDevice diff mechanism. The SDK's UpdateDevice (1) re-fetches the
-// device by MAC internally, (2) diffs against the target using JSON
-// marshal/unmarshal, and (3) sends only changed fields. When the re-fetched
-// device differs from the target in unexpected ways (e.g., stat counters that
-// changed between reads, or structural differences between list vs.
-// single-device endpoints), the diff includes noise that confuses the
-// controller, causing it to return empty results (our "not found: type="
-// error). This workaround sends a minimal PUT payload containing only the
-// fields we actually manage, avoiding the fragile diff mechanism entirely.
-// Fix needed in SDK: UpdateDevice's diff approach should be more robust, or
-// provide a way to do a simple field-level PUT without the diff.
+// Two non-obvious controller behaviors are encoded here:
 //
-// 2. DeviceRadioTable.TxPower and DeviceRadioTable.Channel unmarshal. The SDK
-// declares both as Go strings (json tags `tx_power` and `channel`), but the
-// controller emits them as JSON numbers for some devices (e.g. an integer dBm
-// tx_power value, or a numeric channel on devices like the Dream Router 7 and
-// USW Flex XG), so the SDK's UnmarshalJSON for DeviceRadioTable fails with:
-// "unable to unmarshal alias: json: cannot unmarshal number into Go struct
-// field .Alias.tx_power of type string" (or .Alias.channel). This blocks
-// every Read on affected sites. We bypass GetDevice/GetDeviceByMAC/
-// ListDevice in the SDK and call the v1 stat/device endpoints ourselves,
-// pre-processing the raw JSON to wrap numeric tx_power and channel values in
-// quotes before unmarshaling into unifi.Device.
-// Fix needed in SDK: TxPower and Channel should accept either a string or a
-// number on the wire (e.g. via a custom UnmarshalJSON that uses json.Number).
+//  1. UpdateDevice sends a minimal payload of just the fields the provider
+//     manages. Round-tripping the full Device struct on every update would
+//     pull in stat counters and runtime fields that differ between successive
+//     reads, and the controller rejects such payloads with "not found: type=".
+//     deviceUpdatePayload is the authoritative shape we send.
+//
+//  2. DeviceRadioTable.TxPower and .Channel arrive as JSON numbers on some
+//     hardware (Dream Router 7, USW Flex XG, certain APs reporting dBm
+//     directly) and as JSON strings on others. The local DeviceRadioTable
+//     type declares both as Go strings; fixRadioTableBytes wraps any numeric
+//     occurrences in quotes before unmarshal so the decode succeeds across
+//     all controller versions.
 
 import (
 	"context"
@@ -37,7 +27,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // deviceUpdatePayload contains only the fields the device resource manages.
