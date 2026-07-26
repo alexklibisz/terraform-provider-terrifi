@@ -127,7 +127,7 @@ resource "terrifi_client_device" "blocked" {
 ### Optional
 
 - `name` (String) — The alias/display name for the client device.
-- `note` (String) — A free-text note for the client device.
+- `note` (String) — A free-text note for the client device. Optional *and* computed: when the configuration does not set it, whatever note the controller already holds (for example one added through the UI) is adopted into state instead of being reported as drift. Removing `note` from the configuration therefore does **not** clear it on the controller — the API exposes no clear-a-note operation. An empty string is rejected, because the controller drops it from the request and it would read back as null.
 - `fixed_ip` (String) — A fixed IP address to assign via DHCP reservation. Requires `network_id` or `network_override_id`.
 - `network_id` (String) — The network ID for fixed IP assignment. Required when `fixed_ip` is set unless `network_override_id` provides the network context.
 - `network_override_id` (String) — The network ID for VLAN/network override.
