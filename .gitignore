@@ -42,3 +42,11 @@ scratch
 /terrifi
 /unifi-device-types/
 /unifi-device-types.html
+
+# Terraform working files under examples/. Running an example leaves state
+# behind, and state can carry resource IDs and provider credentials.
+examples/**/terraform.tfstate
+examples/**/terraform.tfstate.*
+examples/**/.terraform/
+examples/**/.terraform.lock.hcl
+examples/**/crash.log
