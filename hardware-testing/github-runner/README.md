@@ -48,7 +48,9 @@ cd /home/terrifi/docker-compose
 3. The runner should appear with a green "Idle" status
 4. The labels `self-hosted` and `terrifi-hardware-test` should be listed
 
-## Troubleshooting: Idle Runner Not Picking Up Jobs
+## Troubleshooting
+
+### Note: Idle Runner Not Picking Up Jobs
 
 On October 10, 2026, the HIL job for PR #185 stayed queued with "Waiting for a
 runner to pick up this job," while GitHub showed `terrifi-hardware-runner` as
