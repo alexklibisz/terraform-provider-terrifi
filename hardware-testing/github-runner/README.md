@@ -76,9 +76,7 @@ cached `myoung34/github-runner:ubuntu-noble` base image. We changed `run.sh` to
 run `docker compose build --pull runner` before `docker compose up -d runner`.
 The `ubuntu-noble` tag already tracks the latest runner build for Ubuntu 24.04;
 refreshing the cached base image was the missing step. After rebuilding, the
-runner picked up the PR job again. The job then reached the UniFi connection
-check and failed there, a separate issue to address in a follow-up.
-
+runner picked up the PR job again.
 
 ## Architecture
 
