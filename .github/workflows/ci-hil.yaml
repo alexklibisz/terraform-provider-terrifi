@@ -78,7 +78,7 @@ jobs:
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check UniFi API key
+      - name: Check UniFi Connection
         timeout-minutes: 1
         run: task checkAPIConnection
       - name: Download Go dependencies
