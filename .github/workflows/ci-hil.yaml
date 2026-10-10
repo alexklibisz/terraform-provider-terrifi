@@ -31,8 +31,8 @@ jobs:
       - self-hosted
       - terrifi-hardware-test
     env:
-      # Using IP instead of hostname for reliability in the self-hosted runner.
-      UNIFI_API: https://192.168.1.3:11443
+      # Use the controller's Tailscale IP to avoid exposing the tailnet hostname.
+      UNIFI_API: https://100.70.153.33:11443
       UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
       UNIFI_INSECURE: true
     steps:
