@@ -1,6 +1,12 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents working in this repository.
+
+## Repository Skills
+
+For UniFi controller API exploration, reverse-engineering, and debugging, read
+[the unifi-api skill](.agents/skills/unifi-api/SKILL.md). It includes endpoint
+references, credential setup, and controller log commands.
 
 ## Project Overview
 
