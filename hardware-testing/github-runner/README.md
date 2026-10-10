@@ -79,10 +79,6 @@ refreshing the cached base image was the missing step. After rebuilding, the
 runner picked up the PR job again. The job then reached the UniFi connection
 check and failed there, a separate issue to address in a follow-up.
 
-We also inspected the old scheduled runs while cleaning up the backlog. Many
-were already `completed/cancelled`, with no runner assignment or executed steps,
-so querying only queued/pending runs missed them. A populated job `started_at`
-timestamp alone was not evidence that a runner had executed the job.
 
 ## Architecture
 
