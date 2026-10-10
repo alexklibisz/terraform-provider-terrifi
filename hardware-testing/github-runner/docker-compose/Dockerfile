@@ -1,3 +1,5 @@
+# Tracks the latest runner build for Ubuntu 24.04. Build with --pull to refresh
+# this moving tag; upstream's :latest tag uses Ubuntu 20.04 instead.
 FROM myoung34/github-runner:ubuntu-noble
 
 ARG GO_VERSION=1.25.0

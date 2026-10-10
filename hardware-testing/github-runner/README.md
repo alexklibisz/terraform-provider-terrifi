@@ -20,11 +20,26 @@ The runner authenticates with a Personal Access Token (classic), which it uses t
 ## Setup
 
 1. Set up SSH access with an alias `terrifi-gh-runner`, i.e., you should be able to run `ssh terrifi-gh-runner` from your host.
-2. Rsync the Docker Compose files to the server: `./rsync.sh`
+2. Rsync the Docker Compose files and `run.sh` to the server: `./rsync.sh`
 3. SSH into the server.
 4. Copy the env file: `cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
-5. Start the runner: `docker compose up -d`
+5. Start the runner: `cd /home/terrifi/docker-compose && ./run.sh`
 6. Confirm the runner appears at: https://github.com/your-org/terrifi/settings/actions/runners
+
+## Updating the Runner
+
+Run `./rsync.sh` from this directory to sync the files, then run `./run.sh` on
+the server to rebuild with the latest `ubuntu-noble` base image and start the
+updated container. The build uses
+`--pull` because Docker otherwise may reuse a cached base image even with
+`--build`.
+
+To update directly on the server:
+
+```sh
+cd /home/terrifi/docker-compose
+./run.sh
+```
 
 ## Verifying the Runner in GitHub
 
