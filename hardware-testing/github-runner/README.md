@@ -48,6 +48,40 @@ cd /home/terrifi/docker-compose
 3. The runner should appear with a green "Idle" status
 4. The labels `self-hosted` and `terrifi-hardware-test` should be listed
 
+## Troubleshooting: Idle Runner Not Picking Up Jobs
+
+On October 10, 2026, the HIL job for PR #185 stayed queued with "Waiting for a
+runner to pick up this job," while GitHub showed `terrifi-hardware-runner` as
+online and idle. We checked that the job's requested labels (`self-hosted` and
+`terrifi-hardware-test`) matched the runner's labels. The workflow's repository
+guard also evaluated to true, so neither labels nor the guard explained the wait.
+
+The useful clue was in the container logs:
+
+```sh
+cd /home/terrifi/docker-compose
+docker compose logs --tail=150 runner
+```
+
+The runner reported version `2.332.0`, downloaded an update to `2.337.0`, and
+restarted after completing the update process. After restarting, it reported
+`2.332.0` again. An online/idle status and "Listening for Jobs" therefore did
+not establish that the runner was ready to accept jobs. GitHub can stop assigning
+jobs to outdated runners; see the [runner update requirements](https://docs.github.com/en/actions/reference/runners/self-hosted-runners).
+
+Our build command used `docker compose up -d --build`, which could reuse the
+cached `myoung34/github-runner:ubuntu-noble` base image. We changed `run.sh` to
+run `docker compose build --pull runner` before `docker compose up -d runner`.
+The `ubuntu-noble` tag already tracks the latest runner build for Ubuntu 24.04;
+refreshing the cached base image was the missing step. After rebuilding, the
+runner picked up the PR job again. The job then reached the UniFi connection
+check and failed there, a separate issue to address in a follow-up.
+
+We also inspected the old scheduled runs while cleaning up the backlog. Many
+were already `completed/cancelled`, with no runner assignment or executed steps,
+so querying only queued/pending runs missed them. A populated job `started_at`
+timestamp alone was not evidence that a runner had executed the job.
+
 ## Architecture
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
