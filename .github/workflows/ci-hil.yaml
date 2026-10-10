@@ -20,7 +20,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '22 * * * *'
+    - cron: '33 3 * * *'
 
 jobs:
   main:
@@ -36,6 +36,24 @@ jobs:
       UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
       UNIFI_INSECURE: true
     steps:
+      - name: Send cron heartbeat
+        if: github.event_name == 'schedule' && github.repository == 'alexklibisz/terraform-provider-terrifi'
+        timeout-minutes: 1
+        env:
+          HEARTBEAT_URL: ${{ secrets.TERRIFI_HIL_HEARTBEAT_URL }}
+        run: |
+          # Confirm the cron started, independently of the test results.
+          # Never log the URL or response, including curl's error messages.
+          set +x
+          if [ -z "$HEARTBEAT_URL" ]; then
+            echo "Heartbeat URL secret is not configured."
+            exit 1
+          fi
+          if ! curl --disable --fail --silent --output /dev/null \
+            --connect-timeout 10 --max-time 30 "$HEARTBEAT_URL" >/dev/null 2>&1; then
+            echo "Heartbeat request failed."
+            exit 1
+          fi
       - name: Checkout
         timeout-minutes: 1
         uses: actions/checkout@v4
