@@ -92,4 +92,18 @@ jobs:
         run: go run ./cmd/terrifi-tests cleanup
       - name: Acceptance tests (HIL)
         timeout-minutes: 10
-        run: task test:acc:hardware
+        run: |
+          # Diagnostic branch: compare test failures with independent HTTPS probes.
+          (
+            while true; do
+              printf '%s HTTPS probe: ' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              curl --disable --noproxy '*' --insecure --silent --show-error \
+                --connect-timeout 3 --max-time 5 --output /dev/null \
+                --write-out 'HTTP=%{http_code} connect=%{time_connect} total=%{time_total}\n' \
+                "$UNIFI_API/" || true
+              sleep 2
+            done
+          ) &
+          probe_pid=$!
+          trap 'kill "$probe_pid" 2>/dev/null || true; wait "$probe_pid" 2>/dev/null || true' EXIT
+          task test:acc:hardware -- -run '^TestAcc(DeviceResource_import|FirewallPolicyOrder_reorder)$' -count=3
