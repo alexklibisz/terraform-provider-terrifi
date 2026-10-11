@@ -106,4 +106,4 @@ jobs:
           ) &
           probe_pid=$!
           trap 'kill "$probe_pid" 2>/dev/null || true; wait "$probe_pid" 2>/dev/null || true' EXIT
-          task test:acc:hardware -- -run '^TestAcc(DeviceResource_import|FirewallPolicyOrder_reorder)$' -count=3
+          task test:acc:hardware
