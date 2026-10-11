@@ -1,6 +1,6 @@
 # terrifi
 
-_Testing CI runs on PRs_
+_Testing CI runs on PRs..._
 
 Yet another Terraform provider for UniFi.
 
