@@ -1,10 +1,12 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -455,6 +457,24 @@ func TestAccDeviceResource_locked(t *testing.T) {
 	requireAdoptedDevice(t)
 
 	dev := findFirstAdoptedDevice(t)
+	t.Logf("locked test targets model=%s mac=%s name=%q locked=%v", dev.Model, dev.MAC, dev.Name, dev.Locked)
+	client := testAccGetClient(t)
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		for i := 0; i < 5; i++ {
+			current, err := client.GetDevice(ctx, "default", dev.ID)
+			if err != nil {
+				t.Logf("post-failure device read: %v", err)
+				return
+			}
+			t.Logf("post-failure device read %d: name=%q locked=%v", i, current.Name, current.Locked)
+			time.Sleep(time.Second)
+		}
+	})
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
