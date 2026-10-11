@@ -10,11 +10,20 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Nightly run on main. The acceptance job pulls a published UniFi controller
+  # image, so it can start failing without anything in this repo changing --
+  # a new image tag, a controller behaviour change, an upstream base-image
+  # update. Without a schedule that goes unnoticed until the next PR, which is
+  # a bad time to discover it.
+  schedule:
+    - cron: "0 6 * * *"
 
 jobs:
   main:
     name: Main
     runs-on: ubuntu-latest
+    # Scheduled runs fire on forks too, where they only burn Actions minutes.
+    if: github.event_name != 'schedule' || github.repository == 'alexklibisz/terraform-provider-terrifi'
     steps:
       - name: Checkout
         timeout-minutes: 1
