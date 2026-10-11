@@ -17,6 +17,11 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      test_filter:
+        description: Go test name regex (defaults to all acceptance tests)
+        type: string
+        default: '^TestAcc'
   pull_request:
     branches: [main]
   schedule:
@@ -92,4 +97,6 @@ jobs:
         run: go run ./cmd/terrifi-tests cleanup
       - name: Acceptance tests (HIL)
         timeout-minutes: 10
-        run: task test:acc:hardware
+        env:
+          TEST_FILTER: ${{ inputs.test_filter || '^TestAcc' }}
+        run: task test:acc:hardware -- -run "$TEST_FILTER"
