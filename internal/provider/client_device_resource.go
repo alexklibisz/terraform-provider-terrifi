@@ -107,8 +107,23 @@ func (r *clientDeviceResource) Schema(
 			},
 
 			"note": schema.StringAttribute{
-				MarkdownDescription: "A free-text note for the client device.",
-				Optional:            true,
+				MarkdownDescription: "A free-text note for the client device.\n\n" +
+					"This attribute is optional *and* computed: when the configuration does not " +
+					"set it, whatever note the controller already holds (for example one added " +
+					"through the UI) is adopted into state instead of being reported as drift. " +
+					"Removing `note` from the configuration therefore does not clear it on the " +
+					"controller — the API exposes no clear-a-note operation.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					// The controller drops an empty note from the request body, so it
+					// would read back as null and contradict a planned "". Reject it at
+					// validate time rather than failing after apply.
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 
 			"fixed_ip": schema.StringAttribute{
@@ -504,10 +519,13 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	} else {
 		state.Name = types.StringNull()
 	}
-	if !plan.Note.IsNull() && !plan.Note.IsUnknown() {
+	// note is optional+computed, so an absent config value plans as unknown
+	// rather than null. Copy only when known and let apiToModel hydrate the
+	// unknown case from the controller's response; forcing null here is what
+	// produced "provider produced inconsistent result after apply" whenever the
+	// controller held a note the configuration did not set.
+	if !plan.Note.IsUnknown() {
 		state.Note = plan.Note
-	} else {
-		state.Note = types.StringNull()
 	}
 	if !plan.FixedIP.IsNull() && !plan.FixedIP.IsUnknown() {
 		state.FixedIP = plan.FixedIP

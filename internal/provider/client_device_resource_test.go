@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -643,9 +644,93 @@ func TestClientDeviceAPIToModel(t *testing.T) {
 	})
 }
 
+// TestClientDeviceNoteRoundTrip covers the note attribute's optional+computed
+// semantics. Before that change a controller-side note that the configuration
+// did not set produced "provider produced inconsistent result after apply":
+// applyPlanToState forced state.Note to null, then apiToModel overwrote it with
+// the controller's value, and unlike client_group_ids / network_id /
+// device_type_id the Update path never restored the planned value.
+func TestClientDeviceNoteRoundTrip(t *testing.T) {
+	r := &clientDeviceResource{}
+
+	t.Run("apiToModel adopts a note the model never set", func(t *testing.T) {
+		c := &unifi.Client{ID: "c1", MAC: "aa:bb:cc:dd:ee:ff", Note: "Ethernet"}
+
+		var model clientDeviceResourceModel
+		r.apiToModel(c, &model, "default")
+
+		assert.Equal(t, "Ethernet", model.Note.ValueString())
+	})
+
+	t.Run("apiToModel maps an absent note to null, not empty string", func(t *testing.T) {
+		c := &unifi.Client{ID: "c1", MAC: "aa:bb:cc:dd:ee:ff"}
+
+		var model clientDeviceResourceModel
+		r.apiToModel(c, &model, "default")
+
+		assert.True(t, model.Note.IsNull())
+	})
+
+	t.Run("modelToAPI omits the note when the model has none", func(t *testing.T) {
+		ctx := context.Background()
+		m := &clientDeviceResourceModel{
+			MAC:  types.StringValue("aa:bb:cc:dd:ee:ff"),
+			Note: types.StringNull(),
+		}
+
+		c := r.modelToAPI(ctx, m)
+
+		assert.Empty(t, c.Note, "an unset note must not be written back to the controller")
+	})
+
+	t.Run("applyPlanToState keeps prior state when the plan is unknown", func(t *testing.T) {
+		// No note in config -> the framework plans unknown. The prior value has
+		// to survive so apiToModel's hydration is not contradicted.
+		plan := &clientDeviceResourceModel{Note: types.StringUnknown()}
+		state := &clientDeviceResourceModel{Note: types.StringValue("Ethernet")}
+
+		r.applyPlanToState(plan, state)
+
+		assert.Equal(t, "Ethernet", state.Note.ValueString())
+	})
+
+	t.Run("applyPlanToState takes the planned note when it is known", func(t *testing.T) {
+		plan := &clientDeviceResourceModel{Note: types.StringValue("new note")}
+		state := &clientDeviceResourceModel{Note: types.StringValue("old note")}
+
+		r.applyPlanToState(plan, state)
+
+		assert.Equal(t, "new note", state.Note.ValueString())
+	})
+
+	t.Run("applyPlanToState propagates an explicitly null plan", func(t *testing.T) {
+		// UseStateForUnknown only fires for unknown values. A genuinely null
+		// plan (no prior state to borrow from) must not be turned into a value.
+		plan := &clientDeviceResourceModel{Note: types.StringNull()}
+		state := &clientDeviceResourceModel{Note: types.StringValue("stale")}
+
+		r.applyPlanToState(plan, state)
+
+		assert.True(t, state.Note.IsNull())
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Acceptance tests — require TF_ACC=1 and a UniFi controller
 // ---------------------------------------------------------------------------
+
+// testAccRawClient builds a provider Client straight from the environment so a
+// test can mutate the controller outside Terraform's knowledge. Used to set up
+// pre-existing state that no Terraform configuration ever created.
+func testAccRawClient(t *testing.T) *Client {
+	t.Helper()
+
+	cfg := ClientConfigFromEnv()
+	c, err := NewClient(context.Background(), cfg)
+	require.NoError(t, err, "building a raw UniFi client from the environment")
+
+	return c
+}
 
 func TestAccClientDevice_basic(t *testing.T) {
 	mac := randomMAC()
@@ -689,6 +774,136 @@ resource "terrifi_client_device" "test" {
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-note"),
 					resource.TestCheckResourceAttr("terrifi_client_device.test", "note", "This is a test note"),
 				),
+			},
+			{
+				// A note set through Terraform must survive an import round-trip.
+				ResourceName:      "terrifi_client_device.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+// TestAccClientDevice_noteRemovedFromConfig removes note from the configuration
+// after it was set. Because note is computed, the controller's value is adopted
+// rather than cleared, and the plan settles empty. Before the optional+computed
+// change this failed the second step with "provider produced inconsistent
+// result after apply".
+func TestAccClientDevice_noteRemovedFromConfig(t *testing.T) {
+	mac := randomMAC()
+
+	withNote := fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-note-removed"
+  note = "tfacc-note-v1"
+}
+`, mac)
+
+	withoutNote := fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-note-removed"
+}
+`, mac)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: withNote,
+				Check: resource.TestCheckResourceAttr(
+					"terrifi_client_device.test", "note", "tfacc-note-v1"),
+			},
+			{
+				Config: withoutNote,
+				Check: resource.TestCheckResourceAttr(
+					"terrifi_client_device.test", "note", "tfacc-note-v1"),
+			},
+			{
+				// And the adopted value must be stable, not a perpetual diff.
+				Config:   withoutNote,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+// TestAccClientDevice_noteSetOutsideTerraform is the real-world shape of the
+// bug: a note that arrived through the UI on a client whose configuration never
+// mentioned one. The note is written with a raw client so Terraform genuinely
+// does not know about it until the next refresh.
+func TestAccClientDevice_noteSetOutsideTerraform(t *testing.T) {
+	mac := randomMAC()
+	var clientID string
+
+	config := fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-note-external"
+}
+`, mac)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_client_device.test", "note"),
+					func(s *terraform.State) error {
+						rs, ok := s.RootModule().Resources["terrifi_client_device.test"]
+						if !ok {
+							return fmt.Errorf("terrifi_client_device.test missing from state")
+						}
+						clientID = rs.Primary.Attributes["id"]
+						return nil
+					},
+				),
+			},
+			{
+				PreConfig: func() {
+					ctx := context.Background()
+					c := testAccRawClient(t)
+					site := c.SiteOrDefault(types.StringNull())
+
+					d, err := c.GetClientDevice(ctx, site, clientID)
+					require.NoError(t, err, "reading the client back for the out-of-band write")
+
+					d.Note = "added-in-the-ui"
+					_, err = c.UpdateClientDevice(ctx, site, d)
+					require.NoError(t, err, "writing the note outside Terraform")
+				},
+				Config: config,
+				Check: resource.TestCheckResourceAttr(
+					"terrifi_client_device.test", "note", "added-in-the-ui"),
+			},
+		},
+	})
+}
+
+// TestAccClientDevice_noteEmptyRejected guards the length validator. The
+// controller drops an empty note from the request body, so it would read back
+// as null and contradict a planned "" — the same inconsistency in a new
+// disguise. Rejecting it at validate time is cheaper than failing after apply.
+func TestAccClientDevice_noteEmptyRejected(t *testing.T) {
+	mac := randomMAC()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+  mac  = %q
+  name = "tfacc-note-empty"
+  note = ""
+}
+`, mac),
+				ExpectError: regexp.MustCompile(`(?s)note.*at least 1`),
 			},
 		},
 	})
