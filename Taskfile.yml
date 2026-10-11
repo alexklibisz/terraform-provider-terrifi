@@ -51,7 +51,10 @@ tasks:
       TF_ACC: "1"
       TERRIFI_ACC_TARGET: docker
     cmds:
-      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+      # -tags=acc pulls in the testcontainers/compose bootstrap. Only this
+      # target needs it; the hardware target talks to an existing controller,
+      # so leaving the tag off keeps the Docker tree out of its build.
+      - go test -tags=acc ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
 
   test:acc:hardware:
     desc: Run acceptance tests against real hardware (uses env vars from .envrc.local)
@@ -91,6 +94,9 @@ tasks:
     desc: Run static analysis
     cmds:
       - go vet ./...
+      # Also vet the acc-tagged Docker bootstrap, which the untagged pass skips.
+      # Without this it would rot silently until someone ran test:acc.
+      - go vet -tags=acc ./internal/provider/
 
   checkAPIConnection:
     desc: Verify connectivity to the UniFi controller
