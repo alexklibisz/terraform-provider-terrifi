@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -27,6 +28,13 @@ var (
 	_ resource.ResourceWithImportState = &networkResource{}
 	_ resource.ResourceWithModifyPlan  = &networkResource{}
 )
+
+// networkDeleteMu serializes network deletes. On delete, the controller
+// removes the network's ID from every port profile's exclude list, and when
+// several networks are deleted concurrently some of those removals are lost,
+// leaving IDs of deleted networks behind (observed on UniFi OS 5.1 / Network
+// 10.x).
+var networkDeleteMu sync.Mutex
 
 func NewNetworkResource() resource.Resource {
 	return &networkResource{}
@@ -285,7 +293,9 @@ func (r *networkResource) Delete(
 
 	site := r.client.SiteOrDefault(state.Site)
 
+	networkDeleteMu.Lock()
 	err := r.client.DeleteNetwork(ctx, site, state.ID.ValueString(), state.Name.ValueString())
+	networkDeleteMu.Unlock()
 	if err != nil {
 		resp.Diagnostics.AddError("Error Deleting Network", err.Error())
 	}
