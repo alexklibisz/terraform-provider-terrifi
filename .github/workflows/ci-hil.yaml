@@ -4,8 +4,8 @@
 # on every job keeps this inert in forks. The test steps live in
 # ci-hil-run.yaml.
 #
-# PR events only run when the PR diff includes a .go file. Nightly and manual
-# runs remain available regardless of changed paths.
+# PR events only run when the PR diff includes Go source or dependency files.
+# Nightly and manual runs remain available regardless of changed paths.
 #
 # Who runs what:
 # - Cron, manual dispatch, and PRs from branches in this repo run directly.
@@ -41,10 +41,16 @@ on:
         default: 1
   pull_request:
     branches: [main]
-    paths: ['**.go']
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   pull_request_target:
     branches: [main]
-    paths: ['**.go']
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   schedule:
     - cron: '33 3 * * *'
 
