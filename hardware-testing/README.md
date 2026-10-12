@@ -72,6 +72,7 @@ I also run [Tailscale](https://tailscale.com/) in each of the VMs.
 This lets me communicate with them from my laptop, which is on my primary UniFi network.
 
 See the subdirectory READMEs for setup instructions:
+- [`terraform/`](./terraform/) — persistent UniFi baseline and private R2 state
 - [`unifi-os-server/`](./unifi-os-server/) — install and manage UOS Server
 - [`github-runner/`](./github-runner/) — set up the self-hosted Actions runner
 

@@ -1,0 +1,47 @@
+version: '3'
+
+vars:
+  TF_BIN: '{{default "tofu" .TERRIFI_TF_BIN}}'
+
+env:
+  TF_CLI_CONFIG_FILE: '{{.TASKFILE_DIR}}/terraform.rc'
+
+tasks:
+  init:
+    desc: Initialize the HIL R2 backend and pinned provider
+    cmds:
+      - |
+        : "${TERRIFI_STATE_BUCKET:?Set TERRIFI_STATE_BUCKET}"
+        : "${AWS_ENDPOINT_URL_S3:?Set AWS_ENDPOINT_URL_S3}"
+        : "${AWS_ACCESS_KEY_ID:?Set AWS_ACCESS_KEY_ID}"
+        : "${AWS_SECRET_ACCESS_KEY:?Set AWS_SECRET_ACCESS_KEY}"
+        {{.TF_BIN}} init -input=false -lockfile=readonly \
+          -backend-config="bucket=${TERRIFI_STATE_BUCKET}" {{default .CLI_ARGS .INIT_ARGS}}
+
+  plan:
+    desc: Initialize and preview changes to the persistent HIL baseline
+    cmds:
+      - task: init
+        vars:
+          # A nonempty whitespace value suppresses inherited CLI_ARGS.
+          INIT_ARGS: ' '
+      - '{{.TF_BIN}} plan -input=false -lock-timeout=5m {{.CLI_ARGS}}'
+
+  apply:
+    desc: Initialize and restore the persistent HIL baseline (interactive by default)
+    cmds:
+      - task: init
+        vars:
+          INIT_ARGS: ' '
+      - '{{.TF_BIN}} apply -lock-timeout=5m {{.CLI_ARGS}}'
+
+  fmt:
+    desc: Format the HIL Terraform configuration
+    cmds:
+      - '{{.TF_BIN}} fmt {{.CLI_ARGS}}'
+
+  validate:
+    desc: Validate the HIL Terraform configuration without connecting to R2 or UniFi
+    cmds:
+      - '{{.TF_BIN}} init -backend=false -input=false -lockfile=readonly'
+      - '{{.TF_BIN}} validate'
