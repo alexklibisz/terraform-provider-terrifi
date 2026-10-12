@@ -4,7 +4,8 @@
 # Security notes:
 # - `ref` is always a commit SHA. For fork PRs it is the SHA a maintainer
 #   reviewed and approved, so later pushes cannot slip in unreviewed code.
-# - Callers pass secrets explicitly. Fork PRs never receive the heartbeat URL.
+# - State credentials are scoped to the baseline step, before PR checkout.
+# - Callers pass secrets explicitly. Fork PR code never receives the heartbeat URL.
 # - The caller restricts GITHUB_TOKEN to `contents: read`.
 
 name: CI - HIL (run)
@@ -34,6 +35,14 @@ on:
         required: true
       heartbeat_url:
         required: false
+      state_bucket:
+        required: true
+      state_endpoint:
+        required: true
+      state_access_key_id:
+        required: true
+      state_secret_access_key:
+        required: true
 
 permissions:
   contents: read
@@ -72,6 +81,51 @@ jobs:
             echo "Heartbeat request failed."
             exit 1
           fi
+      - name: Checkout baseline
+        timeout-minutes: 1
+        uses: actions/checkout@v7
+        with:
+          # Fork code never runs with state credentials. Same-repo PRs can test
+          # baseline changes; approved forks always reset using main.
+          repository: alexklibisz/terraform-provider-terrifi
+          ref: ${{ inputs.fork_pr && 'main' || inputs.ref }}
+          path: hil-baseline
+          persist-credentials: false
+      - name: Set up Go
+        timeout-minutes: 1
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: hil-baseline/go.mod
+          # Keep disabled: fork code runs here and must not write to caches
+          # that trusted runs on main would restore.
+          cache: false
+      - name: Set up OpenTofu
+        timeout-minutes: 1
+        uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_wrapper: false
+      - name: Install Task
+        timeout-minutes: 1
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Reset HIL baseline
+        timeout-minutes: 10
+        working-directory: hil-baseline
+        env:
+          TERRIFI_STATE_BUCKET: ${{ secrets.state_bucket }}
+          AWS_ENDPOINT_URL_S3: ${{ secrets.state_endpoint }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.state_access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.state_secret_access_key }}
+        run: |
+          cli="$RUNNER_TEMP/terrifi-baseline-cli"
+          trap 'rm -f "$cli"' EXIT
+          go build -o "$cli" ./cmd/terrifi
+          go run ./cmd/terrifi-tests reset --terrifi "$cli"
+      - name: Remove baseline workspace
+        if: always()
+        run: rm -rf "$GITHUB_WORKSPACE/hil-baseline"
       - name: Checkout
         timeout-minutes: 1
         uses: actions/checkout@v7
@@ -83,29 +137,10 @@ jobs:
           # a maintainer approves the hil-fork-approval environment. The token
           # is read-only and credentials are not persisted.
           allow-unsafe-pr-checkout: ${{ inputs.fork_pr }}
-      - name: Set up Go
-        timeout-minutes: 1
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          # Keep disabled: fork code runs here and must not write to caches
-          # that trusted runs on main would restore.
-          cache: false
-      - name: Set up OpenTofu
-        timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v2
-        with:
-          tofu_wrapper: false
       - name: Configure OpenTofu for acceptance tests
         run: |
           echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
           echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
-      - name: Install Task
-        timeout-minutes: 1
-        uses: arduino/setup-task@v3
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check UniFi Connection
         timeout-minutes: 1
         run: task checkAPIConnection
@@ -115,9 +150,6 @@ jobs:
       - name: Build
         timeout-minutes: 10
         run: task build
-      - name: Cleanup leftover test resources
-        timeout-minutes: 5
-        run: go run ./cmd/terrifi-tests cleanup
       - name: Acceptance tests (HIL)
         timeout-minutes: 10
         env:

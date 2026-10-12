@@ -88,5 +88,10 @@ Before approving, a maintainer reviews the PR diff at the commit shown in the ru
 The approved run tests that exact commit on the HIL runner, and the result appears as a check on the PR.
 Each new push to the PR creates a new run that needs its own approval.
 
+Before tests, the workflow restores the [Terraform baseline](./terraform/) and
+imports/deletes extra supported resources. Reset and tests run in the same job
+on the single hardware runner. For fork PRs, reset uses code from `main` before
+the reviewed PR is checked out; R2 credentials are scoped to the reset step.
+
 Approving a run gives the PR's code the UniFi API key and network access to the HIL controller.
 Only approve code you have read.

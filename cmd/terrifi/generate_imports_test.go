@@ -93,6 +93,19 @@ func runCLI(t *testing.T, args ...string) string {
 	return string(out)
 }
 
+func TestAccGenerateImportsAll(t *testing.T) {
+	requireHardware(t)
+	// The HIL baseline always has an adopted device, a LAN, and built-in zones.
+	all := runCLI(t, "generate-imports", "all")
+	require.Contains(t, all, `resource "terrifi_device"`)
+	require.Contains(t, all, `resource "terrifi_network"`)
+	require.Contains(t, all, `resource "terrifi_firewall_zone" "internal"`)
+	customOnly := runCLI(t, "generate-imports", "all", "--exclude-default-zones")
+	require.Contains(t, customOnly, `resource "terrifi_device"`)
+	require.Contains(t, customOnly, `resource "terrifi_network"`)
+	require.NotContains(t, customOnly, `resource "terrifi_firewall_zone" "internal"`)
+}
+
 // resourceID extracts the ID of a resource from Terraform state.
 func resourceID(s *terraform.State, addr string) (string, error) {
 	rs, ok := s.RootModule().Resources[addr]
