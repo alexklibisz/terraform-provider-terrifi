@@ -92,7 +92,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-        run: echo "Approved HIL run for PR #$PR_NUMBER at $HEAD_REPO@$HEAD_SHA"
+        # Block scalar: in a plain YAML scalar, " #" starts a comment and
+        # truncates the command.
+        run: |
+          echo "Approved HIL run for PR #$PR_NUMBER at $HEAD_REPO@$HEAD_SHA"
 
   fork:
     name: Fork PR
