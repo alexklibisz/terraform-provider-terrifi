@@ -17,13 +17,13 @@ Read this before approving a fork PR's HIL run, changing the HIL workflows, or c
 
 ## Which Code Runs on the Runner
 
-| Trigger | Code that runs | Approval | Secrets |
-|---|---|---|---|
-| Nightly cron | `main` | None | UniFi key, heartbeat URL |
-| Manual dispatch | The selected branch | None, requires write access | UniFi key |
-| PR from a branch in this repository | The PR head commit | None, requires write access | UniFi key |
-| PR from a fork | The PR head commit | Required, per push | UniFi key |
-| Device-types site deploy (`deploy-site.yaml`), on a push to `main` that touches the site, or on manual dispatch | `main`, or the selected branch | None, requires write access | UniFi key |
+| Trigger | Code that runs | Approval |
+|---|---|---|
+| Nightly cron | `main` | None |
+| Manual dispatch | The selected branch | None, requires write access |
+| PR from a branch in this repository | The PR head commit | None, requires write access |
+| PR from a fork | The PR head commit | Required, per push |
+| Device-types site deploy (`deploy-site.yaml`), on a push to `main` that touches the site, or on manual dispatch | `main`, or the selected branch | None, requires write access |
 
 Fork PRs also trigger the `pull_request` event. The workflow skips that path, because GitHub withholds secrets from it.
 
