@@ -1,0 +1,118 @@
+# Reusable HIL test job, called only by ci-hil.yaml. It runs on the
+# self-hosted runner wired to the real UniFi controller.
+#
+# Security notes:
+# - `ref` is always a commit SHA. For fork PRs it is the SHA a maintainer
+#   reviewed and approved, so later pushes cannot slip in unreviewed code.
+# - Callers pass secrets explicitly. Fork PRs never receive the heartbeat URL.
+# - The caller restricts GITHUB_TOKEN to `contents: read`.
+
+name: CI - HIL (run)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit SHA to check out and test
+        type: string
+        required: true
+      test_filter:
+        type: string
+        default: '^TestAcc'
+      test_count:
+        type: number
+        default: 1
+      send_heartbeat:
+        type: boolean
+        default: false
+    secrets:
+      unifi_api_key:
+        required: true
+      heartbeat_url:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  hil:
+    name: HIL tests
+    # One job at a time on the hardware. Job-level, so runs waiting for fork
+    # approval do not hold the group.
+    concurrency:
+      group: ci-hil-hardware
+      cancel-in-progress: false
+    runs-on:
+      - self-hosted
+      - terrifi-hardware-test
+    env:
+      # Runner and controller share the HIL LAN; keep API traffic local.
+      UNIFI_API: https://192.168.1.3:11443
+      UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
+      UNIFI_INSECURE: true
+    steps:
+      - name: Send cron heartbeat
+        if: inputs.send_heartbeat
+        timeout-minutes: 1
+        env:
+          HEARTBEAT_URL: ${{ secrets.heartbeat_url }}
+        run: |
+          # Confirm the cron started, independently of the test results.
+          # Never log the URL or response, including curl's error messages.
+          set +x
+          if [ -z "$HEARTBEAT_URL" ]; then
+            echo "Heartbeat URL secret is not configured."
+            exit 1
+          fi
+          if ! curl --disable --fail --silent --output /dev/null \
+            --connect-timeout 10 --max-time 30 "$HEARTBEAT_URL" >/dev/null 2>&1; then
+            echo "Heartbeat request failed."
+            exit 1
+          fi
+      - name: Checkout
+        timeout-minutes: 1
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - name: Set up Go
+        timeout-minutes: 1
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # Keep disabled: fork code runs here and must not write to caches
+          # that trusted runs on main would restore.
+          cache: false
+      - name: Set up OpenTofu
+        timeout-minutes: 1
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+      - name: Configure OpenTofu for acceptance tests
+        run: |
+          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
+          echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
+      - name: Install Task
+        timeout-minutes: 1
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check UniFi Connection
+        timeout-minutes: 1
+        run: task checkAPIConnection
+      - name: Download Go dependencies
+        timeout-minutes: 10
+        run: task deps
+      - name: Build
+        timeout-minutes: 10
+        run: task build
+      - name: Cleanup leftover test resources
+        timeout-minutes: 5
+        run: go run ./cmd/terrifi-tests cleanup
+      - name: Acceptance tests (HIL)
+        timeout-minutes: 10
+        env:
+          TEST_FILTER: ${{ inputs.test_filter }}
+          TEST_COUNT: ${{ inputs.test_count }}
+        run: task test:acc:hardware -- -run "$TEST_FILTER" -count "$TEST_COUNT"
