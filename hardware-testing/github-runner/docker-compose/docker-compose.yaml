@@ -26,11 +26,10 @@ services:
       LABELS: ${LABELS:-self-hosted,terrifi-hardware-test}
       RUNNER_GROUP: ${RUNNER_GROUP:-Default}
       EPHEMERAL: ${EPHEMERAL:-true}
-    volumes:
-      - runner-work:/tmp/runner
+      # Run jobs as the unprivileged `runner` user, not root. Root could read
+      # ACCESS_TOKEN from /proc/1/environ. The Dockerfile removes the user's
+      # sudo access so this cannot be undone from inside a job.
+      RUN_AS_ROOT: "false"
     restart: unless-stopped
     # Prevent the runner from being force-killed mid-job
     stop_grace_period: 5m
-
-volumes:
-  runner-work:
