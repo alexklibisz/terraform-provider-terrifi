@@ -69,7 +69,9 @@ jobs:
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
       test_filter: ${{ inputs.test_filter || '^TestAcc' }}
-      test_count: ${{ inputs.test_count || 1 }}
+      # workflow_dispatch passes number inputs as strings, and workflow_call
+      # number inputs reject strings. fromJSON converts both cases.
+      test_count: ${{ fromJSON(inputs.test_count || '1') }}
       send_heartbeat: ${{ github.event_name == 'schedule' }}
     secrets:
       unifi_api_key: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
