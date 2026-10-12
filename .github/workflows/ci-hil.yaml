@@ -4,7 +4,7 @@
 # on every job keeps this inert in forks. The test steps live in
 # ci-hil-run.yaml.
 #
-# PR events only run when the PR diff includes Go source or dependency files.
+# PR events run when the PR diff includes Go source, dependencies, or workflows.
 # Nightly and manual runs remain available regardless of changed paths.
 #
 # Who runs what:
@@ -45,12 +45,14 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - '.github/workflows/**'
   pull_request_target:
     branches: [main]
     paths:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - '.github/workflows/**'
   schedule:
     - cron: '33 3 * * *'
 

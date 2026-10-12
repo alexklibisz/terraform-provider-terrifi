@@ -79,14 +79,15 @@ See the subdirectory READMEs for setup instructions:
 
 The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests
 that target `main` and change at least one `.go` file anywhere in the repository,
-or the root `go.mod` or `go.sum`. This includes Go test files, deleted Go files,
-and dependency-only changes. Documentation-only and workflow-only PRs skip HIL,
-including the fork approval gate. Use manual dispatch when those changes need
-hardware validation; nightly runs remain unconditional.
+the root `go.mod` or `go.sum`, or any file under `.github/workflows/`. This
+includes Go test files, deleted Go files, dependency-only changes, and workflow
+changes. Documentation-only PRs skip HIL, including the fork approval gate. Use
+manual dispatch when those changes need hardware validation; nightly runs remain
+unconditional.
 
 The path filter uses the whole PR diff, not just the latest commit. A docs-only
-push to a PR that already changes Go source or dependencies can therefore start
-another HIL run.
+push to a PR that already changes Go source, dependencies, or workflows can
+therefore start another HIL run.
 
 PRs from branches in this repository run the HIL tests automatically.
 
