@@ -2,20 +2,25 @@
 
 This directory contains a Docker Compose setup for running a GitHub Actions self-hosted runner. The runner is used by the `CI - HIL` workflow to run acceptance tests against real UniFi hardware.
 
+The runner executes code from pull requests. Read [../SECURITY.md](../SECURITY.md) before changing anything here.
+
 ## Prerequisites
 
 A server with Docker, Docker Compose, and rsync installed. The runner needs access to the UniFi controller on the local network.
 
 ## Creating a GitHub Personal Access Token
 
-The runner authenticates with a Personal Access Token (classic), which it uses to automatically mint short-lived registration tokens on each startup.
+The runner uses a fine-grained personal access token to request a short-lived registration token each time it starts.
 
-1. Go to https://github.com/settings/tokens
-2. Click **Generate new token** > **Generate new token (classic)**
-3. Give it a descriptive name (e.g., `terrifi-gh-runner`)
-4. Set an expiration (or no expiration for a long-lived runner)
-5. Select the **`repo`** scope (full control of private repositories)
-6. Click **Generate token** and copy the value
+1. Go to https://github.com/settings/personal-access-tokens/new
+2. Name it something descriptive, e.g., `terrifi-gh-runner`
+3. Set the resource owner to the repository owner
+4. Set an expiration of about a year, and set a reminder to rotate it
+5. Under **Repository access**, choose **Only select repositories** and select this repository
+6. Under **Permissions**, add **Administration** with **Read and write** access. Metadata is added automatically as read-only. Add nothing else.
+7. Click **Generate token** and copy the value
+
+Registering a repository-level runner requires Administration write. That permission also allows changing settings and deleting the repository, so keep the token only on the runner VM. See [../SECURITY.md](../SECURITY.md) for rotation steps.
 
 ## Setup
 
@@ -24,7 +29,7 @@ The runner authenticates with a Personal Access Token (classic), which it uses t
 3. SSH into the server.
 4. Copy the env file: `cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
 5. Start the runner: `cd /home/terrifi/docker-compose && ./run.sh`
-6. Confirm the runner appears at: https://github.com/your-org/terrifi/settings/actions/runners
+6. Confirm the runner appears at: https://github.com/<owner>/<repo>/settings/actions/runners
 
 ## Updating the Runner
 
@@ -89,7 +94,7 @@ runner picked up the PR job again.
 ## Architecture
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
-- **Ephemeral** by default — the runner gets a clean workspace for every job
+- **Ephemeral** by default — the runner takes one job, deregisters, and registers again when Docker restarts the container. The restarted container keeps its filesystem, so files persist between jobs.
 - **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
 - **No Docker socket** — the host socket is not mounted, because it would give jobs root on the runner VM. HIL tests do not need Docker.
 - Go and Task are pre-installed in the image; OpenTofu is installed via `setup-opentofu` in the workflow

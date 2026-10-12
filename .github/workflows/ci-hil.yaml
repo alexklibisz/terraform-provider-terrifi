@@ -17,6 +17,9 @@
 # Never add a step to this workflow that checks out or runs PR code outside
 # ci-hil-run.yaml, and never run fork code before the approval gate.
 #
+# Security model, approval checklist, and required GitHub settings:
+# hardware-testing/SECURITY.md
+#
 # To opt a fork into HIL:
 # 1. replace the repository name in each job's `if:` with your own `owner/repo`
 # 2. register a self-hosted runner with the `self-hosted` + `terrifi-hardware-test` labels, pointed at your controller
@@ -43,9 +46,9 @@ on:
   schedule:
     - cron: '33 3 * * *'
 
-# A new push to a fork PR supersedes its older run, including one still
-# waiting for approval. Other events never cancel each other; the hardware
-# job serializes itself in ci-hil-run.yaml.
+# A new push to a fork PR supersedes its older run, whether it is waiting for
+# approval or already running. Other events never cancel each other. There is
+# one hardware runner, so the job queue runs HIL jobs one at a time.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
@@ -85,7 +88,7 @@ jobs:
       github.event.pull_request.head.repo.full_name != github.repository
     # Required reviewers on this environment are the gate. This job runs on a
     # GitHub-hosted runner so a run waiting for approval never occupies the
-    # hardware runner or its concurrency group.
+    # hardware runner.
     environment: hil-fork-approval
     runs-on: ubuntu-latest
     steps:

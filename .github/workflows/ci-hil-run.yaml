@@ -6,6 +6,8 @@
 #   reviewed and approved, so later pushes cannot slip in unreviewed code.
 # - Callers pass secrets explicitly. Fork PRs never receive the heartbeat URL.
 # - The caller restricts GITHUB_TOKEN to `contents: read`.
+#
+# See hardware-testing/SECURITY.md for the full security model.
 
 name: CI - HIL (run)
 
