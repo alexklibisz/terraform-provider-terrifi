@@ -82,5 +82,5 @@ runner picked up the PR job again.
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
 - **Ephemeral** by default — the runner gets a clean workspace for every job
-- **Docker socket** is mounted so jobs can use Docker (e.g., testcontainers)
-- Go and Task are pre-installed in the image; Terraform is installed via `setup-terraform` in the workflow
+- **No Docker socket** — the host socket is not mounted, because it would give jobs root on the runner VM. HIL tests do not need Docker.
+- Go and Task are pre-installed in the image; OpenTofu is installed via `setup-opentofu` in the workflow
