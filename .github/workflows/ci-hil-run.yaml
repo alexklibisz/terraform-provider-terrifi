@@ -75,7 +75,7 @@ jobs:
           fi
       - name: Checkout
         timeout-minutes: 1
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
@@ -86,7 +86,7 @@ jobs:
           allow-unsafe-pr-checkout: ${{ inputs.fork_pr }}
       - name: Set up Go
         timeout-minutes: 1
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           # Keep disabled: fork code runs here and must not write to caches
@@ -94,7 +94,7 @@ jobs:
           cache: false
       - name: Set up OpenTofu
         timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@v2
         with:
           tofu_wrapper: false
       - name: Configure OpenTofu for acceptance tests
@@ -103,7 +103,7 @@ jobs:
           echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
       - name: Install Task
         timeout-minutes: 1
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@v3
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
