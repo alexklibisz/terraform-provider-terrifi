@@ -105,5 +105,6 @@ jobs:
       # The exact commit the event was created for. A later push creates a
       # new run that needs its own approval.
       ref: ${{ github.event.pull_request.head.sha }}
+      fork_pr: true
     secrets:
       unifi_api_key: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}

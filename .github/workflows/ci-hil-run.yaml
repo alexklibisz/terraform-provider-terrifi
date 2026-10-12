@@ -25,6 +25,10 @@ on:
       send_heartbeat:
         type: boolean
         default: false
+      fork_pr:
+        description: True only for approved fork PR runs from pull_request_target
+        type: boolean
+        default: false
     secrets:
       unifi_api_key:
         required: true
@@ -75,6 +79,11 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+          # actions/checkout refuses fork code under pull_request_target by
+          # default. Opt in only for fork runs, which reach this job only after
+          # a maintainer approves the hil-fork-approval environment. The token
+          # is read-only and credentials are not persisted.
+          allow-unsafe-pr-checkout: ${{ inputs.fork_pr }}
       - name: Set up Go
         timeout-minutes: 1
         uses: actions/setup-go@v5
