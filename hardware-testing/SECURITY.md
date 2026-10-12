@@ -47,7 +47,14 @@ Other controls on this path:
 - **No shared Actions caches:** `setup-go` caching is disabled, so fork code cannot write caches that trusted runs on `main` restore.
 - **Minimal secrets:** fork runs receive the UniFi key, but never the heartbeat URL.
 
-GitHub's built-in approval for workflows from fork contributors does not gate `pull_request_target` runs. The `hil-fork-approval` environment is the gate.
+### Two Separate Approvals
+
+A fork PR asks the maintainer for two different approvals:
+
+1. **Workflow approval**, shown as a banner on the PR. The repository requires approval for every external contributor before `pull_request` workflows run, for example the Docker-based tests in `CI - Local`. These run fork code on GitHub-hosted runners, with no secrets and a read-only token. This approval does not apply to `pull_request_target`, so it does not gate the HIL run.
+2. **Deployment approval** for the `hil-fork-approval` environment, shown on the HIL run itself. This is the gate for the hardware runner.
+
+Approving the first does not approve the second.
 
 ### Before Approving a Fork Run
 
@@ -83,6 +90,11 @@ These controls live in GitHub settings rather than in code. If any of them chang
   - Restrict events: on, with every event allowed.
   - Restrict actors: off. Fork authors trigger the runs, so restricting actors would block exactly the runs this flow exists for.
   - Purpose: starting November 2, 2026, GitHub blocks `pull_request_target` on public repositories unless a policy allows it. Without this policy, fork PRs would get no HIL check at all.
+- **Actions settings** (Settings, then Actions, then General):
+  - Approval for running fork pull request workflows: require approval for all external contributors.
+  - Workflow permissions: read repository contents and packages. Workflows that need more must request it.
+  - Allow GitHub Actions to create and approve pull requests: off.
+  - Actions permissions: all actions and reusable workflows are allowed, and SHA pinning is not required. See Known Gaps.
 - **Repository secrets:** `TERRIFI_HIL_TEST_UNIFI_API_KEY` and `TERRIFI_HIL_HEARTBEAT_URL`.
 - **Rulesets:** no ruleset requires the HIL check. Fork PRs can merge without it, at the maintainer's discretion.
 
@@ -96,6 +108,7 @@ These are accepted for now. Each one notes what would close it.
 4. **Jobs can read the runner's session credentials.** These are scoped to this runner and stop working when the ephemeral registration ends.
 5. **The runner VM runs Tailscale.** Job code can reach whatever the VM's tailnet access controls allow. Restrict the VM with a tag-based Tailscale ACL so it can reach only what it needs.
 6. **Admins can bypass the environment.** The environment allows administrator bypass. Leave it on only while the maintainer is the only administrator.
+7. **Third-party actions are pinned by tag.** The HIL job runs actions such as `opentofu/setup-opentofu` and `arduino/setup-task` with the UniFi key in its environment. If one of those tags were moved to malicious code, it would run on the runner without review. Pinning actions to full commit SHAs, and enabling the setting that requires it, would close this.
 
 ## Maintenance
 
