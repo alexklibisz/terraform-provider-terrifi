@@ -74,3 +74,18 @@ This lets me communicate with them from my laptop, which is on my primary UniFi 
 See the subdirectory READMEs for setup instructions:
 - [`unifi-os-server/`](./unifi-os-server/) — install and manage UOS Server
 - [`github-runner/`](./github-runner/) — set up the self-hosted Actions runner
+
+## Running HIL tests on pull requests
+
+The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests.
+
+PRs from branches in this repository run the HIL tests automatically.
+
+PRs from forks run through `pull_request_target` and wait for maintainer approval in the `hil-fork-approval` environment.
+The workflow definition always comes from `main`, so a PR cannot change how it runs.
+Before approving, a maintainer reviews the PR diff at the commit shown in the run.
+The approved run tests that exact commit on the HIL runner, and the result appears as a check on the PR.
+Each new push to the PR creates a new run that needs its own approval.
+
+Approving a run gives the PR's code the UniFi API key and network access to the HIL controller.
+Only approve code you have read.

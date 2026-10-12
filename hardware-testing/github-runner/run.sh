@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
-cd $(dirname $0)
-./rsync.sh
-ssh terrifi-gh-runner 'cd /home/terrifi/docker-compose && docker compose up -d --build'
+set -euo pipefail
+cd -- "$(dirname -- "$0")"
+docker compose build --pull runner
+docker compose up -d runner
