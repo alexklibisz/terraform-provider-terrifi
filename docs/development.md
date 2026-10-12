@@ -160,10 +160,7 @@ With `dev_overrides` active, skip `tofu init` and run `tofu plan` directly.
 
 ## On-demand CodeRabbit PR reviews
 
-CodeRabbit reviews run through its GitHub App. Install the app on the personal
-`alexklibisz` account with **Only select repositories** set to
-`terraform-provider-terrifi`. No GitHub Actions workflow, runner, or API secret is
-required for reviews.
+CodeRabbit reviews run through its GitHub App.
 
 The root `.coderabbit.yaml` disables automatic reviews and automatic incremental
 reviews on pushes. To request a complete review, post a comment on the PR:
