@@ -180,21 +180,5 @@ For an incremental review of changes since the previous review:
 
 Manual review commands also work for PRs targeting a branch other than `main`,
 including stacked PRs. Review progress and findings appear on the PR from
-`coderabbitai[bot]`, rather than in GitHub Actions. Leave **Autofix** unchecked
-when you only want feedback.
+`coderabbitai[bot]`. Leave **Autofix** unchecked when you only want feedback.
 
-CodeRabbit handles command permissions; this configuration does not reproduce
-the removed Claude workflow's custom `alexklibisz`-only actor check. Automatic
-review settings control when reviews start, not who may request them.
-
-### Migration from Claude reviews
-
-The Claude review workflow has been removed, so `@claude review` no longer starts
-a review after this change lands on `main`. The repository Actions secret
-`CLAUDE_CODE_OAUTH_TOKEN` is no longer needed by this repository and can be deleted
-from [Actions secrets](https://github.com/alexklibisz/terraform-provider-terrifi/settings/secrets/actions).
-Removing the workflow does not delete or revoke the token itself.
-
-References: [CodeRabbit setup](https://docs.coderabbit.ai/getting-started/quickstart),
-[automatic review controls](https://docs.coderabbit.ai/configuration/auto-review),
-and [review commands](https://docs.coderabbit.ai/reference/review-commands).
