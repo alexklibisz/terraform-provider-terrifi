@@ -157,3 +157,47 @@ With `dev_overrides` active, skip `tofu init` and run `tofu plan` directly.
 2. Click "Run workflow", enter the version tag (e.g., `v0.1.0`), and run it.
 3. The tag workflow creates and pushes the tag, which triggers the [Release workflow](../../actions/workflows/release.yml).
 4. The release workflow builds binaries for linux/darwin (amd64/arm64) and publishes them as a GitHub Release.
+
+## On-demand Claude PR reviews
+
+After the workflow is merged into `main`, **alexklibisz** can request a review by
+posting a new comment in an open PR's **Conversation** tab containing exactly:
+
+```text
+@claude review
+```
+
+Only that account (also checked by numeric GitHub account ID) can trigger the job.
+Other commenters, ordinary issues, edited comments, inline review comments, new
+PRs, and pushes do not start a Claude review. GitHub may show a skipped workflow
+for other new comments. Post a new command to review subsequent changes.
+
+### One-time setup
+
+1. Sign into Claude Code using the Claude Pro subscription and run
+   `claude setup-token` locally.
+2. Save the generated token as the **repository Actions secret**
+   `CLAUDE_CODE_OAUTH_TOKEN` in
+   [Terrifi's Actions secrets](https://github.com/alexklibisz/terraform-provider-terrifi/settings/secrets/actions).
+   Do not paste the token into a PR, issue, or committed file.
+3. Merge `.github/workflows/claude-review.yml` into the default branch. GitHub's
+   `issue_comment` event requires the workflow there before comments can trigger it.
+4. Post the command above on an open PR and check the **Claude on-demand PR review**
+   run in Actions. Claude posts its findings as a PR conversation comment under
+   `github-actions[bot]`.
+
+No Claude GitHub App installation, personal access token, API key, or self-hosted
+runner is needed. The workflow passes GitHub's built-in token to the official
+Claude action with `contents: read` and `pull-requests: write`, scoped to this
+repository. The job also checks the repository name, so copied workflows in forks
+do not run. OAuth authentication uses the Claude subscription allowance; it does
+not provide unlimited reviews. GitHub Actions usage is separate. Each run uses
+Sonnet with a 20-turn limit and a 15-minute timeout.
+
+The reviewer reads the current PR diff and default-branch context and reports the
+reviewed head SHA. It does not run tests or execute PR code. Findings are advisory;
+normal testing and human review still apply. To disable reviews, disable the
+workflow in Actions or remove it. To rotate the token, replace the repository secret.
+
+References: [Claude action setup](https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md),
+[custom GitHub token authentication](https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md#why-am-i-getting-oidc-authentication-errors).
