@@ -271,7 +271,18 @@ func (r *clientDeviceResource) Read(
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	apiObj, err := r.client.GetClientDevice(ctx, site, state.ID.ValueString())
+	// Import sets the ID to a MAC address, but GetClientDevice expects the
+	// controller's internal _id. Detect MAC format and use the MAC lookup
+	// endpoint instead. After the first successful read, apiToModel sets
+	// ID to the internal _id, so subsequent reads use the direct path.
+	id := state.ID.ValueString()
+	var apiObj *unifi.Client
+	var err error
+	if strings.Contains(id, ":") {
+		apiObj, err = r.client.GetClientDeviceByMAC(ctx, site, id)
+	} else {
+		apiObj, err = r.client.GetClientDevice(ctx, site, id)
+	}
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			resp.State.RemoveResource(ctx)
@@ -279,7 +290,7 @@ func (r *clientDeviceResource) Read(
 		}
 		resp.Diagnostics.AddError(
 			"Error Reading Client Device",
-			fmt.Sprintf("Could not read client device %s: %s", state.ID.ValueString(), err.Error()),
+			fmt.Sprintf("Could not read client device %s: %s", id, err.Error()),
 		)
 		return
 	}
@@ -424,15 +435,30 @@ func (r *clientDeviceResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	parts := strings.SplitN(req.ID, ":", 2)
+	// MAC addresses contain exactly 5 colons (aa:bb:cc:dd:ee:ff).
+	// The "site:mac" format contains 6 (site:aa:bb:cc:dd:ee:ff).
+	// The "site:id" format contains 1 (site:64hexchars).
+	// A bare internal _id contains 0.
+	colonCount := strings.Count(req.ID, ":")
 
-	if len(parts) == 2 {
+	switch {
+	case colonCount == 5:
+		// Bare MAC: "aa:bb:cc:dd:ee:ff"
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	case colonCount == 6:
+		// Site-prefixed MAC: "site:aa:bb:cc:dd:ee:ff"
+		idx := strings.Index(req.ID, ":")
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site"), req.ID[:idx])...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID[idx+1:])...)
+	case colonCount == 1:
+		// Site-prefixed internal ID: "site:64hexchars"
+		parts := strings.SplitN(req.ID, ":", 2)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site"), parts[0])...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
-		return
+	default:
+		// Bare internal ID
+		resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 	}
-
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // ---------------------------------------------------------------------------
