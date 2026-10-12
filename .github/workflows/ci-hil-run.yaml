@@ -41,11 +41,10 @@ permissions:
 jobs:
   hil:
     name: HIL tests
-    # One job at a time on the hardware. Job-level, so runs waiting for fork
-    # approval do not hold the group.
-    concurrency:
-      group: ci-hil-hardware
-      cancel-in-progress: false
+    # No concurrency group: a group keeps only one pending job and cancels
+    # older pending ones, so a burst of PR runs could cancel a queued cron or
+    # manual run. There is a single hardware runner, so GitHub's job queue
+    # already runs these one at a time without cancelling anything.
     runs-on:
       - self-hosted
       - terrifi-hardware-test
