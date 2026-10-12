@@ -41,6 +41,14 @@ cd /home/terrifi/docker-compose
 ./run.sh
 ```
 
+Older versions of this setup mounted a `runner-work` named volume that holds
+files written by root-run jobs. After deploying the non-root runner, remove it
+so stale root-owned files cannot break checkouts:
+
+```sh
+docker volume rm docker-compose_runner-work
+```
+
 ## Verifying the Runner in GitHub
 
 1. Go to your repository on GitHub
@@ -82,5 +90,6 @@ runner picked up the PR job again.
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
 - **Ephemeral** by default — the runner gets a clean workspace for every job
+- **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
 - **No Docker socket** — the host socket is not mounted, because it would give jobs root on the runner VM. HIL tests do not need Docker.
 - Go and Task are pre-installed in the image; OpenTofu is installed via `setup-opentofu` in the workflow

@@ -19,3 +19,14 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Task (taskfile.dev)
 RUN sh -c "$(curl -fsSL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin "v${TASK_VERSION}"
+
+# Jobs run as the unprivileged `runner` user (RUN_AS_ROOT=false in
+# docker-compose.yaml). The base image gives that user passwordless sudo, which
+# would let job code become root and read the runner's startup environment,
+# including ACCESS_TOKEN, from /proc/1/environ. Remove it, and fail the build
+# if it comes back in a future base image.
+RUN gpasswd -d runner sudo \
+    && sed -i '/NOPASSWD/d' /etc/sudoers \
+    && rm -f /etc/sudoers.d/runner \
+    && ! id -nG runner | grep -qw sudo \
+    && ! grep -rqs NOPASSWD /etc/sudoers /etc/sudoers.d
