@@ -63,7 +63,7 @@ The Beelink Mini PC runs [Proxmox](https://www.proxmox.com/) as the hypervisor, 
 
 1. UniFi OS Server VM: runs [UniFi OS Server](https://ui.com/download/releases/unifi-os-server), installed via [`unifi-os-server/install.sh`](./unifi-os-server/install.sh). UniFi OS Server is a single binary that downloads an embedded Podman container and registers it as a `systemd` service. It exposes the full UniFi API (including zone-based firewall) at `https://<host>:11443`.
 
-2. GitHub Actions Runner VM: runs a self-hosted GitHub Actions runner via Docker Compose ([`github-runner/`](./github-runner/)). The runner uses the [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner) base image and is ephemeral (clean workspace per job). It carries the labels `self-hosted` and `terrifi-hardware-test`, which the HIL CI workflow uses to target it specifically.
+2. GitHub Actions Runner VM: runs a self-hosted GitHub Actions runner via Docker Compose ([`github-runner/`](./github-runner/)). The runner uses the [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner) base image and is ephemeral: it takes one job, then registers again. It carries the labels `self-hosted` and `terrifi-hardware-test`, which the HIL CI workflow uses to target it specifically.
 
 When I run the Github Actions CI, the HIL workflow executes in the runner container on the runner VM.
 It's on the same LAN as the UniFi OS Server VM, so it can communcate with it through the UniFi Gateway Lite.
@@ -91,12 +91,7 @@ push to a PR that already changes Go source, dependencies, or workflows can
 therefore start another HIL run.
 
 PRs from branches in this repository run the HIL tests automatically.
+PRs from forks wait for a maintainer to review the code and approve the run.
+The result then appears as a check on the PR.
 
-PRs from forks run through `pull_request_target` and wait for maintainer approval in the `hil-fork-approval` environment.
-The workflow definition always comes from `main`, so a PR cannot change how it runs.
-Before approving, a maintainer reviews the PR diff at the commit shown in the run.
-The approved run tests that exact commit on the HIL runner, and the result appears as a check on the PR.
-Each new push to the PR creates a new run that needs its own approval.
-
-Approving a run gives the PR's code the UniFi API key and network access to the HIL controller.
-Only approve code you have read.
+See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving fork runs, and the GitHub settings this depends on.
