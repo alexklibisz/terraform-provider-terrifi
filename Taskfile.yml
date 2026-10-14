@@ -87,8 +87,7 @@ tasks:
     env:
       TF_ACC: ""
     cmds:
-      - go test ./internal/generate/ -v -count 1 {{.CLI_ARGS}}
-      - python3 -m unittest discover -s hardware-testing/terraform -p 'test_reset.py' -v
+      - go test ./internal/generate/ ./cmd/terrifi-tests/ -v -count 1 {{.CLI_ARGS}}
 
   test:reset:hardware:
     desc: Exercise full HIL reset with disposable fixtures (run separately from acceptance tests)
@@ -96,7 +95,7 @@ tasks:
       TF_ACC: "1"
       TERRIFI_ACC_TARGET: hardware
     cmds:
-      - python3 -m unittest discover -s hardware-testing/terraform -p 'test_reset.py' -k Hardware -v
+      - go test ./cmd/terrifi-tests/ -v -count 1 -timeout 15m -run '^TestAccResetHIL$' {{.CLI_ARGS}}
 
   deps:
     desc: Download Go module dependencies

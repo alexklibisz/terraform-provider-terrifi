@@ -10,7 +10,6 @@ RUN apt-get update \
         curl \
         git \
         jq \
-        python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Go

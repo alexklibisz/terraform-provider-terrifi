@@ -24,8 +24,8 @@ them with `source .env` from this directory. Task does not load `.env` automatic
 ## Reset before HIL tests
 
 From the repository root, build the CLI (`task build:cli`) and run
-`task hil:terraform:reset` (requires Python 3, with no extra packages). The reset
-script restores the baseline and passes `tofu show -json` to the CLI's
+`task hil:terraform:reset`. The `terrifi-tests reset` command restores the baseline
+and passes `tofu show -json` to the CLI's
 `--exclude-state` flag. It imports extra objects without modifying them,
 then removes their temporary definitions and applies the deletes. A final plan
 must be empty before tests start. Failed resets can be retried using the R2 state.
