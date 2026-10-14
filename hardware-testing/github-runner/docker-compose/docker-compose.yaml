@@ -8,11 +8,10 @@
 # The hardware acceptance target talks to the real controller and does not
 # need Docker; Docker-based tests run in ci-local on GitHub-hosted runners.
 #
-# Quick start:
-#   1. Copy .env.example to .env and fill in the values
-#   2. docker compose up -d
-#   3. Confirm the runner appears at:
-#      https://github.com/<owner>/<repo>/settings/actions/runners
+# Each container serves exactly one job. supervise.sh, run by the
+# terrifi-gh-runner systemd service, removes it afterwards and starts a new
+# one, so nothing a job writes reaches the next job. Do not start this with
+# `docker compose up -d`; see ../README.md for setup.
 
 services:
   runner:
@@ -25,11 +24,16 @@ services:
       RUNNER_WORKDIR: /tmp/runner/work
       LABELS: ${LABELS:-self-hosted,terrifi-hardware-test}
       RUNNER_GROUP: ${RUNNER_GROUP:-Default}
-      EPHEMERAL: ${EPHEMERAL:-true}
+      # Required: the runner must exit after one job so supervise.sh can
+      # replace the container. The entrypoint treats any nonempty value,
+      # including "false", as enabled.
+      EPHEMERAL: "true"
       # Run jobs as the unprivileged `runner` user, not root. Root could read
       # ACCESS_TOKEN from /proc/1/environ. The Dockerfile removes the user's
       # sudo access so this cannot be undone from inside a job.
       RUN_AS_ROOT: "false"
-    restart: unless-stopped
+    # supervise.sh replaces the container instead. A restart policy would
+    # reuse the old container's filesystem.
+    restart: "no"
     # Prevent the runner from being force-killed mid-job
     stop_grace_period: 5m

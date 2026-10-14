@@ -4,7 +4,7 @@ This directory contains a Docker Compose setup for running a GitHub Actions self
 
 ## Prerequisites
 
-A server with Docker, Docker Compose, and rsync installed. The runner needs access to the UniFi controller on the local network.
+A server with Docker, Docker Compose, rsync, and systemd installed. The `terrifi` user needs to be in the `docker` group and able to run `sudo systemctl`. The runner needs access to the UniFi controller on the local network.
 
 ## Creating a GitHub Personal Access Token
 
@@ -23,14 +23,22 @@ The runner authenticates with a Personal Access Token (classic), which it uses t
 2. Rsync the Docker Compose files and `run.sh` to the server: `./rsync.sh`
 3. SSH into the server.
 4. Copy the env file: `cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
-5. Start the runner: `cd /home/terrifi/docker-compose && ./run.sh`
-6. Confirm the runner appears at: https://github.com/your-org/terrifi/settings/actions/runners
+5. Install the service, which keeps one fresh runner container per job running:
+   ```sh
+   cd /home/terrifi/docker-compose
+   sudo cp terrifi-gh-runner.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable terrifi-gh-runner
+   ```
+6. Build the image and start the runner: `./run.sh`
+7. Confirm the runner appears at: https://github.com/your-org/terrifi/settings/actions/runners
 
 ## Updating the Runner
 
 Run `./rsync.sh` from this directory to sync the files, then run `./run.sh` on
-the server to rebuild with the latest `ubuntu-noble` base image and start the
-updated container. The build uses
+the server to rebuild with the latest `ubuntu-noble` base image and restart the
+service. If `terrifi-gh-runner.service` changed, copy it to
+`/etc/systemd/system/` and run `sudo systemctl daemon-reload` first. The build uses
 `--pull` because Docker otherwise may reuse a cached base image even with
 `--build`.
 
@@ -41,7 +49,20 @@ cd /home/terrifi/docker-compose
 ./run.sh
 ```
 
-Older versions of this setup mounted a `runner-work` named volume that holds
+### Migrating from `restart: unless-stopped`
+
+Older versions of this setup started one long-lived container with
+`docker compose up -d`, which Docker restarted after every job. Stop it before
+installing the service, then follow setup steps 5 and 6:
+
+```sh
+cd /home/terrifi/docker-compose
+docker compose down
+```
+
+To follow the runner's output, use `journalctl -u terrifi-gh-runner -f`.
+
+Older versions of this setup also mounted a `runner-work` named volume that holds
 files written by root-run jobs. After deploying the non-root runner, remove it
 so stale root-owned files cannot break checkouts:
 
@@ -89,7 +110,7 @@ runner picked up the PR job again.
 ## Architecture
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
-- **Ephemeral** by default — the runner gets a clean workspace for every job
+- **One container per job** — the runner is ephemeral and exits after a job. `supervise.sh`, run by the `terrifi-gh-runner` systemd service, then removes the container and creates a new one from the image. Docker's restart policies would reuse the old container's filesystem, so caches or config written by an approved fork PR's job could affect later jobs, including the HIL reset that holds the Terraform state credentials.
 - **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
 - **No Docker socket** — the host socket is not mounted, because it would give jobs root on the runner VM. HIL tests do not need Docker.
 - Go and Task are pre-installed in the image; OpenTofu is installed via `setup-opentofu` in the workflow
