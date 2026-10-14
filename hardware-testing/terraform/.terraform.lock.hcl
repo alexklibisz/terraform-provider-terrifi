@@ -5,7 +5,10 @@ provider "registry.opentofu.org/alexklibisz/terrifi" {
   version     = "0.9.3"
   constraints = "0.9.3"
   hashes = [
+    "h1:Y9JTlPGgtmgYl1Cv9iMKUZs+SdpqvrQeLdHXgCrtjY4=",
+    "h1:ZMOQ0p+s0BQDYwJM40RoQqMkacCvsAhAD11ZJoVlJK4=",
     "h1:kCJzqCqbvphYl2JQEvcX6mixLqGkenlTuXxdsg8tiK8=",
+    "h1:pzMMiPwWU3LoA2StwwdD0hJRIpM/laODG6iNlK13KdU=",
     "zh:2564aadd4d21173dc19ce4dce742c78c0c55a0e21aecabb3073d864ad7950f84",
     "zh:275d391f7b4546dbfdd0d3c42aa555bd0b769ad1dfab7ef29f2e33e63c01f9ef",
     "zh:4a209ef5923f76dd56d178c17d669cbdaa42590b78059101eabd158ee63c300b",
