@@ -4,9 +4,8 @@
 #   cleanup-before -> tests -> cleanup-after
 #
 # Both cleanups reset the controller to the Terraform baseline at the same
-# baseline commit. Their steps are duplicated; keep the two jobs in sync.
-# cleanup-after runs whether the tests pass or fail, as long as
-# cleanup-before succeeded.
+# baseline commit, sharing their steps through a YAML anchor. cleanup-after
+# runs whether the tests pass or fail, as long as cleanup-before succeeded.
 #
 # The caller must hold the `terrifi-hil-hardware` concurrency group around
 # this whole workflow, so another run cannot reach the controller between
@@ -98,8 +97,8 @@ jobs:
       UNIFI_API: https://192.168.1.3:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
       UNIFI_INSECURE: true
-    # Keep these steps in sync with cleanup-after.
-    steps:
+    # Reused by cleanup-after through the YAML alias.
+    steps: &reset-steps
       - name: Checkout baseline
         timeout-minutes: 1
         uses: actions/checkout@v7
@@ -220,46 +219,4 @@ jobs:
       UNIFI_API: https://192.168.1.3:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
       UNIFI_INSECURE: true
-    # Keep these steps in sync with cleanup-before.
-    steps:
-      - name: Checkout baseline
-        timeout-minutes: 1
-        uses: actions/checkout@v7
-        with:
-          repository: alexklibisz/terraform-provider-terrifi
-          ref: ${{ env.BASELINE_REF }}
-          path: hil-baseline
-          persist-credentials: false
-      - name: Record baseline commit
-        id: baseline
-        working-directory: hil-baseline
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Set up Go
-        timeout-minutes: 1
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: hil-baseline/go.mod
-          # Keep disabled: fork code runs on this runner and must not write to
-          # caches that trusted runs on main would restore.
-          cache: false
-      - name: Set up OpenTofu
-        timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v2
-        with:
-          tofu_wrapper: false
-      - name: Reset HIL baseline
-        timeout-minutes: 10
-        working-directory: hil-baseline
-        env:
-          TERRIFI_STATE_BUCKET: ${{ secrets.state_bucket }}
-          AWS_ENDPOINT_URL_S3: ${{ secrets.state_endpoint }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.state_access_key_id }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.state_secret_access_key }}
-        run: |
-          cli="$RUNNER_TEMP/terrifi-baseline-cli"
-          trap 'rm -f "$cli"' EXIT
-          go build -o "$cli" ./cmd/terrifi
-          go run ./cmd/terrifi-tests reset --terrifi "$cli"
-      - name: Remove baseline workspace
-        if: always()
-        run: rm -rf "$GITHUB_WORKSPACE/hil-baseline"
+    steps: *reset-steps
