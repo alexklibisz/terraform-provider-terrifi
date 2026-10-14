@@ -122,7 +122,7 @@ jobs:
           cli="$RUNNER_TEMP/terrifi-baseline-cli"
           trap 'rm -f "$cli"' EXIT
           go build -o "$cli" ./cmd/terrifi
-          go run ./cmd/terrifi-tests reset --terrifi "$cli"
+          python3 hardware-testing/terraform/reset.py --terrifi "$cli"
       - name: Remove baseline workspace
         if: always()
         run: rm -rf "$GITHUB_WORKSPACE/hil-baseline"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -34,12 +35,31 @@ func generateImportsCmd() *cobra.Command {
 		RunE:      runGenerateImports,
 	}
 	cmd.Flags().Bool("exclude-default-zones", false, "Exclude built-in firewall zones that cannot be deleted")
+	cmd.Flags().String("exclude-state", "", "Exclude objects in a terraform/tofu show -json state file")
+	cmd.Flags().String("format", "hcl", "Output format: hcl or json (resource block descriptions with HCL attribute expressions)")
 	return cmd
 }
 
 func runGenerateImports(cmd *cobra.Command, args []string) error {
 	resourceType := args[0]
 	ctx := cmd.Context()
+	format, _ := cmd.Flags().GetString("format")
+	if format != "hcl" && format != "json" {
+		return fmt.Errorf("unsupported format %q: use hcl or json", format)
+	}
+	statePath, _ := cmd.Flags().GetString("exclude-state")
+	var state generate.StateIndex
+	if statePath != "" {
+		file, err := os.Open(statePath)
+		if err != nil {
+			return fmt.Errorf("open exclusion state: %w", err)
+		}
+		defer file.Close()
+		state, err = generate.ReadStateIndex(file)
+		if err != nil {
+			return err
+		}
+	}
 
 	cfg := provider.ClientConfigFromEnv()
 	client, err := provider.NewClient(ctx, cfg)
@@ -62,11 +82,20 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 		}
 		blocks = append(blocks, generated...)
 	}
+	if state != nil {
+		blocks = state.ExcludeManaged(blocks, site)
+	}
+	if format == "json" {
+		if blocks == nil {
+			blocks = []generate.ResourceBlock{}
+		}
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(blocks)
+	}
 	if len(blocks) == 0 {
-		fmt.Fprintf(os.Stderr, "No %s resources found.\n", resourceType)
+		fmt.Fprintf(cmd.ErrOrStderr(), "No unmanaged %s resources found.\n", resourceType)
 		return nil
 	}
-	return generate.WriteBlocks(os.Stdout, blocks)
+	return generate.WriteBlocks(cmd.OutOrStdout(), blocks)
 }
 
 func generateResourceBlocks(ctx context.Context, client *provider.Client, site, resourceType string, excludeDefaultZones bool) ([]generate.ResourceBlock, error) {

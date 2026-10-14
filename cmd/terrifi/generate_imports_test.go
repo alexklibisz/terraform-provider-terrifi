@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -104,6 +105,49 @@ func TestAccGenerateImportsAll(t *testing.T) {
 	require.Contains(t, customOnly, `resource "terrifi_device"`)
 	require.Contains(t, customOnly, `resource "terrifi_network"`)
 	require.NotContains(t, customOnly, `resource "terrifi_firewall_zone" "internal"`)
+}
+
+func TestAccGenerateImports_ExcludeState(t *testing.T) {
+	requireHardware(t)
+	name := "terrifi-test-exclude-" + randomSuffix() + ".invalid"
+	site := os.Getenv("UNIFI_SITE")
+	if site == "" {
+		site = "default"
+	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: fmt.Sprintf(`resource "terrifi_dns_record" "managed" {
+  name = %q
+  value = "192.0.2.100"
+  record_type = "A"
+}`, name),
+			Check: func(state *terraform.State) error {
+				id, err := resourceID(state, "terrifi_dns_record.managed")
+				if err != nil {
+					return err
+				}
+				require.Contains(t, runCLI(t, "generate-imports", "terrifi_dns_record"), id)
+				snapshot := filepath.Join(t.TempDir(), "state.json")
+				data := fmt.Sprintf(`{"format_version":"1.0","values":{"root_module":{"child_modules":[{"resources":[{"mode":"managed","type":"terrifi_dns_record","values":{"id":%q,"site":%q}}]}]}}}`, id, site)
+				require.NoError(t, os.WriteFile(snapshot, []byte(data), 0600))
+				out := runCLI(t, "generate-imports", "terrifi_dns_record", "--exclude-state", snapshot)
+				require.NotContains(t, out, id)
+				// Stderr status messages are not part of the JSON output.
+				cmd := exec.Command(cliBinary, "generate-imports", "all", "--exclude-state", snapshot, "--format=json")
+				outJSON, err := cmd.Output()
+				require.NoError(t, err)
+				var blocks []struct {
+					ImportID string `json:"import_id"`
+				}
+				require.NoError(t, json.Unmarshal(outJSON, &blocks))
+				for _, block := range blocks {
+					require.NotEqual(t, id, block.ImportID)
+				}
+				return nil
+			},
+		}},
+	})
 }
 
 // resourceID extracts the ID of a resource from Terraform state.

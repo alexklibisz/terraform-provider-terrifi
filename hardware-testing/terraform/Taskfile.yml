@@ -7,7 +7,7 @@ tasks:
   reset:
     desc: Restore the HIL baseline and import/delete extra controller resources
     cmds:
-      - go run ../../cmd/terrifi-tests reset --terraform-dir . --terraform {{.TF_BIN}} {{.CLI_ARGS}}
+      - python3 reset.py --terraform {{.TF_BIN}} {{.CLI_ARGS}}
 
   init:
     desc: Initialize the HIL R2 backend and pinned provider

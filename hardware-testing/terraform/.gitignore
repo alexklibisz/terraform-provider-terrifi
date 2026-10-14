@@ -13,3 +13,4 @@ crash.log
 crash.*.log
 hil-reset.generated.tf
 .hil-reset-*/
+__pycache__/

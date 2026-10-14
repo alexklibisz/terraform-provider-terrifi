@@ -29,7 +29,6 @@ func main() {
 		Short: "Developer tools for managing terrifi acceptance-test infrastructure",
 	}
 	rootCmd.AddCommand(cleanupCmd())
-	rootCmd.AddCommand(resetCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
