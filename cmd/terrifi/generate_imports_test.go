@@ -88,7 +88,7 @@ func randomVLAN() int {
 
 func runCLI(t *testing.T, args ...string) string {
 	t.Helper()
-	cmd := exec.Command(cliBinary, args...)
+	cmd := exec.CommandContext(t.Context(), cliBinary, args...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "CLI failed: %s", string(out))
 	return string(out)
@@ -134,7 +134,7 @@ func TestAccGenerateImports_ExcludeState(t *testing.T) {
 				out := runCLI(t, "generate-imports", "terrifi_dns_record", "--exclude-state", snapshot)
 				require.NotContains(t, out, id)
 				// Stderr status messages are not part of the JSON output.
-				cmd := exec.Command(cliBinary, "generate-imports", "all", "--exclude-state", snapshot, "--format=json")
+				cmd := exec.CommandContext(t.Context(), cliBinary, "generate-imports", "all", "--exclude-state", snapshot, "--format=json")
 				outJSON, err := cmd.Output()
 				require.NoError(t, err)
 				var blocks []struct {

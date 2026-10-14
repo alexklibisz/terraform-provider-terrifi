@@ -66,11 +66,15 @@ func TestAccResetHIL(t *testing.T) {
 	_, err = fixtureRunner.command(tf, "init", "-input=false")
 	require.NoError(t, err)
 	// Also clean up partial fixture creation if the create or assertions fail.
-	defer func() {
+	// Report cleanup failures without FailNow, which could hide an earlier
+	// failure.
+	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cleanupCancel()
-		require.NoError(t, runReset(cleanupCtx, dir, tf, cli))
-	}()
+		if err := runReset(cleanupCtx, dir, tf, cli); err != nil {
+			t.Errorf("cleanup reset: %v", err)
+		}
+	})
 	_, err = fixtureRunner.command(tf, "apply", "-input=false", "-auto-approve")
 	require.NoError(t, err)
 	seedJSON, err := fixtureRunner.command(tf, "show", "-json")
