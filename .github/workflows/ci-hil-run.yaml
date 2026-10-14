@@ -124,6 +124,16 @@ jobs:
         uses: opentofu/setup-opentofu@v2
         with:
           tofu_wrapper: false
+      - name: Build Terrifi CLI
+        timeout-minutes: 5
+        working-directory: hil-baseline
+        run: go build -o "$RUNNER_TEMP/terrifi-baseline-cli" ./cmd/terrifi
+      - name: List controller resources
+        # Log what is on the controller before resetting it, for debugging
+        # leftovers. Passphrases are never printed: the API does not return
+        # them.
+        timeout-minutes: 2
+        run: '"$RUNNER_TEMP/terrifi-baseline-cli" generate-imports all'
       - name: Reset HIL baseline
         timeout-minutes: 10
         working-directory: hil-baseline
@@ -132,14 +142,10 @@ jobs:
           AWS_ENDPOINT_URL_S3: ${{ secrets.state_endpoint }}
           AWS_ACCESS_KEY_ID: ${{ secrets.state_access_key_id }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.state_secret_access_key }}
-        run: |
-          cli="$RUNNER_TEMP/terrifi-baseline-cli"
-          trap 'rm -f "$cli"' EXIT
-          go build -o "$cli" ./cmd/terrifi
-          go run ./cmd/terrifi-tests reset --terrifi "$cli"
+        run: go run ./cmd/terrifi-tests reset --terrifi "$RUNNER_TEMP/terrifi-baseline-cli"
       - name: Remove baseline workspace
         if: always()
-        run: rm -rf "$GITHUB_WORKSPACE/hil-baseline"
+        run: rm -rf "$GITHUB_WORKSPACE/hil-baseline" "$RUNNER_TEMP/terrifi-baseline-cli"
 
   tests:
     name: HIL tests
