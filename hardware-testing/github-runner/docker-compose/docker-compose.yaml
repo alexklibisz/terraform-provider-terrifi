@@ -1,30 +1,49 @@
-# GitHub Actions self-hosted runner (Ubuntu-based).
+# GitHub Actions self-hosted runner (Ubuntu-based), one fresh container per job.
 #
-# The runner registers itself with GitHub on startup and deregisters cleanly
-# on shutdown.
+# The runner is ephemeral: it registers with GitHub, runs a single job, and
+# exits. The `supervisor` service then removes that container and starts a new
+# one from the image, so nothing a job writes (Go caches, the tool cache,
+# ~/.config) reaches the next job. A Docker restart policy on the runner would
+# reuse the old container's filesystem instead. Approved fork PRs run code
+# here, and later jobs hold the HIL state credentials.
 #
-# The host Docker socket is deliberately NOT mounted. Access to it is
-# equivalent to root on the runner VM, and the HIL job runs code from PRs.
-# The hardware acceptance target talks to the real controller and does not
-# need Docker; Docker-based tests run in ci-local on GitHub-hosted runners.
+# Only the supervisor gets the host Docker socket, which is equivalent to root
+# on the runner VM. It runs nothing but supervise.sh and exposes no ports. The
+# runner container, where PR code runs, never gets the socket. The hardware
+# acceptance target talks to the real controller and does not need Docker;
+# Docker-based tests run in ci-local on GitHub-hosted runners.
 #
-# Each container serves exactly one job. supervise.sh, run by the
-# terrifi-gh-runner systemd service, removes it afterwards and starts a new
-# one, so nothing a job writes reaches the next job. Do not start this with
-# `docker compose up -d`; see ../README.md for setup.
+# Quick start:
+#   1. Copy .env.example to .env and fill in the values
+#   2. ../run.sh
+#   3. Confirm the runner appears at:
+#      https://github.com/<owner>/<repo>/settings/actions/runners
 
 services:
+  # Built by run.sh and started only by the supervisor, never by
+  # `docker compose up`.
   runner:
     build: .
     image: terrifi-github-runner
+    profiles: [build-only]
+
+  supervisor:
+    image: docker:27-cli
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/supervise.sh"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./supervise.sh:/supervise.sh:ro
+    # supervise.sh forwards these to each runner container.
     environment:
+      RUNNER_IMAGE: terrifi-github-runner
       REPO_URL: ${REPO_URL}
       ACCESS_TOKEN: ${ACCESS_TOKEN}
       RUNNER_NAME: ${RUNNER_NAME:-terrifi-hardware-runner}
       RUNNER_WORKDIR: /tmp/runner/work
       LABELS: ${LABELS:-self-hosted,terrifi-hardware-test}
       RUNNER_GROUP: ${RUNNER_GROUP:-Default}
-      # Required: the runner must exit after one job so supervise.sh can
+      # Required: the runner must exit after one job so the supervisor can
       # replace the container. The entrypoint treats any nonempty value,
       # including "false", as enabled.
       EPHEMERAL: "true"
@@ -32,8 +51,5 @@ services:
       # ACCESS_TOKEN from /proc/1/environ. The Dockerfile removes the user's
       # sudo access so this cannot be undone from inside a job.
       RUN_AS_ROOT: "false"
-    # supervise.sh replaces the container instead. A restart policy would
-    # reuse the old container's filesystem.
-    restart: "no"
-    # Prevent the runner from being force-killed mid-job
-    stop_grace_period: 5m
+    # supervise.sh gives a running job 5 minutes to finish on shutdown.
+    stop_grace_period: 6m
