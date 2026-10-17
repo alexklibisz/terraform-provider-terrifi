@@ -95,4 +95,4 @@ runner picked up the PR job again.
 - **Docker socket only for the supervisor** — it is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh` and exposes no ports.
 - **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
 - **No Docker socket for jobs** — the runner container does not get the host socket, because it would give jobs root on the runner VM. HIL tests do not need Docker.
-- Go and Task are pre-installed in the image; OpenTofu is installed via `setup-opentofu` in the workflow
+- Go, Task, and OpenTofu are pre-installed in the image. Bump `TOFU_VERSION` in the Dockerfile and run `./run.sh` to update OpenTofu
