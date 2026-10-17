@@ -1,10 +1,16 @@
+# Go and OpenTofu come from their official images, pinned by tag so that
+# Dependabot (the `docker` entry in .github/dependabot.yml) opens PRs to bump
+# them. HIL jobs use these instead of downloading their own in every job.
+# If go.mod needs a newer Go than this, Go downloads that toolchain itself
+# (GOTOOLCHAIN=auto) until the image is bumped and rebuilt.
+FROM golang:1.25.8-bookworm AS go
+FROM ghcr.io/opentofu/opentofu:1.13.1-minimal AS tofu
+
 # Tracks the latest runner build for Ubuntu 24.04. Build with --pull to refresh
 # this moving tag; upstream's :latest tag uses Ubuntu 20.04 instead.
 FROM myoung34/github-runner:ubuntu-noble
 
-# Keep GO_VERSION in sync with the `go` line in go.mod. If go.mod gets ahead,
-# HIL jobs still work but download the newer toolchain each time.
-ARG GO_VERSION=1.25.8
+# Task has no official image, so bump this by hand.
 ARG TASK_VERSION=3.54.0
 
 RUN apt-get update \
@@ -14,23 +20,13 @@ RUN apt-get update \
         jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Go
-RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz" \
-    | tar -C /usr/local -xz
+COPY --from=go /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
+
+COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 
 # Task (taskfile.dev)
 RUN sh -c "$(curl -fsSL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin "v${TASK_VERSION}"
-
-# OpenTofu, from its signed apt repository, via the official installer.
-# Installed here rather than with setup-opentofu in each job, which downloads
-# a release every time and has failed on transient network errors. Each HIL
-# run has several jobs, each in a fresh container.
-RUN curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh \
-    && sh /tmp/install-opentofu.sh --install-method deb \
-    && rm -f /tmp/install-opentofu.sh \
-    && rm -rf /var/lib/apt/lists/* \
-    && tofu version
 
 # Jobs run as the unprivileged `runner` user (RUN_AS_ROOT=false in
 # docker-compose.yaml). The base image gives that user passwordless sudo, which
