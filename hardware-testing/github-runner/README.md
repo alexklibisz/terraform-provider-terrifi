@@ -29,8 +29,8 @@ The runner authenticates with a Personal Access Token (classic), which it uses t
 ## Updating the Runner
 
 Run `./rsync.sh` from this directory to sync the files, then run `./run.sh` on
-the server to rebuild with the latest `ubuntu-noble` base image and start the
-updated container. The build uses
+the server to rebuild with the latest `ubuntu-noble` base image and restart the
+supervisor. The next job's container uses the rebuilt image. The build uses
 `--pull` because Docker otherwise may reuse a cached base image even with
 `--build`.
 
@@ -40,6 +40,8 @@ To update directly on the server:
 cd /home/terrifi/docker-compose
 ./run.sh
 ```
+
+To follow the runner's output, use `docker compose logs -f supervisor`.
 
 Older versions of this setup mounted a `runner-work` named volume that holds
 files written by root-run jobs. After deploying the non-root runner, remove it
@@ -89,7 +91,8 @@ runner picked up the PR job again.
 ## Architecture
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
-- **Ephemeral** by default — the runner gets a clean workspace for every job
+- **One container per job** — the runner is ephemeral and exits after a job. The `supervisor` compose service (`supervise.sh`) then starts a new container from the image; `docker run --rm` deletes the old one. Docker's restart policies would reuse the old container's filesystem, so caches or config written by an approved fork PR's job could affect later jobs, including the HIL reset that holds the Terraform state credentials.
+- **Docker socket only for the supervisor** — it is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh` and exposes no ports.
 - **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
-- **No Docker socket** — the host socket is not mounted, because it would give jobs root on the runner VM. HIL tests do not need Docker.
+- **No Docker socket for jobs** — the runner container does not get the host socket, because it would give jobs root on the runner VM. HIL tests do not need Docker.
 - Go and Task are pre-installed in the image; OpenTofu is installed via `setup-opentofu` in the workflow
