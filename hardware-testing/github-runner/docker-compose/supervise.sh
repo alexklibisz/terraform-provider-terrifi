@@ -7,7 +7,9 @@ set -eu
 
 name=terrifi-github-runner-job
 
-# On `docker compose down` or a restart, let a running job finish, then exit.
+# On `docker compose down` or a restart, stop the runner and exit. docker stop
+# sends SIGTERM right away, which cancels any running job; the timeout only
+# delays the SIGKILL if the runner does not exit.
 stop() {
   docker stop --time 300 "$name" >/dev/null 2>&1 || true
   exit 0

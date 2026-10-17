@@ -51,5 +51,5 @@ services:
       # ACCESS_TOKEN from /proc/1/environ. The Dockerfile removes the user's
       # sudo access so this cannot be undone from inside a job.
       RUN_AS_ROOT: "false"
-    # supervise.sh gives a running job 5 minutes to finish on shutdown.
+    # Covers supervise.sh's `docker stop --time 300` of the runner on shutdown.
     stop_grace_period: 6m
