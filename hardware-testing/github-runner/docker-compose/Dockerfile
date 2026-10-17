@@ -2,8 +2,10 @@
 # this moving tag; upstream's :latest tag uses Ubuntu 20.04 instead.
 FROM myoung34/github-runner:ubuntu-noble
 
-ARG GO_VERSION=1.25.0
-ARG TASK_VERSION=3.40.1
+# Keep GO_VERSION in sync with the `go` line in go.mod. If go.mod gets ahead,
+# HIL jobs still work but download the newer toolchain each time.
+ARG GO_VERSION=1.25.8
+ARG TASK_VERSION=3.54.0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
