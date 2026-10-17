@@ -91,14 +91,13 @@ jobs:
           # Keep disabled: fork code runs here and must not write to caches
           # that trusted runs on main would restore.
           cache: false
-      - name: Set up OpenTofu
-        timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v2
-        with:
-          tofu_wrapper: false
       - name: Configure OpenTofu for acceptance tests
+        # OpenTofu is installed in the runner image. Fail here if it is
+        # missing; an empty path would make the tests download Terraform.
         run: |
-          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
+          tofu="$(command -v tofu)"
+          "$tofu" version
+          echo "TF_ACC_TERRAFORM_PATH=$tofu" >> "$GITHUB_ENV"
           echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
       - name: Install Task
         timeout-minutes: 1
