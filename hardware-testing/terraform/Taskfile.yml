@@ -4,6 +4,11 @@ vars:
   TF_BIN: '{{default "tofu" .TERRIFI_TF_BIN}}'
 
 tasks:
+  reset:
+    desc: Restore the HIL baseline and import/delete extra controller resources
+    cmds:
+      - go run ../../cmd/terrifi-tests reset --terraform-dir . --terraform {{.TF_BIN}} {{.CLI_ARGS}}
+
   init:
     desc: Initialize the HIL R2 backend and pinned provider
     cmds:
