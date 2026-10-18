@@ -72,15 +72,31 @@ I also run [Tailscale](https://tailscale.com/) in each of the VMs.
 This lets me communicate with them from my laptop, which is on my primary UniFi network.
 
 See the subdirectory READMEs for setup instructions:
+- [`terraform/`](./terraform/) — persistent UniFi baseline and private R2 state
 - [`unifi-os-server/`](./unifi-os-server/) — install and manage UOS Server
 - [`github-runner/`](./github-runner/) — set up the self-hosted Actions runner
 
 ## Running HIL tests on pull requests
 
-The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests.
+The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests
+that target `main` and change at least one `.go` file anywhere in the repository,
+the root `go.mod` or `go.sum`, or any file under `.github/workflows/`. This
+includes Go test files, deleted Go files, dependency-only changes, and workflow
+changes. Documentation-only PRs skip HIL, including the fork approval gate. Use
+manual dispatch when those changes need hardware validation; nightly runs remain
+unconditional.
+
+The path filter uses the whole PR diff, not just the latest commit. A docs-only
+push to a PR that already changes Go source, dependencies, or workflows can
+therefore start another HIL run.
 
 PRs from branches in this repository run the HIL tests automatically.
 PRs from forks wait for a maintainer to review the code and approve the run.
 The result then appears as a check on the PR.
 
 See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving fork runs, and the GitHub settings this depends on.
+
+Before tests, the workflow restores the [Terraform baseline](./terraform/) and
+imports/deletes extra supported resources. Reset and tests run in the same job
+on the single hardware runner. For fork PRs, reset uses code from `main` before
+the reviewed PR is checked out; R2 credentials are scoped to the reset step.

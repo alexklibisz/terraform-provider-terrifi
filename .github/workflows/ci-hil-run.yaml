@@ -1,10 +1,22 @@
-# Reusable HIL test job, called only by ci-hil.yaml. It runs on the
-# self-hosted runner wired to the real UniFi controller.
+# Reusable HIL test run, called only by ci-hil.yaml. It runs on the
+# self-hosted runner wired to the real UniFi controller:
+#
+#   cleanup-before -> tests -> cleanup-after
+#
+# Both cleanups reset the controller to the Terraform baseline at the same
+# baseline commit, sharing their steps through a YAML anchor. cleanup-after
+# runs whether the tests pass or fail, as long as cleanup-before succeeded.
+#
+# The caller must hold the `terrifi-hil-hardware` concurrency group around
+# this whole workflow, so another run cannot reach the controller between
+# these jobs.
 #
 # Security notes:
 # - `ref` is always a commit SHA. For fork PRs it is the SHA a maintainer
 #   reviewed and approved, so later pushes cannot slip in unreviewed code.
-# - Callers pass secrets explicitly. Fork PRs never receive the heartbeat URL.
+# - State credentials go only to the reset step in the cleanup jobs, which
+#   never run fork PR code.
+# - Callers pass secrets explicitly. Fork PR code never receives the heartbeat URL.
 # - The caller restricts GITHUB_TOKEN to `contents: read`.
 #
 # See hardware-testing/SECURITY.md for the full security model.
@@ -36,28 +48,25 @@ on:
         required: true
       heartbeat_url:
         required: false
+      state_bucket:
+        required: true
+      state_endpoint:
+        required: true
+      state_access_key_id:
+        required: true
+      state_secret_access_key:
+        required: true
 
 permissions:
   contents: read
 
 jobs:
-  hil:
-    name: HIL tests
-    # No concurrency group: a group keeps only one pending job and cancels
-    # older pending ones, so a burst of PR runs could cancel a queued cron or
-    # manual run. There is a single hardware runner, so GitHub's job queue
-    # already runs these one at a time without cancelling anything.
-    runs-on:
-      - self-hosted
-      - terrifi-hardware-test
-    env:
-      # Runner and controller share the HIL LAN; keep API traffic local.
-      UNIFI_API: https://192.168.1.3:11443
-      UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
-      UNIFI_INSECURE: true
+  heartbeat:
+    name: Cron heartbeat
+    if: inputs.send_heartbeat
+    runs-on: ubuntu-latest
     steps:
       - name: Send cron heartbeat
-        if: inputs.send_heartbeat
         timeout-minutes: 1
         env:
           HEARTBEAT_URL: ${{ secrets.heartbeat_url }}
@@ -74,6 +83,71 @@ jobs:
             echo "Heartbeat request failed."
             exit 1
           fi
+
+  cleanup-before:
+    name: Cleanup before
+    runs-on:
+      - self-hosted
+      - terrifi-hardware-test
+    outputs:
+      baseline_sha: ${{ steps.baseline.outputs.sha }}
+    env:
+      # Same-repo PRs can test baseline changes; approved forks always reset
+      # using main. Fork code never runs with state credentials.
+      BASELINE_REF: ${{ inputs.fork_pr && 'main' || inputs.ref }}
+      # Runner and controller share the HIL LAN; keep API traffic local.
+      UNIFI_API: https://192.168.1.3:11443
+      UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
+      UNIFI_INSECURE: true
+    # Reused by cleanup-after through the YAML alias.
+    steps: &reset-steps
+      - name: Checkout baseline
+        timeout-minutes: 1
+        uses: actions/checkout@v7
+        with:
+          repository: alexklibisz/terraform-provider-terrifi
+          ref: ${{ env.BASELINE_REF }}
+          path: hil-baseline
+          persist-credentials: false
+      - name: Record baseline commit
+        id: baseline
+        working-directory: hil-baseline
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Build Terrifi CLI
+        timeout-minutes: 5
+        working-directory: hil-baseline
+        run: go build -o "$RUNNER_TEMP/terrifi-baseline-cli" ./cmd/terrifi
+      - name: List controller resources
+        # Log what is on the controller before resetting it, for debugging
+        # leftovers. Passphrases are never printed: the API does not return
+        # them.
+        timeout-minutes: 2
+        run: '"$RUNNER_TEMP/terrifi-baseline-cli" generate-imports all'
+      - name: Reset HIL baseline
+        timeout-minutes: 10
+        working-directory: hil-baseline
+        env:
+          TERRIFI_STATE_BUCKET: ${{ secrets.state_bucket }}
+          AWS_ENDPOINT_URL_S3: ${{ secrets.state_endpoint }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.state_access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.state_secret_access_key }}
+        run: go run ./cmd/terrifi-tests reset --terrifi "$RUNNER_TEMP/terrifi-baseline-cli"
+      - name: Remove baseline workspace
+        if: always()
+        run: rm -rf "$GITHUB_WORKSPACE/hil-baseline" "$RUNNER_TEMP/terrifi-baseline-cli"
+
+  tests:
+    name: HIL tests
+    needs: cleanup-before
+    runs-on:
+      - self-hosted
+      - terrifi-hardware-test
+    env:
+      # Runner and controller share the HIL LAN; keep API traffic local.
+      UNIFI_API: https://192.168.1.3:11443
+      UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
+      UNIFI_INSECURE: true
+    steps:
       - name: Checkout
         timeout-minutes: 1
         uses: actions/checkout@v7
@@ -85,29 +159,21 @@ jobs:
           # a maintainer approves the hil-fork-approval environment. The token
           # is read-only and credentials are not persisted.
           allow-unsafe-pr-checkout: ${{ inputs.fork_pr }}
-      - name: Set up Go
-        timeout-minutes: 1
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          # Keep disabled: fork code runs here and must not write to caches
-          # that trusted runs on main would restore.
-          cache: false
-      - name: Set up OpenTofu
-        timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v2
-        with:
-          tofu_wrapper: false
-      - name: Configure OpenTofu for acceptance tests
+      - name: Show tool versions
+        # Go, Task, and OpenTofu come from the runner image. If go.mod needs a
+        # newer Go than the image has, Go downloads that toolchain itself
+        # (GOTOOLCHAIN=auto) until the image is rebuilt.
         run: |
-          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
+          go version
+          task --version
+      - name: Configure OpenTofu for acceptance tests
+        # OpenTofu is installed in the runner image. Fail here if it is
+        # missing; an empty path would make the tests download Terraform.
+        run: |
+          tofu="$(command -v tofu)"
+          "$tofu" version
+          echo "TF_ACC_TERRAFORM_PATH=$tofu" >> "$GITHUB_ENV"
           echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
-      - name: Install Task
-        timeout-minutes: 1
-        uses: arduino/setup-task@v3
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check UniFi Connection
         timeout-minutes: 1
         run: task checkAPIConnection
@@ -117,12 +183,27 @@ jobs:
       - name: Build
         timeout-minutes: 10
         run: task build
-      - name: Cleanup leftover test resources
-        timeout-minutes: 5
-        run: go run ./cmd/terrifi-tests cleanup
       - name: Acceptance tests (HIL)
         timeout-minutes: 10
         env:
           TEST_FILTER: ${{ inputs.test_filter }}
           TEST_COUNT: ${{ inputs.test_count }}
         run: task test:acc:hardware -- -run "$TEST_FILTER" -count "$TEST_COUNT"
+
+  cleanup-after:
+    name: Cleanup after
+    needs: [cleanup-before, tests]
+    # Run after test failures and cancellations too, but never against a
+    # controller the first cleanup could not reset.
+    if: always() && needs.cleanup-before.result == 'success'
+    runs-on:
+      - self-hosted
+      - terrifi-hardware-test
+    env:
+      # Pin to the commit cleanup-before used, so a push to main mid-run
+      # cannot change the baseline.
+      BASELINE_REF: ${{ needs.cleanup-before.outputs.baseline_sha }}
+      UNIFI_API: https://192.168.1.3:11443
+      UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
+      UNIFI_INSECURE: true
+    steps: *reset-steps

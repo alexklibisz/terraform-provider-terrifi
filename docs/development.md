@@ -157,3 +157,25 @@ With `dev_overrides` active, skip `tofu init` and run `tofu plan` directly.
 2. Click "Run workflow", enter the version tag (e.g., `v0.1.0`), and run it.
 3. The tag workflow creates and pushes the tag, which triggers the [Release workflow](../../actions/workflows/release.yml).
 4. The release workflow builds binaries for linux/darwin (amd64/arm64) and publishes them as a GitHub Release.
+
+## On-demand CodeRabbit PR reviews
+
+CodeRabbit reviews run through its GitHub App.
+
+The root `.coderabbit.yaml` disables automatic reviews and automatic incremental
+reviews on pushes. To request a complete review, post a comment on the PR:
+
+```text
+@coderabbitai full review
+```
+
+For an incremental review of changes since the previous review:
+
+```text
+@coderabbitai review
+```
+
+Manual review commands also work for PRs targeting a branch other than `main`,
+including stacked PRs. Review progress and findings appear on the PR from
+`coderabbitai[bot]`. Leave **Autofix** unchecked when you only want feedback.
+
