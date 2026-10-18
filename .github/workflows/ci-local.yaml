@@ -1,3 +1,5 @@
+# Run for Go source, dependency, workflow, and Docker Compose changes.
+# Manual runs remain available regardless of changed paths.
 name: CI - Local
 
 concurrency:
@@ -8,8 +10,20 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'docker-compose.yaml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'docker-compose.yaml'
+      - '.github/workflows/**'
 
 jobs:
   main:
@@ -18,15 +32,15 @@ jobs:
     steps:
       - name: Checkout
         timeout-minutes: 1
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Go
         timeout-minutes: 1
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Set up OpenTofu
         timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@v2
         with:
           tofu_wrapper: false
       - name: Configure OpenTofu for acceptance tests
@@ -35,7 +49,7 @@ jobs:
           echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
       - name: Install Task
         timeout-minutes: 1
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@v3
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -50,12 +64,14 @@ jobs:
         run: task build
       - name: Unit tests
         timeout-minutes: 1
-        run: task test:unit
+        run: |
+          task test:unit
+          task test:reset
       - name: Compute Docker image cache key
         id: docker-image-key
         run: echo "hash=$(grep 'image:' docker-compose.yaml | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Cache Docker images
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: docker-cache
         with:
           path: /tmp/docker-images
@@ -82,7 +98,7 @@ jobs:
         run: task test:acc
       - name: GoReleaser dry run
         timeout-minutes: 5
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: latest
           args: build --snapshot --clean
