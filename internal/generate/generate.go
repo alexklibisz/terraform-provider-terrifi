@@ -13,25 +13,25 @@ import (
 
 // Attr represents a single key = value pair inside a resource block.
 type Attr struct {
-	Key     string
-	Value   string // HCL-formatted (quoted strings, bare bools, etc.)
-	Comment string // optional inline comment
+	Key     string `json:"key"`
+	Value   string `json:"value"`             // HCL-formatted (quoted strings, bare bools, etc.)
+	Comment string `json:"comment,omitempty"` // optional inline comment
 }
 
 // NestedBlock represents a nested block (like source {}) inside a resource block.
 type NestedBlock struct {
-	Name       string
-	Attributes []Attr
+	Name       string `json:"name"`
+	Attributes []Attr `json:"attributes"`
 }
 
 // ResourceBlock represents one import {} + resource {} pair.
 type ResourceBlock struct {
-	Comment      string
-	ResourceType string
-	ResourceName string
-	ImportID     string
-	Attributes   []Attr
-	Blocks       []NestedBlock
+	Comment      string        `json:"comment,omitempty"`
+	ResourceType string        `json:"resource_type"`
+	ResourceName string        `json:"resource_name"`
+	ImportID     string        `json:"import_id"`
+	Attributes   []Attr        `json:"attributes"`
+	Blocks       []NestedBlock `json:"blocks"`
 }
 
 // HCL formatting helpers
