@@ -90,9 +90,10 @@ The path filter uses the whole PR diff, not just the latest commit. A docs-only
 push to a PR that already changes Go source, dependencies, or workflows can
 therefore start another HIL run.
 
-PRs from branches in this repository run the HIL tests automatically.
+PRs from branches in this repository, other than Dependabot's, run the HIL tests automatically.
 
-PRs from forks run through `pull_request_target` and wait for maintainer approval in the `hil-fork-approval` environment.
+PRs from forks and PRs opened by Dependabot run through `pull_request_target` and wait for maintainer approval in the `hil-fork-approval` environment.
+Dependabot PRs are gated because their dependency updates are unreviewed code.
 The workflow definition always comes from `main`, so a PR cannot change how it runs.
 Before approving, a maintainer reviews the PR diff at the commit shown in the run.
 The approved run tests that exact commit on the HIL runner, and the result appears as a check on the PR.
@@ -100,7 +101,7 @@ Each new push to the PR creates a new run that needs its own approval.
 
 Before tests, the workflow restores the [Terraform baseline](./terraform/) and
 imports/deletes extra supported resources. Reset and tests run in the same job
-on the single hardware runner. For fork PRs, reset uses code from `main` before
+on the single hardware runner. For fork and Dependabot PRs, reset uses code from `main` before
 the reviewed PR is checked out; R2 credentials are scoped to the reset step.
 
 Approving a run gives the PR's code the UniFi API key and network access to the HIL controller.

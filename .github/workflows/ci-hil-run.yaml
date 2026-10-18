@@ -12,11 +12,13 @@
 # these jobs.
 #
 # Security notes:
-# - `ref` is always a commit SHA. For fork PRs it is the SHA a maintainer
-#   reviewed and approved, so later pushes cannot slip in unreviewed code.
+# - `ref` is always a commit SHA. For untrusted PRs (forks and Dependabot) it
+#   is the SHA a maintainer reviewed and approved, so later pushes cannot
+#   slip in unreviewed code.
 # - State credentials go only to the reset step in the cleanup jobs, which
-#   never run fork PR code.
-# - Callers pass secrets explicitly. Fork PR code never receives the heartbeat URL.
+#   never run untrusted PR code.
+# - Callers pass secrets explicitly. Untrusted PR code never receives the
+#   heartbeat URL.
 # - The caller restricts GITHUB_TOKEN to `contents: read`.
 
 name: CI - HIL (run)
@@ -37,8 +39,8 @@ on:
       send_heartbeat:
         type: boolean
         default: false
-      fork_pr:
-        description: True only for approved fork PR runs from pull_request_target
+      untrusted_pr:
+        description: True only for approved fork or Dependabot PR runs from pull_request_target
         type: boolean
         default: false
     secrets:
@@ -90,9 +92,10 @@ jobs:
     outputs:
       baseline_sha: ${{ steps.baseline.outputs.sha }}
     env:
-      # Same-repo PRs can test baseline changes; approved forks always reset
-      # using main. Fork code never runs with state credentials.
-      BASELINE_REF: ${{ inputs.fork_pr && 'main' || inputs.ref }}
+      # Same-repo PRs can test baseline changes; approved untrusted PRs
+      # always reset using main. Untrusted code never runs with state
+      # credentials.
+      BASELINE_REF: ${{ inputs.untrusted_pr && 'main' || inputs.ref }}
       # Runner and controller share the HIL LAN; keep API traffic local.
       UNIFI_API: https://192.168.1.3:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
@@ -153,10 +156,12 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
           # actions/checkout refuses fork code under pull_request_target by
-          # default. Opt in only for fork runs, which reach this job only after
-          # a maintainer approves the hil-fork-approval environment. The token
-          # is read-only and credentials are not persisted.
-          allow-unsafe-pr-checkout: ${{ inputs.fork_pr }}
+          # default. Opt in only for untrusted PR runs, which reach this job
+          # only after a maintainer approves the hil-fork-approval
+          # environment. Dependabot branches are not forks, so the opt-in has
+          # no effect for them. The token is read-only and credentials are not
+          # persisted.
+          allow-unsafe-pr-checkout: ${{ inputs.untrusted_pr }}
       - name: Show tool versions
         # Go, Task, and OpenTofu come from the runner image. If go.mod needs a
         # newer Go than the image has, Go downloads that toolchain itself
