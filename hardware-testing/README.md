@@ -63,7 +63,7 @@ The Beelink Mini PC runs [Proxmox](https://www.proxmox.com/) as the hypervisor, 
 
 1. UniFi OS Server VM: runs [UniFi OS Server](https://ui.com/download/releases/unifi-os-server), installed via [`unifi-os-server/install.sh`](./unifi-os-server/install.sh). UniFi OS Server is a single binary that downloads an embedded Podman container and registers it as a `systemd` service. It exposes the full UniFi API (including zone-based firewall) at `https://<host>:11443`.
 
-2. GitHub Actions Runner VM: runs a self-hosted GitHub Actions runner via Docker Compose ([`github-runner/`](./github-runner/)). The runner uses the [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner) base image and is ephemeral: it takes one job, then registers again. It carries the labels `self-hosted` and `terrifi-hardware-test`, which the HIL CI workflow uses to target it specifically.
+2. GitHub Actions Runner VM: runs a self-hosted GitHub Actions runner via Docker Compose ([`github-runner/`](./github-runner/)). The runner uses the [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner) base image and runs one fresh container per job. It carries the labels `self-hosted` and `terrifi-hardware-test`, which the HIL CI workflow uses to target it specifically.
 
 When I run the Github Actions CI, the HIL workflow executes in the runner container on the runner VM.
 It's on the same LAN as the UniFi OS Server VM, so it can communcate with it through the UniFi Gateway Lite.
@@ -94,9 +94,10 @@ PRs from branches in this repository run the HIL tests automatically.
 PRs from forks wait for a maintainer to review the code and approve the run.
 The result then appears as a check on the PR.
 
-See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving fork runs, and the GitHub settings this depends on.
+Each run is three jobs on the hardware runner: reset the controller to the
+[Terraform baseline](./terraform/), run the tests, and reset it again. A
+concurrency group serializes whole runs, so only one touches the controller at a
+time. For fork PRs, both resets use code from `main`, and the R2 state
+credentials go only to the reset steps.
 
-Before tests, the workflow restores the [Terraform baseline](./terraform/) and
-imports/deletes extra supported resources. Reset and tests run in the same job
-on the single hardware runner. For fork PRs, reset uses code from `main` before
-the reviewed PR is checked out; R2 credentials are scoped to the reset step.
+See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving fork runs, and the GitHub settings this depends on.
