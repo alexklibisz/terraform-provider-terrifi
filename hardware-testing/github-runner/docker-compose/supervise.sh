@@ -23,8 +23,8 @@ while true; do
   docker rm --force "$name" >/dev/null 2>&1 || true
 
   # Background and wait, so the trap can run while a job is in progress.
-  docker run --rm --name "$name" \
-    --env REPO_URL --env ACCESS_TOKEN --env RUNNER_NAME --env RUNNER_WORKDIR \
+  docker run --rm --name "$name" --network "$RUNNER_NETWORK" \
+    --env GOPROXY --env REPO_URL --env ACCESS_TOKEN --env RUNNER_NAME --env RUNNER_WORKDIR \
     --env LABELS --env RUNNER_GROUP --env EPHEMERAL --env RUN_AS_ROOT \
     "$RUNNER_IMAGE" &
   wait $! || true
