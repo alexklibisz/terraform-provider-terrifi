@@ -3,7 +3,7 @@
 # them. HIL jobs use these instead of downloading their own in every job.
 # If go.mod needs a newer Go than this, Go downloads that toolchain itself
 # (GOTOOLCHAIN=auto) until the image is bumped and rebuilt.
-FROM golang:1.25.8-bookworm AS go
+FROM golang:1.27.2-bookworm AS go
 FROM ghcr.io/opentofu/opentofu:1.13.1-minimal AS tofu
 
 # Tracks the latest runner build for Ubuntu 24.04. Build with --pull to refresh

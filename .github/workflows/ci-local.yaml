@@ -1,4 +1,4 @@
-# Match HIL's Go source, dependency, and workflow path filters.
+# Run for Go source, dependency, workflow, and Docker Compose changes.
 # Manual runs remain available regardless of changed paths.
 name: CI - Local
 
@@ -14,6 +14,7 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'docker-compose.yaml'
       - '.github/workflows/**'
   pull_request:
     branches: [main]
@@ -21,12 +22,22 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'docker-compose.yaml'
       - '.github/workflows/**'
+  # Nightly run on main. The acceptance job pulls a published UniFi controller
+  # image, so it can start failing without anything in this repo changing --
+  # a new image tag, a controller behaviour change, an upstream base-image
+  # update. Without a schedule that goes unnoticed until the next PR, which is
+  # a bad time to discover it.
+  schedule:
+    - cron: "0 6 * * *"
 
 jobs:
   main:
     name: Main
     runs-on: ubuntu-latest
+    # Only run cron jobs on the original repository, not on forks.
+    if: github.event_name != 'schedule' || github.repository == 'alexklibisz/terraform-provider-terrifi'
     steps:
       - name: Checkout
         timeout-minutes: 1
