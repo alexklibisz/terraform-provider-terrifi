@@ -14,9 +14,10 @@
 # Docker-based tests run in ci-local on GitHub-hosted runners.
 #
 # The `goproxy` service caches Go modules for the runner containers, so each
-# job does not download every dependency from the internet. Jobs can only read
-# from it, and Go checks every module against go.sum and the checksum
-# database, so fork code cannot plant modified modules for later jobs.
+# job does not download every dependency from the internet. Jobs can make it
+# fetch and cache modules, but cannot change what it serves: Go checks every
+# module against go.sum and the checksum database. The cache is capped at
+# 2 GB with least-recently-used eviction.
 #
 # Quick start:
 #   1. Copy .env.example to .env and fill in the values
@@ -65,17 +66,14 @@ services:
     # Covers supervise.sh's `docker stop --time 300` of the runner on shutdown.
     stop_grace_period: 6m
 
-  # Go module proxy (Athens) shared by all runner containers. Not exposed on
-  # the host.
+  # Caching proxy for Go modules (nginx in front of proxy.golang.org), shared
+  # by all runner containers. Not exposed on the host. See goproxy.conf.
   goproxy:
-    image: gomods/athens:v0.19.2
+    image: nginx:1.30.5-alpine
     restart: unless-stopped
-    environment:
-      ATHENS_STORAGE_TYPE: disk
-      ATHENS_DISK_STORAGE_ROOT: /var/lib/athens
-      ATHENS_GO_BINARY_ENV_VARS: GOPROXY=https://proxy.golang.org
     volumes:
-      - goproxy-storage:/var/lib/athens
+      - ./goproxy.conf:/etc/nginx/conf.d/default.conf:ro
+      - goproxy-cache:/var/cache/goproxy
     networks: [runner]
 
 networks:
@@ -84,4 +82,4 @@ networks:
     name: terrifi-github-runner
 
 volumes:
-  goproxy-storage:
+  goproxy-cache:
