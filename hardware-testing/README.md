@@ -94,10 +94,14 @@ PRs from branches in this repository run the HIL tests automatically.
 PRs from forks wait for a maintainer to review the code and approve the run.
 The result then appears as a check on the PR.
 
-Each run is three jobs on the hardware runner: reset the controller to the
-[Terraform baseline](./terraform/), run the tests, and reset it again. A
-concurrency group serializes whole runs, so only one touches the controller at a
-time. For fork PRs, both resets use code from `main`, and the R2 state
+Each run is three jobs on the hardware runner:
+
+1. Reset the controller to the [Terraform baseline](./terraform/).
+2. Run the tests.
+3. Reset the controller again.
+
+A concurrency group serializes whole runs, so only one touches the controller at
+a time. For fork PRs, both resets use code from `main`, and the R2 state
 credentials go only to the reset steps.
 
 See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving fork runs, and the GitHub settings this depends on.
