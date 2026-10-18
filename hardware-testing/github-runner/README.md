@@ -29,7 +29,7 @@ Registering a repository-level runner requires Administration write. That permis
 3. SSH into the server.
 4. Copy the env file: `cd ~/github-runner && cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
 5. Start the runner: `cd ~/github-runner && ./run.sh`.
-6. Confirm the runner appears at: https://github.com/<owner>/<repo>/settings/actions/runners.
+6. Confirm the runner appears at: `https://github.com/<owner>/<repo>/settings/actions/runners`.
 
 ## Updating the Runner
 
