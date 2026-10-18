@@ -73,7 +73,7 @@ services:
   # Caching proxy for Go modules (nginx in front of proxy.golang.org), shared
   # by all runner containers. Not exposed on the host. See goproxy.conf.
   goproxy:
-    image: nginx:1.30.5-alpine
+    image: nginx:1.31.0-alpine
     restart: unless-stopped
     volumes:
       - ./goproxy.conf:/etc/nginx/conf.d/default.conf:ro
