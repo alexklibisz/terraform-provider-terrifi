@@ -12,7 +12,7 @@ Read this before approving a fork PR's HIL run, changing the HIL workflows, or c
 |---|---|---|
 | UniFi API key | Repository secret `TERRIFI_HIL_TEST_UNIFI_API_KEY` | Admin access to the HIL test controller |
 | Terraform state credentials | Repository secrets `TERRIFI_HIL_STATE_*` | Read or corrupt the HIL baseline state in a private R2 bucket. The state describes the controller's configuration. |
-| Heartbeat URL | Repository secret `TERRIFI_HIL_HEARTBEAT_URL` | Someone could fake or suppress the nightly heartbeat |
+| Heartbeat URL | Repository secret `TERRIFI_HIL_HEARTBEAT_URL` | Someone could send fake heartbeats, hiding a broken nightly run |
 | Runner registration token | `.env` on the runner VM, as `ACCESS_TOKEN` | Admin access to this repository, including settings and deletion |
 | Runner VM and HIL network | A Proxmox VM on the HIL network | A foothold for reaching the controller, the HIL network, and the VM's tailnet |
 
