@@ -90,8 +90,8 @@ The path filter uses the whole PR diff, not just the latest commit. A docs-only
 push to a PR that already changes Go source, dependencies, or workflows can
 therefore start another HIL run.
 
-PRs from branches in this repository run the HIL tests automatically.
-PRs from forks wait for a maintainer to review the code and approve the run.
+PRs from branches in this repository, other than Dependabot's, run the HIL tests automatically.
+PRs from forks and PRs opened by Dependabot wait for a maintainer to review the code and approve the run.
 The result then appears as a check on the PR.
 
 Each run is three jobs on the hardware runner:
@@ -101,7 +101,7 @@ Each run is three jobs on the hardware runner:
 3. Reset the controller again.
 
 A concurrency group serializes whole runs, so only one touches the controller at
-a time. For fork PRs, both resets use code from `main`, and the R2 state
+a time. For fork and Dependabot PRs, both resets use code from `main`, and the R2 state
 credentials go only to the reset steps.
 
-See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving fork runs, and the GitHub settings this depends on.
+See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving gated runs, and the GitHub settings this depends on.
