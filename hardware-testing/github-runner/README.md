@@ -20,10 +20,10 @@ The runner authenticates with a Personal Access Token (classic), which it uses t
 ## Setup
 
 1. Set up SSH access with an alias `terrifi-gh-runner`, i.e., you should be able to run `ssh terrifi-gh-runner` from your host.
-2. Rsync the Docker Compose files and `run.sh` to the home directory on the server: `./rsync.sh`
+2. Rsync the Docker Compose files and `run.sh` to `~/github-runner` on the server: `./rsync.sh`
 3. SSH into the server.
-4. Copy the env file: `cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
-5. Start the runner: `./run.sh`
+4. Copy the env file: `cd ~/github-runner && cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
+5. Start the runner: `cd ~/github-runner && ./run.sh`
 6. Confirm the runner appears at: https://github.com/your-org/terrifi/settings/actions/runners
 
 ## Updating the Runner
@@ -37,7 +37,7 @@ supervisor. The next job's container uses the rebuilt image. The build uses
 To update directly on the server:
 
 ```sh
-cd ~
+cd ~/github-runner
 ./run.sh
 ```
 
@@ -46,14 +46,14 @@ To follow the runner's output, use `docker compose logs -f supervisor`.
 ### Moving from `~/docker-compose`
 
 Older versions of this setup lived in `/home/terrifi/docker-compose`, with the
-Compose project named `docker-compose`. The files now live in the home
-directory, and the project is named `terrifi-github-runner`. To move an
+Compose project named `docker-compose`. The files now live in
+`/home/terrifi/github-runner`, and the project is named `terrifi-github-runner`. To move an
 existing server, run `./rsync.sh`, then on the server:
 
 ```sh
 cd ~/docker-compose && docker compose down   # stop the old project
-mv ~/docker-compose/.env ~/.env
-cd ~ && ./run.sh
+mv ~/docker-compose/.env ~/github-runner/.env
+cd ~/github-runner && ./run.sh
 docker volume rm docker-compose_goproxy-cache  # old Go module cache
 rm -rf ~/docker-compose
 ```
@@ -86,7 +86,7 @@ guard also evaluated to true, so neither labels nor the guard explained the wait
 The useful clue was in the container logs:
 
 ```sh
-cd ~
+cd ~/github-runner
 docker compose logs --tail=150 runner
 ```
 
