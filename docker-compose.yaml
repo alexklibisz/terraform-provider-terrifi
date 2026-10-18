@@ -10,7 +10,7 @@ services:
     # Note: MongoDB 5.0+ requires AVX CPU instructions. If running in a VM,
     # ensure the hypervisor passes through the host CPU (e.g. cpu type "host"
     # in Proxmox). See https://github.com/docker-library/mongo/issues/619
-    image: mongo:8.2
+    image: mongo:9.0
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: root
