@@ -11,3 +11,5 @@
 !.env.example
 crash.log
 crash.*.log
+hil-reset.generated.tf
+.hil-reset-*/

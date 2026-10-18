@@ -24,7 +24,8 @@
 # 1. replace the repository name in each job's `if:` with your own `owner/repo`
 # 2. register a self-hosted runner with the `self-hosted` + `terrifi-hardware-test` labels, pointed at your controller
 # 3. add the `TERRIFI_HIL_TEST_UNIFI_API_KEY` secret in https://github.com/<owner/repo>/settings/secrets/actions
-# 4. create a `hil-fork-approval` environment with yourself as a required reviewer
+# 4. add the four TERRIFI_HIL_STATE_* secrets documented in hardware-testing/terraform/README.md
+# 5. create a `hil-fork-approval` environment with yourself as a required reviewer
 
 name: CI - HIL
 
@@ -57,8 +58,9 @@ on:
     - cron: '33 3 * * *'
 
 # A new push to a fork PR supersedes its older run, including one still
-# waiting for approval. Other events never cancel each other; the hardware
-# job serializes itself in ci-hil-run.yaml.
+# waiting for approval. Other events never cancel each other. The jobs that
+# call ci-hil-run.yaml share the `terrifi-hil-hardware` group below, which
+# serializes complete hardware runs across all events.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
@@ -78,6 +80,13 @@ jobs:
        github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.full_name == github.repository))
+    # One hardware run at a time, from cleanup-before through cleanup-after.
+    # queue: max keeps up to 100 pending runs instead of cancelling all but
+    # the newest, so a burst of PRs cannot drop a queued cron or manual run.
+    concurrency:
+      group: terrifi-hil-hardware
+      cancel-in-progress: false
+      queue: max
     uses: ./.github/workflows/ci-hil-run.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -88,6 +97,10 @@ jobs:
       send_heartbeat: ${{ github.event_name == 'schedule' }}
     secrets:
       unifi_api_key: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
+      state_bucket: ${{ secrets.TERRIFI_HIL_STATE_BUCKET }}
+      state_endpoint: ${{ secrets.TERRIFI_HIL_STATE_ENDPOINT }}
+      state_access_key_id: ${{ secrets.TERRIFI_HIL_STATE_ACCESS_KEY_ID }}
+      state_secret_access_key: ${{ secrets.TERRIFI_HIL_STATE_SECRET_ACCESS_KEY }}
       heartbeat_url: ${{ secrets.TERRIFI_HIL_HEARTBEAT_URL }}
 
   fork-approval:
@@ -115,6 +128,12 @@ jobs:
   fork:
     name: Fork PR
     needs: fork-approval
+    # Same group as `trusted`. Joined only after approval, so a run waiting
+    # for a maintainer never holds the hardware.
+    concurrency:
+      group: terrifi-hil-hardware
+      cancel-in-progress: false
+      queue: max
     uses: ./.github/workflows/ci-hil-run.yaml
     with:
       # The exact commit the event was created for. A later push creates a
@@ -123,3 +142,7 @@ jobs:
       fork_pr: true
     secrets:
       unifi_api_key: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
+      state_bucket: ${{ secrets.TERRIFI_HIL_STATE_BUCKET }}
+      state_endpoint: ${{ secrets.TERRIFI_HIL_STATE_ENDPOINT }}
+      state_access_key_id: ${{ secrets.TERRIFI_HIL_STATE_ACCESS_KEY_ID }}
+      state_secret_access_key: ${{ secrets.TERRIFI_HIL_STATE_SECRET_ACCESS_KEY }}
