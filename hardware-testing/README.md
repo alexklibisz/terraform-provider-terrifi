@@ -72,12 +72,23 @@ I also run [Tailscale](https://tailscale.com/) in each of the VMs.
 This lets me communicate with them from my laptop, which is on my primary UniFi network.
 
 See the subdirectory READMEs for setup instructions:
+- [`terraform/`](./terraform/) — persistent UniFi baseline and private R2 state
 - [`unifi-os-server/`](./unifi-os-server/) — install and manage UOS Server
 - [`github-runner/`](./github-runner/) — set up the self-hosted Actions runner
 
 ## Running HIL tests on pull requests
 
-The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests.
+The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests
+that target `main` and change at least one `.go` file anywhere in the repository,
+the root `go.mod` or `go.sum`, or any file under `.github/workflows/`. This
+includes Go test files, deleted Go files, dependency-only changes, and workflow
+changes. Documentation-only PRs skip HIL, including the fork approval gate. Use
+manual dispatch when those changes need hardware validation; nightly runs remain
+unconditional.
+
+The path filter uses the whole PR diff, not just the latest commit. A docs-only
+push to a PR that already changes Go source, dependencies, or workflows can
+therefore start another HIL run.
 
 PRs from branches in this repository run the HIL tests automatically.
 
@@ -86,6 +97,11 @@ The workflow definition always comes from `main`, so a PR cannot change how it r
 Before approving, a maintainer reviews the PR diff at the commit shown in the run.
 The approved run tests that exact commit on the HIL runner, and the result appears as a check on the PR.
 Each new push to the PR creates a new run that needs its own approval.
+
+Before tests, the workflow restores the [Terraform baseline](./terraform/) and
+imports/deletes extra supported resources. Reset and tests run in the same job
+on the single hardware runner. For fork PRs, reset uses code from `main` before
+the reviewed PR is checked out; R2 credentials are scoped to the reset step.
 
 Approving a run gives the PR's code the UniFi API key and network access to the HIL controller.
 Only approve code you have read.
