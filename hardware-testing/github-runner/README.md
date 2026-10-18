@@ -20,10 +20,10 @@ The runner authenticates with a Personal Access Token (classic), which it uses t
 ## Setup
 
 1. Set up SSH access with an alias `terrifi-gh-runner`, i.e., you should be able to run `ssh terrifi-gh-runner` from your host.
-2. Rsync the Docker Compose files and `run.sh` to the server: `./rsync.sh`
+2. Rsync the Docker Compose files and `run.sh` to the home directory on the server: `./rsync.sh`
 3. SSH into the server.
 4. Copy the env file: `cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
-5. Start the runner: `cd /home/terrifi/docker-compose && ./run.sh`
+5. Start the runner: `./run.sh`
 6. Confirm the runner appears at: https://github.com/your-org/terrifi/settings/actions/runners
 
 ## Updating the Runner
@@ -37,11 +37,26 @@ supervisor. The next job's container uses the rebuilt image. The build uses
 To update directly on the server:
 
 ```sh
-cd /home/terrifi/docker-compose
+cd ~
 ./run.sh
 ```
 
 To follow the runner's output, use `docker compose logs -f supervisor`.
+
+### Moving from `~/docker-compose`
+
+Older versions of this setup lived in `/home/terrifi/docker-compose`, with the
+Compose project named `docker-compose`. The files now live in the home
+directory, and the project is named `terrifi-github-runner`. To move an
+existing server, run `./rsync.sh`, then on the server:
+
+```sh
+cd ~/docker-compose && docker compose down   # stop the old project
+mv ~/docker-compose/.env ~/.env
+cd ~ && ./run.sh
+docker volume rm docker-compose_goproxy-cache  # old Go module cache
+rm -rf ~/docker-compose
+```
 
 Older versions of this setup mounted a `runner-work` named volume that holds
 files written by root-run jobs. After deploying the non-root runner, remove it
@@ -71,7 +86,7 @@ guard also evaluated to true, so neither labels nor the guard explained the wait
 The useful clue was in the container logs:
 
 ```sh
-cd /home/terrifi/docker-compose
+cd ~
 docker compose logs --tail=150 runner
 ```
 
@@ -96,4 +111,4 @@ runner picked up the PR job again.
 - **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
 - **No Docker socket for jobs** — the runner container does not get the host socket, because it would give jobs root on the runner VM. HIL tests do not need Docker.
 - Go, Task, and OpenTofu are pre-installed in the image, and HIL jobs use them instead of downloading their own. Go and OpenTofu are copied from their official images, which Dependabot bumps; Task's `TASK_VERSION` is bumped by hand. Run `./run.sh` after merging a bump
-- **Go module cache** — the `goproxy` compose service is nginx caching `proxy.golang.org` (`docker-compose/goproxy.conf`). Runner containers join its network and use it through `GOPROXY`, so jobs fetch modules from the local cache instead of the internet; Go falls back to `proxy.golang.org` if the cache errors or times out. Module versions are immutable, so they are cached for 30 days since last use, capped at 2 GB with least-recently-used eviction. Jobs can make the cache fetch modules, but Go checks every module against `go.sum` and the checksum database, so fork code cannot plant modified modules for later jobs. Each job's own module cache still starts empty.
+- **Go module cache** — the `goproxy` compose service is nginx caching `proxy.golang.org` (`goproxy.conf`). Runner containers join its network and use it through `GOPROXY`, so jobs fetch modules from the local cache instead of the internet; Go falls back to `proxy.golang.org` if the cache errors or times out. Module versions are immutable, so they are cached for 30 days since last use, capped at 2 GB with least-recently-used eviction. Jobs can make the cache fetch modules, but Go checks every module against `go.sum` and the checksum database, so fork code cannot plant modified modules for later jobs. Each job's own module cache still starts empty.

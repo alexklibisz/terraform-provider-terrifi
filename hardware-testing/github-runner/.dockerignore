@@ -1,0 +1,4 @@
+# The build context is the runner user's home directory on the server, which
+# holds .env and ~/.ssh. The Dockerfile copies nothing from the context, so
+# send none of it to Docker.
+*

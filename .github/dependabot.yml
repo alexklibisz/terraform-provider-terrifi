@@ -3,13 +3,13 @@ updates:
   - package-ecosystem: docker-compose
     directories:
       - /
-      - /hardware-testing/github-runner/docker-compose
+      - /hardware-testing/github-runner
     schedule:
       interval: weekly
 
   # Go and OpenTofu in the HIL runner image. Redeploy the runner after merging.
   - package-ecosystem: docker
-    directory: /hardware-testing/github-runner/docker-compose
+    directory: /hardware-testing/github-runner
     schedule:
       interval: weekly
 
