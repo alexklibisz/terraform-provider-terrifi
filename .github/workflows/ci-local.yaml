@@ -1,3 +1,5 @@
+# Match HIL's Go source, dependency, and workflow path filters.
+# Manual runs remain available regardless of changed paths.
 name: CI - Local
 
 concurrency:
@@ -8,8 +10,18 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
 
 jobs:
   main:
