@@ -1,0 +1,89 @@
+# GitHub Actions self-hosted runner (Ubuntu-based), one fresh container per job.
+#
+# The runner is ephemeral: it registers with GitHub, runs a single job, and
+# exits. The `supervisor` service then removes that container and starts a new
+# one from the image, so nothing a job writes (Go caches, the tool cache,
+# ~/.config) reaches the next job. A Docker restart policy on the runner would
+# reuse the old container's filesystem instead. Approved fork PRs run code
+# here, and later jobs hold the HIL state credentials.
+#
+# Only the supervisor gets the host Docker socket, which is equivalent to root
+# on the runner VM. It runs nothing but supervise.sh and exposes no ports. The
+# runner container, where PR code runs, never gets the socket. The hardware
+# acceptance target talks to the real controller and does not need Docker;
+# Docker-based tests run in ci-local on GitHub-hosted runners.
+#
+# The `goproxy` service caches Go modules for the runner containers, so each
+# job does not download every dependency from the internet. Jobs can make it
+# fetch and cache modules, but cannot change what it serves: Go checks every
+# module against go.sum and the checksum database. The cache is capped at
+# 2 GB with least-recently-used eviction.
+#
+# Quick start:
+#   1. Copy .env.example to .env and fill in the values
+#   2. ./run.sh
+#   3. Confirm the runner appears at:
+#      https://github.com/<owner>/<repo>/settings/actions/runners
+
+# Fixed project name, so container, network, and volume names do not depend on
+# the directory these files are in.
+name: terrifi-github-runner
+
+services:
+  # Built by run.sh and started only by the supervisor, never by
+  # `docker compose up`.
+  runner:
+    build: .
+    image: terrifi-github-runner
+    profiles: [build-only]
+
+  supervisor:
+    image: docker:27-cli
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/supervise.sh"]
+    # Also starts goproxy and creates the network the runners join.
+    depends_on: [goproxy]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./supervise.sh:/supervise.sh:ro
+    # supervise.sh forwards these to each runner container.
+    environment:
+      RUNNER_IMAGE: terrifi-github-runner
+      RUNNER_NETWORK: terrifi-github-runner
+      # Use the local module cache, falling back to the public proxy on any
+      # error (`|`), so CI keeps working if goproxy is down.
+      GOPROXY: http://goproxy:3000|https://proxy.golang.org
+      REPO_URL: ${REPO_URL}
+      ACCESS_TOKEN: ${ACCESS_TOKEN}
+      RUNNER_NAME: ${RUNNER_NAME:-terrifi-hardware-runner}
+      RUNNER_WORKDIR: /tmp/runner/work
+      LABELS: ${LABELS:-self-hosted,terrifi-hardware-test}
+      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
+      # Required: the runner must exit after one job so the supervisor can
+      # replace the container. The entrypoint treats any nonempty value,
+      # including "false", as enabled.
+      EPHEMERAL: "true"
+      # Run jobs as the unprivileged `runner` user, not root. Root could read
+      # ACCESS_TOKEN from /proc/1/environ. The Dockerfile removes the user's
+      # sudo access so this cannot be undone from inside a job.
+      RUN_AS_ROOT: "false"
+    # Covers supervise.sh's `docker stop --time 300` of the runner on shutdown.
+    stop_grace_period: 6m
+
+  # Caching proxy for Go modules (nginx in front of proxy.golang.org), shared
+  # by all runner containers. Not exposed on the host. See goproxy.conf.
+  goproxy:
+    image: nginx:1.31.0-alpine
+    restart: unless-stopped
+    volumes:
+      - ./goproxy.conf:/etc/nginx/conf.d/default.conf:ro
+      - goproxy-cache:/var/cache/goproxy
+    networks: [runner]
+
+networks:
+  runner:
+    # Fixed name so supervise.sh can attach runner containers to it.
+    name: terrifi-github-runner
+
+volumes:
+  goproxy-cache:

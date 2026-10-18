@@ -1,5 +1,10 @@
 version: '3'
 
+includes:
+  hil:terraform:
+    taskfile: ./hardware-testing/terraform/Taskfile.yml
+    dir: ./hardware-testing/terraform
+
 vars:
   # GOBIN is where `go install` puts binaries. We need this for dev_overrides
   # to point Terraform at the built provider binary.
@@ -76,6 +81,21 @@ tasks:
     cmds:
       - go build -o {{.GOBIN}}/terrifi ./cmd/terrifi
       - go test ./cmd/terrifi/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+
+  test:reset:
+    desc: Test HIL reset generation and plan guards (no controller required)
+    env:
+      TF_ACC: ""
+    cmds:
+      - go test ./internal/generate/ ./cmd/terrifi-tests/ -v -count 1 {{.CLI_ARGS}}
+
+  test:reset:hardware:
+    desc: Exercise full HIL reset with disposable fixtures (run separately from acceptance tests)
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: hardware
+    cmds:
+      - go test ./cmd/terrifi-tests/ -v -count 1 -timeout 15m -run '^TestAccResetHIL$' {{.CLI_ARGS}}
 
   deps:
     desc: Download Go module dependencies
