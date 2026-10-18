@@ -1,9 +1,17 @@
+# Go and OpenTofu come from their official images, pinned by tag so that
+# Dependabot (the `docker` entry in .github/dependabot.yml) opens PRs to bump
+# them. HIL jobs use these instead of downloading their own in every job.
+# If go.mod needs a newer Go than this, Go downloads that toolchain itself
+# (GOTOOLCHAIN=auto) until the image is bumped and rebuilt.
+FROM golang:1.27.2-bookworm AS go
+FROM ghcr.io/opentofu/opentofu:1.13.1-minimal AS tofu
+
 # Tracks the latest runner build for Ubuntu 24.04. Build with --pull to refresh
 # this moving tag; upstream's :latest tag uses Ubuntu 20.04 instead.
 FROM myoung34/github-runner:ubuntu-noble
 
-ARG GO_VERSION=1.25.0
-ARG TASK_VERSION=3.40.1
+# Task has no official image, so bump this by hand.
+ARG TASK_VERSION=3.54.0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -12,10 +20,10 @@ RUN apt-get update \
         jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Go
-RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz" \
-    | tar -C /usr/local -xz
+COPY --from=go /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
+
+COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 
 # Task (taskfile.dev)
 RUN sh -c "$(curl -fsSL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin "v${TASK_VERSION}"
