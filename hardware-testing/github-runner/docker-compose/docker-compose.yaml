@@ -13,6 +13,11 @@
 # acceptance target talks to the real controller and does not need Docker;
 # Docker-based tests run in ci-local on GitHub-hosted runners.
 #
+# The `goproxy` service caches Go modules for the runner containers, so each
+# job does not download every dependency from the internet. Jobs can only read
+# from it, and Go checks every module against go.sum and the checksum
+# database, so fork code cannot plant modified modules for later jobs.
+#
 # Quick start:
 #   1. Copy .env.example to .env and fill in the values
 #   2. ../run.sh
@@ -31,12 +36,18 @@ services:
     image: docker:27-cli
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/supervise.sh"]
+    # Also starts goproxy and creates the network the runners join.
+    depends_on: [goproxy]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./supervise.sh:/supervise.sh:ro
     # supervise.sh forwards these to each runner container.
     environment:
       RUNNER_IMAGE: terrifi-github-runner
+      RUNNER_NETWORK: terrifi-github-runner
+      # Use the local module cache, falling back to the public proxy on any
+      # error (`|`), so CI keeps working if goproxy is down.
+      GOPROXY: http://goproxy:3000|https://proxy.golang.org
       REPO_URL: ${REPO_URL}
       ACCESS_TOKEN: ${ACCESS_TOKEN}
       RUNNER_NAME: ${RUNNER_NAME:-terrifi-hardware-runner}
@@ -53,3 +64,24 @@ services:
       RUN_AS_ROOT: "false"
     # Covers supervise.sh's `docker stop --time 300` of the runner on shutdown.
     stop_grace_period: 6m
+
+  # Go module proxy (Athens) shared by all runner containers. Not exposed on
+  # the host.
+  goproxy:
+    image: gomods/athens:v0.19.2
+    restart: unless-stopped
+    environment:
+      ATHENS_STORAGE_TYPE: disk
+      ATHENS_DISK_STORAGE_ROOT: /var/lib/athens
+      ATHENS_GO_BINARY_ENV_VARS: GOPROXY=https://proxy.golang.org
+    volumes:
+      - goproxy-storage:/var/lib/athens
+    networks: [runner]
+
+networks:
+  runner:
+    # Fixed name so supervise.sh can attach runner containers to it.
+    name: terrifi-github-runner
+
+volumes:
+  goproxy-storage:
