@@ -83,29 +83,21 @@ jobs:
           # a maintainer approves the hil-fork-approval environment. The token
           # is read-only and credentials are not persisted.
           allow-unsafe-pr-checkout: ${{ inputs.fork_pr }}
-      - name: Set up Go
-        timeout-minutes: 1
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          # Keep disabled: fork code runs here and must not write to caches
-          # that trusted runs on main would restore.
-          cache: false
-      - name: Set up OpenTofu
-        timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v2
-        with:
-          tofu_wrapper: false
-      - name: Configure OpenTofu for acceptance tests
+      - name: Show tool versions
+        # Go, Task, and OpenTofu come from the runner image. If go.mod needs a
+        # newer Go than the image has, Go downloads that toolchain itself
+        # (GOTOOLCHAIN=auto) until the image is rebuilt.
         run: |
-          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
+          go version
+          task --version
+      - name: Configure OpenTofu for acceptance tests
+        # OpenTofu is installed in the runner image. Fail here if it is
+        # missing; an empty path would make the tests download Terraform.
+        run: |
+          tofu="$(command -v tofu)"
+          "$tofu" version
+          echo "TF_ACC_TERRAFORM_PATH=$tofu" >> "$GITHUB_ENV"
           echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
-      - name: Install Task
-        timeout-minutes: 1
-        uses: arduino/setup-task@v3
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check UniFi Connection
         timeout-minutes: 1
         run: task checkAPIConnection
