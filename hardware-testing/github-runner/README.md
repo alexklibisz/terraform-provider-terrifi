@@ -12,24 +12,24 @@ A server with Docker, Docker Compose, and rsync installed. The runner needs acce
 
 The runner uses a fine-grained personal access token to request a short-lived registration token each time it starts.
 
-1. Go to https://github.com/settings/personal-access-tokens/new
-2. Name it something descriptive, e.g., `terrifi-gh-runner`
-3. Set the resource owner to the repository owner
-4. Set an expiration of about a year, and set a reminder to rotate it
-5. Under **Repository access**, choose **Only select repositories** and select this repository
+1. Go to https://github.com/settings/personal-access-tokens/new.
+2. Name it something descriptive, e.g., `terrifi-gh-runner`.
+3. Set the resource owner to the repository owner.
+4. Set an expiration of about a year, and set a reminder to rotate it.
+5. Under **Repository access**, choose **Only select repositories** and select this repository.
 6. Under **Permissions**, add **Administration** with **Read and write** access. Metadata is added automatically as read-only. Add nothing else.
-7. Click **Generate token** and copy the value
+7. Click **Generate token** and copy the value.
 
 Registering a repository-level runner requires Administration write. That permission also allows changing settings and deleting the repository, so keep the token only on the runner VM. See [../SECURITY.md](../SECURITY.md) for rotation steps.
 
 ## Setup
 
 1. Set up SSH access with an alias `terrifi-gh-runner`, i.e., you should be able to run `ssh terrifi-gh-runner` from your host.
-2. Rsync the Docker Compose files and `run.sh` to `~/github-runner` on the server: `./rsync.sh`
+2. Rsync the Docker Compose files and `run.sh` to `~/github-runner` on the server: `./rsync.sh`.
 3. SSH into the server.
 4. Copy the env file: `cd ~/github-runner && cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
-5. Start the runner: `cd ~/github-runner && ./run.sh`
-6. Confirm the runner appears at: https://github.com/<owner>/<repo>/settings/actions/runners
+5. Start the runner: `cd ~/github-runner && ./run.sh`.
+6. Confirm the runner appears at: https://github.com/<owner>/<repo>/settings/actions/runners.
 
 ## Updating the Runner
 
@@ -73,10 +73,10 @@ docker volume rm docker-compose_runner-work
 
 ## Verifying the Runner in GitHub
 
-1. Go to your repository on GitHub
-2. Navigate to **Settings** > **Actions** > **Runners**
-3. The runner should appear with a green "Idle" status
-4. The labels `self-hosted` and `terrifi-hardware-test` should be listed
+1. Go to your repository on GitHub.
+2. Navigate to **Settings** > **Actions** > **Runners**.
+3. The runner should appear with a green "Idle" status.
+4. The labels `self-hosted` and `terrifi-hardware-test` should be listed.
 
 ## Troubleshooting
 

@@ -97,9 +97,9 @@ Approving lets the PR's code run on the runner as the `runner` user, with the Un
 
 1. Open the waiting run. Confirm that the head SHA matches the commit you reviewed.
 2. Read the whole diff at that commit. Pay extra attention to anything that executes during the build or tests:
-   - Go code, including `init()` functions, `TestMain`, and test helpers
-   - `go.mod` and `go.sum` changes, which can pull in new code
-   - `Taskfile.yml`, shell scripts, and anything under `cmd/terrifi-tests`
+   - Go code, including `init()` functions, `TestMain`, and test helpers.
+   - `go.mod` and `go.sum` changes, which can pull in new code.
+   - `Taskfile.yml`, shell scripts, and anything under `cmd/terrifi-tests`.
    - Changes under `.github/` and `hardware-testing/terraform/` do not take effect for fork runs, because the workflow and the baseline come from `main`. Still review them in case the PR is merged.
 3. Approve with **Review deployments**. Do not use **Start all waiting jobs**, which is the administrator bypass rather than a review.
 
