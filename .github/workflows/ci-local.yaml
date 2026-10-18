@@ -36,7 +36,7 @@ jobs:
   main:
     name: Main
     runs-on: ubuntu-latest
-    # Scheduled runs fire on forks too, where they only burn Actions minutes.
+    # Only run cron jobs on the original repository, not on forks.
     if: github.event_name != 'schedule' || github.repository == 'alexklibisz/terraform-provider-terrifi'
     steps:
       - name: Checkout
