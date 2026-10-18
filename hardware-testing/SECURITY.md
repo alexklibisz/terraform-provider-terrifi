@@ -35,7 +35,7 @@ Read this before approving a fork or Dependabot PR's HIL run, changing the HIL w
 flowchart LR
     subgraph routing["ci-hil.yaml"]
         direction TB
-        trusted["<b>Main</b><br/>cron, manual dispatch,<br/>same-repo PR"]
+        trusted["<b>Main</b><br/>cron, manual dispatch,<br/>same-repo PR except Dependabot"]
         approval["<b>Fork or Dependabot PR approval</b><br/>GitHub-hosted runner<br/>waits on hil-fork-approval<br/>no secrets"]
         fork["<b>Fork or Dependabot PR</b>"]
         approval -->|maintainer approves| fork
@@ -54,7 +54,7 @@ flowchart LR
 ```
 
 - **Cleanup before** checks out the baseline, builds the Terrifi CLI from it, and runs `terrifi-tests reset`. That restores the [Terraform baseline](./terraform/) from the R2 state and deletes any extra resources left on the controller. For same-repository runs the baseline is the commit under test, so baseline changes can be tested. For fork and Dependabot runs it is always `main`.
-- **HIL tests** checks out the commit under test and runs the acceptance tests against the controller. This is the only job that runs PR code. It receives the UniFi key and nothing else.
+- **HIL tests** checks out the commit under test and runs the acceptance tests against the controller. It receives the UniFi key and nothing else. For fork and Dependabot runs, this is the only job that runs PR code.
 - **Cleanup after** repeats the reset, pinned to the same baseline commit as the first cleanup. It runs after test failures and cancellations too, but only if the first cleanup succeeded.
 
 The `Main` and `Fork or Dependabot PR` jobs share the `terrifi-hil-hardware` concurrency group, which serializes whole runs. Nothing else touches the controller between the cleanups. A gated run joins the group only after approval, so a run waiting for a maintainer never holds the hardware.
@@ -73,8 +73,8 @@ Other controls on these runs:
 
 - **Read-only token:** the workflow sets `permissions: contents: read`. By default, `pull_request_target` would grant a write token.
 - **No stored git credentials:** checkout uses `persist-credentials: false`.
-- **Explicit opt-in to fork checkout:** `actions/checkout` refuses fork code under `pull_request_target` unless `allow-unsafe-pr-checkout` is set. Only fork runs set it, and only after approval.
-- **Minimal secrets:** the tests job receives the UniFi key. Gated runs never receive the heartbeat URL, and the state credentials go only to the reset step of the cleanup jobs, which never run PR code.
+- **Explicit opt-in to fork checkout:** `actions/checkout` refuses fork code under `pull_request_target` unless `allow-unsafe-pr-checkout` is set. Only the gated job sets it, and only after approval. It has no effect on Dependabot branches, which are not forks.
+- **Minimal secrets:** the tests job receives the UniFi key. Gated runs never receive the heartbeat URL. The state credentials go only to the reset step of the cleanup jobs, which use `main`, so PR code never sees them.
 - **No Actions caches:** the HIL jobs use no cache actions. Go, Task, and OpenTofu come from the runner image, so PR code cannot write a cache that a trusted run restores.
 
 ### Two Separate Approvals
@@ -84,7 +84,7 @@ A fork PR asks the maintainer for two different approvals:
 1. **Workflow approval**, shown as a banner on the PR. The repository requires approval for every external contributor before `pull_request` workflows run, for example the Docker-based tests in `CI - Local`. These run fork code on GitHub-hosted runners, with no secrets and a read-only token. This approval does not apply to `pull_request_target`, so it does not gate the HIL run.
 2. **Deployment approval** for the `hil-fork-approval` environment, shown on the HIL run itself. This is the gate for the hardware runner.
 
-Approving the first does not approve the second.
+Approving the first does not approve the second. Dependabot is not an external contributor, so its PRs ask only for the second.
 
 ### Before Approving a Fork or Dependabot Run
 
@@ -136,15 +136,15 @@ These controls live in GitHub settings rather than in code. If any of them chang
 - **Actions policy "HIL workflow events"** (Settings, then Actions, then Policies):
   - Target: `.github/workflows/ci-hil.yaml` only.
   - Restrict events: on, with every event allowed.
-  - Restrict actors: off. Fork authors trigger the runs, so restricting actors would block exactly the runs this flow exists for.
-  - Purpose: starting November 2, 2026, GitHub blocks `pull_request_target` on public repositories unless a policy allows it. Without this policy, fork PRs would get no HIL check at all.
+  - Restrict actors: off. Fork authors and Dependabot trigger the runs, so restricting actors would block exactly the runs this flow exists for.
+  - Purpose: starting November 2, 2026, GitHub blocks `pull_request_target` on public repositories unless a policy allows it. Without this policy, fork and Dependabot PRs would get no HIL check at all.
 - **Actions settings** (Settings, then Actions, then General):
   - Approval for running fork pull request workflows: require approval for all external contributors.
   - Workflow permissions: read repository contents and packages. Workflows that need more must request it.
   - Allow GitHub Actions to create and approve pull requests: off.
   - Actions permissions: all actions and reusable workflows are allowed, and SHA pinning is not required. See Known Gaps.
 - **Repository secrets:** `TERRIFI_HIL_TEST_UNIFI_API_KEY`, `TERRIFI_HIL_HEARTBEAT_URL`, and the four `TERRIFI_HIL_STATE_*` secrets listed in [`terraform/README.md`](./terraform/README.md).
-- **Dependabot secrets:** none. Dependabot PRs get the repository secrets through `pull_request_target`, only after approval.
+- **Dependabot secrets:** none. Dependabot's `pull_request` runs receive these without approval, so never store HIL secrets here. Gated Dependabot runs get the repository secrets through `pull_request_target` instead.
 - **Rulesets:** no ruleset requires the HIL check. Fork and Dependabot PRs can merge without it, at the maintainer's discretion.
 
 ## Known Gaps
@@ -180,6 +180,15 @@ The runner files live in `~/github-runner` on the runner VM.
    ```
 
 6. Revoke the old token.
+
+### Testing Changes to the Gate
+
+GitHub loads `pull_request_target` workflows from `main`, so changes to the approval gate only take effect, and can only be tested, after they merge.
+
+- **Dependabot:** comment `@dependabot recreate` on a Dependabot PR that changes Go files. Expect `Main` to be skipped and `Fork or Dependabot PR approval` to wait for review.
+- **Forks:** open a PR from a fork that changes a Go file. Expect the same.
+
+Do not approve the run unless you also want to test the hardware run.
 
 ### Rotating the State Credentials
 
