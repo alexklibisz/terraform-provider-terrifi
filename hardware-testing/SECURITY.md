@@ -28,9 +28,9 @@ Read this before approving a fork PR's HIL run, changing the HIL workflows, or c
 
 PR events run only when the PR diff touches Go source, `go.mod`, `go.sum`, or `.github/workflows/`. A docs-only fork PR never reaches the approval gate.
 
-Fork PRs also trigger the `pull_request` event. The workflow skips that path, because GitHub withholds secrets from it.
+Fork PRs also trigger the `pull_request` event. The workflow skips that event for forks, because GitHub withholds secrets from it.
 
-Dependabot PRs run on the same-repository path. GitHub gives Dependabot-triggered runs only Dependabot secrets. The HIL job therefore fails at the connection check, unless the UniFi key is also stored as a Dependabot secret.
+Dependabot pushes its branches to this repository, so its PRs run like any other PR from a branch here, without approval. But GitHub gives Dependabot-triggered runs only Dependabot secrets, so the run fails at the first cleanup unless the UniFi key and state credentials are also stored as Dependabot secrets.
 
 ## How a Run Works
 
@@ -74,11 +74,11 @@ Fork PRs go through `pull_request_target`.
 4. The run enters the hardware queue. Cleanup resets the controller using `main`, the tests job checks out the approved SHA and runs it with the UniFi key, and cleanup resets the controller again. The result appears as a check on the PR.
 5. A new push to the PR cancels the older run, whether it is waiting for approval or already running. The new run needs its own approval.
 
-Other controls on this path:
+Other controls on fork runs:
 
 - **Read-only token:** the workflow sets `permissions: contents: read`. By default, `pull_request_target` would grant a write token.
 - **No stored git credentials:** checkout uses `persist-credentials: false`.
-- **Explicit opt-in to fork checkout:** `actions/checkout` refuses fork code under `pull_request_target` unless `allow-unsafe-pr-checkout` is set. Only the fork path sets it, and only after approval.
+- **Explicit opt-in to fork checkout:** `actions/checkout` refuses fork code under `pull_request_target` unless `allow-unsafe-pr-checkout` is set. Only fork runs set it, and only after approval.
 - **Minimal secrets:** the tests job receives the UniFi key. Fork runs never receive the heartbeat URL, and the state credentials go only to the reset step of the cleanup jobs, which never run fork code.
 - **No Actions caches:** the HIL jobs use no cache actions. Go, Task, and OpenTofu come from the runner image, so fork code cannot write a cache that a trusted run restores.
 
