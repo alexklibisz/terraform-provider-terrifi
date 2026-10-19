@@ -15,6 +15,7 @@ ARG TASK_VERSION=3.54.0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
         curl \
         git \
         jq \
@@ -24,6 +25,11 @@ COPY --from=go /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
+
+# The HIL controller's self-signed certificate, fetched by run.sh. Go and curl
+# read the system trust store, so jobs verify the controller's TLS.
+COPY controller.crt /usr/local/share/ca-certificates/terrifi-hil-controller.crt
+RUN update-ca-certificates
 
 # Task (taskfile.dev)
 RUN sh -c "$(curl -fsSL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin "v${TASK_VERSION}"
