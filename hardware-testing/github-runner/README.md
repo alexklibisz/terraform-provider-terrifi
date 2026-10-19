@@ -48,6 +48,22 @@ cd ~/github-runner
 
 To follow the runner's output, use `docker compose logs -f supervisor`.
 
+## Reclaiming Disk Space
+
+Each `./run.sh` leaves the previous runner image and several gigabytes of build
+cache behind. To clean up, run this on the server:
+
+```sh
+cd ~/github-runner
+./prune.sh
+```
+
+It removes superseded runner images, unused Docker images and build cache older
+than 7 days, unused APT packages and cache, archived journals, rotated logs, and
+expired temporary files, and reports disk usage before and after. It keeps the
+current runner image, Compose containers and networks, and all Docker volumes,
+including the Go module cache. Run `./prune.sh --help` for details.
+
 ### Moving from `~/docker-compose`
 
 Older versions of this setup lived in `/home/terrifi/docker-compose`, with the
