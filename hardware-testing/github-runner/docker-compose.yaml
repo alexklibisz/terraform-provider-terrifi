@@ -50,6 +50,8 @@ services:
     environment:
       RUNNER_IMAGE: terrifi-github-runner
       RUNNER_NETWORK: terrifi-github-runner
+      # Where runner containers reach the controller as unifi.local.
+      CONTROLLER_LAN_IP: ${CONTROLLER_LAN_IP:-192.168.1.3}
       # Use the local module cache, falling back to the public proxy on any
       # error (`|`), so CI keeps working if goproxy is down.
       GOPROXY: http://goproxy:3000|https://proxy.golang.org

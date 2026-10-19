@@ -50,3 +50,6 @@ examples/**/terraform.tfstate.*
 examples/**/.terraform/
 examples/**/.terraform.lock.hcl
 examples/**/crash.log
+
+# HIL controller certificate, fetched by hardware-testing/github-runner/run.sh
+hardware-testing/github-runner/controller.crt*

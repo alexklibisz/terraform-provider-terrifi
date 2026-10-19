@@ -4,7 +4,7 @@ This directory contains a Docker Compose setup for running a GitHub Actions self
 
 ## Prerequisites
 
-A server with Docker, Docker Compose, and rsync installed. The runner needs access to the UniFi controller on the local network.
+A server with Docker, Docker Compose, rsync, OpenSSL, and Tailscale installed. The runner needs access to the UniFi controller on the local network. `run.sh` also fetches the controller's certificate over Tailscale, so the server and the controller VM (`terrifi-unifi-os-server`) must be on the same tailnet.
 
 ## Creating a GitHub Personal Access Token
 
@@ -33,6 +33,11 @@ the server to rebuild with the latest `ubuntu-noble` base image and restart the
 supervisor. The next job's container uses the rebuilt image. The build uses
 `--pull` because Docker otherwise may reuse a cached base image even with
 `--build`.
+
+`run.sh` also fetches the controller's certificate and builds it into the image.
+Rerun it whenever the controller's certificate changes, for example after a
+UniFi OS Server upgrade; until then, HIL jobs fail TLS verification. To fetch
+from a different tailnet host, set `CONTROLLER_TAILNET_HOST`.
 
 To update directly on the server:
 
@@ -75,6 +80,17 @@ docker volume rm docker-compose_runner-work
 
 ## Troubleshooting
 
+### Controller Connection Errors
+
+HIL jobs reach the controller at `https://unifi.local:11443`. Both of these
+errors mean the runner needs `./run.sh`, either because it predates the
+controller TLS setup or because the controller's certificate changed:
+
+1. `lookup unifi.local on 127.0.0.11:53: server misbehaving`: the job container
+   was not started with the `unifi.local` host mapping from `supervise.sh`.
+2. `x509: certificate signed by unknown authority`: the runner image does not
+   trust the controller's current certificate.
+
 ### Note: Idle Runner Not Picking Up Jobs
 
 On October 10, 2026, the HIL job for PR #185 stayed queued with "Waiting for a
@@ -107,6 +123,7 @@ runner picked up the PR job again.
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
 - **One container per job** — the runner is ephemeral and exits after a job. The `supervisor` compose service (`supervise.sh`) then starts a new container from the image; `docker run --rm` deletes the old one. Docker's restart policies would reuse the old container's filesystem, so caches or config written by an approved fork PR's job could affect later jobs, including the HIL reset that holds the Terraform state credentials.
+- **Verified TLS to the controller** — the controller's certificate is self-signed for `unifi.local`. `run.sh` fetches it over Tailscale, which authenticates the controller VM, and the image trusts it. Runner containers resolve `unifi.local` to the controller's LAN address (`CONTROLLER_LAN_IP`, default `192.168.1.3`) through `--add-host`, so API traffic stays on the HIL LAN and jobs no longer set `UNIFI_INSECURE`.
 - **Docker socket only for the supervisor** — it is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh` and exposes no ports.
 - **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
 - **No Docker socket for jobs** — the runner container does not get the host socket, because it would give jobs root on the runner VM. HIL tests do not need Docker.
