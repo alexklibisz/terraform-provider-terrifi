@@ -13,9 +13,11 @@ trap 'rm -f controller.crt.tmp' EXIT
 openssl s_client -connect "$controller_ip:11443" -servername unifi.local </dev/null 2>/dev/null \
   | openssl x509 -outform PEM >controller.crt.tmp
 # The workflows connect to https://unifi.local:11443, so the certificate must
-# name it.
-if ! openssl x509 -in controller.crt.tmp -noout -checkhost unifi.local | grep -q ' does match'; then
-  echo "The certificate from $controller does not name unifi.local." >&2
+# name it in a DNS SAN. Go ignores the Common Name, which -checkhost would
+# accept.
+if ! openssl x509 -in controller.crt.tmp -noout -ext subjectAltName \
+  | grep -qE '(^|[ ,])DNS:unifi\.local(,|$)'; then
+  echo "The certificate from $controller has no DNS SAN for unifi.local." >&2
   exit 1
 fi
 mv controller.crt.tmp controller.crt
