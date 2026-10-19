@@ -80,6 +80,17 @@ docker volume rm docker-compose_runner-work
 
 ## Troubleshooting
 
+### Controller Connection Errors
+
+HIL jobs reach the controller at `https://unifi.local:11443`. Both of these
+errors mean the runner needs `./run.sh`, either because it predates the
+controller TLS setup or because the controller's certificate changed:
+
+1. `lookup unifi.local on 127.0.0.11:53: server misbehaving`: the job container
+   was not started with the `unifi.local` host mapping from `supervise.sh`.
+2. `x509: certificate signed by unknown authority`: the runner image does not
+   trust the controller's current certificate.
+
 ### Note: Idle Runner Not Picking Up Jobs
 
 On October 10, 2026, the HIL job for PR #185 stayed queued with "Waiting for a
