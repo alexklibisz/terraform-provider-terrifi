@@ -38,7 +38,7 @@ services:
     profiles: [build-only]
 
   supervisor:
-    image: docker:27-cli
+    image: docker:29-cli
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/supervise.sh"]
     # Also starts goproxy and creates the network the runners join.
