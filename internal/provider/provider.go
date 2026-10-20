@@ -240,6 +240,7 @@ func (p *terrifiProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewFirewallPolicyOrderResource,
 		NewFirewallZoneResource,
 		NewNetworkResource,
+		NewPortProfileResource,
 		NewWLANResource,
 	}
 }
