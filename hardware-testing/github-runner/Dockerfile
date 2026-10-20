@@ -34,11 +34,11 @@ RUN update-ca-certificates
 # Task (taskfile.dev)
 RUN sh -c "$(curl -fsSL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin "v${TASK_VERSION}"
 
-# Jobs run as the unprivileged `runner` user (RUN_AS_ROOT=false in
-# docker-compose.yaml). The base image gives that user passwordless sudo, which
-# would let job code become root and read the runner's startup environment,
-# including ACCESS_TOKEN, from /proc/1/environ. Remove it, and fail the build
-# if it comes back in a future base image.
+# Jobs run as the unprivileged `runner` user (`--user runner` in
+# supervise.sh). The base image gives that user passwordless sudo, which would
+# let job code become root in the container and widen its reach toward the
+# runner VM's kernel. Remove it, and fail the build if it comes back in a
+# future base image.
 RUN gpasswd -d runner sudo \
     && sed -i '/NOPASSWD/d' /etc/sudoers \
     && rm -f /etc/sudoers.d/runner \
