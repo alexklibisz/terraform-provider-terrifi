@@ -159,7 +159,6 @@ These are accepted for now. Each one notes what would close it.
 5. **The runner VM runs Tailscale.** Job code can reach whatever the VM's tailnet access controls allow. Restrict the VM with a tag-based Tailscale ACL so it can reach only what it needs.
 6. **Admins can bypass the environment.** The environment allows administrator bypass. Leave it on only while the maintainer is the only administrator.
 7. **`actions/checkout` is pinned by major version.** It is the only action the HIL jobs run, and it runs with the UniFi key in the job's environment. Pinning it to a full commit SHA, and enabling the setting that requires it, would close this.
-8. **The UniFi API key follows redirects.** The provider's HTTP clients use Go's default redirect handling, which forwards custom headers such as `X-API-Key` to other hosts, even over plain HTTP. A redirect from the controller could send the key elsewhere. A redirect policy in the clients that drops the header on cross-host redirects would close this.
 
 ## Maintenance
 
