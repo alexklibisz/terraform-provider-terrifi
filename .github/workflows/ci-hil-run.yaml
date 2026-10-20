@@ -98,10 +98,12 @@ jobs:
       # always reset using main. Untrusted code never runs with state
       # credentials.
       BASELINE_REF: ${{ inputs.untrusted_pr && 'main' || inputs.ref }}
-      # Runner and controller share the HIL LAN; keep API traffic local.
-      UNIFI_API: https://192.168.1.3:11443
+      # unifi.local is the name on the controller's self-signed certificate.
+      # Runner containers resolve it to the controller's LAN address and trust
+      # the certificate (see hardware-testing/github-runner/run.sh), so TLS is
+      # verified and API traffic stays on the HIL LAN.
+      UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
-      UNIFI_INSECURE: true
     # Reused by cleanup-after through the YAML alias.
     steps: &reset-steps
       - name: Checkout baseline
@@ -146,10 +148,12 @@ jobs:
       - self-hosted
       - terrifi-hardware-test
     env:
-      # Runner and controller share the HIL LAN; keep API traffic local.
-      UNIFI_API: https://192.168.1.3:11443
+      # unifi.local is the name on the controller's self-signed certificate.
+      # Runner containers resolve it to the controller's LAN address and trust
+      # the certificate (see hardware-testing/github-runner/run.sh), so TLS is
+      # verified and API traffic stays on the HIL LAN.
+      UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
-      UNIFI_INSECURE: true
     steps:
       - name: Checkout
         timeout-minutes: 1
@@ -208,7 +212,10 @@ jobs:
       # Pin to the commit cleanup-before used, so a push to main mid-run
       # cannot change the baseline.
       BASELINE_REF: ${{ needs.cleanup-before.outputs.baseline_sha }}
-      UNIFI_API: https://192.168.1.3:11443
+      # unifi.local is the name on the controller's self-signed certificate.
+      # Runner containers resolve it to the controller's LAN address and trust
+      # the certificate (see hardware-testing/github-runner/run.sh), so TLS is
+      # verified and API traffic stays on the HIL LAN.
+      UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
-      UNIFI_INSECURE: true
     steps: *reset-steps

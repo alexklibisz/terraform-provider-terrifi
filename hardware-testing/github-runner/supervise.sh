@@ -23,7 +23,11 @@ while true; do
   docker rm --force "$name" >/dev/null 2>&1 || true
 
   # Background and wait, so the trap can run while a job is in progress.
+  # unifi.local is the name on the controller's certificate, which the image
+  # trusts. Resolve it here rather than through DNS on the HIL gateway, which
+  # the tests change.
   docker run --rm --name "$name" --network "$RUNNER_NETWORK" \
+    --add-host "unifi.local:$CONTROLLER_LAN_IP" \
     --env GOPROXY --env REPO_URL --env ACCESS_TOKEN --env RUNNER_NAME --env RUNNER_WORKDIR \
     --env LABELS --env RUNNER_GROUP --env EPHEMERAL --env RUN_AS_ROOT \
     "$RUNNER_IMAGE" &
