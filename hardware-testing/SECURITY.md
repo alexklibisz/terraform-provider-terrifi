@@ -114,13 +114,14 @@ flowchart TB
         supervisor -->|docker run --rm| runner
         runner -->|GOPROXY| goproxy
     end
-    runner -->|UniFi API| controller["UniFi OS Server"]
+    runner -->|"UniFi API, verified TLS<br/>to unifi.local"| controller["UniFi OS Server"]
     runner <-->|jobs| github["GitHub Actions"]
 ```
 
 - **One fresh container per job:** the runner is ephemeral and exits after a single job. The supervisor then deletes its container with `docker run --rm` and starts a new one from the image. Nothing a job writes, such as Go caches or files under `/home/runner`, reaches the next job. A Docker restart policy would have reused the old container's filesystem.
 - **Docker socket only for the supervisor:** the socket is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh`, exposes no ports, and is not on the runner's network. Job containers never get the socket. HIL tests do not need Docker; Docker-based tests run on GitHub-hosted runners.
 - **Non-root jobs without sudo:** the container's first process keeps the registration token in its startup environment, and only root can read that. Jobs therefore run as the unprivileged `runner` user. The base image gives that user passwordless sudo, so the Dockerfile removes it and fails the build if it comes back.
+- **Verified TLS to the controller:** the controller's certificate is self-signed for `unifi.local`. `run.sh` fetches it over Tailscale, which authenticates the controller VM, and builds it into the image as a trusted certificate. The supervisor maps `unifi.local` to the controller's LAN address with `--add-host`, so jobs verify TLS without depending on DNS on the HIL gateway, which the tests change. Something on the HIL network that impersonates the controller cannot get the UniFi key.
 - **Tools from the image:** Go, Task, and OpenTofu are installed in the image, pinned by version. Jobs do not download tools, so no download can be swapped at job time. Dependabot bumps the Go and OpenTofu images.
 - **Shared Go module cache:** runner containers fetch modules through the `goproxy` service, which caches `proxy.golang.org`. Jobs can make it fetch and cache modules, but cannot change what it serves, and Go verifies every module against `go.sum` and the checksum database.
 - **Fine-grained registration token:** the runner uses a fine-grained personal access token scoped to this repository. Its only permission is Administration read and write, plus the required Metadata read. Registering a repository-level runner requires Administration write. GitHub offers a narrower "Self-hosted runners" permission, but only for organization runners.
@@ -158,7 +159,7 @@ These are accepted for now. Each one notes what would close it.
 5. **The runner VM runs Tailscale.** Job code can reach whatever the VM's tailnet access controls allow. Restrict the VM with a tag-based Tailscale ACL so it can reach only what it needs.
 6. **Admins can bypass the environment.** The environment allows administrator bypass. Leave it on only while the maintainer is the only administrator.
 7. **`actions/checkout` is pinned by major version.** It is the only action the HIL jobs run, and it runs with the UniFi key in the job's environment. Pinning it to a full commit SHA, and enabling the setting that requires it, would close this.
-8. **The UniFi API key follows redirects.** The provider's HTTP clients use Go's default redirect handling, which forwards custom headers such as `X-API-Key` to other hosts, even over plain HTTP. A controller response, or anything that can impersonate the controller, could send the key elsewhere. A redirect policy in the clients that drops the header on cross-host redirects would close this.
+8. **The UniFi API key follows redirects.** The provider's HTTP clients use Go's default redirect handling, which forwards custom headers such as `X-API-Key` to other hosts, even over plain HTTP. A redirect from the controller could send the key elsewhere. A redirect policy in the clients that drops the header on cross-host redirects would close this.
 
 ## Maintenance
 
@@ -181,6 +182,10 @@ The runner files live in `~/github-runner` on the runner VM.
    ```
 
 6. Revoke the old token.
+
+### When the Controller Certificate Changes
+
+UniFi OS Server can replace its certificate, for example on an upgrade. HIL jobs then fail with `x509: certificate signed by unknown authority`. Run `./run.sh` on the runner VM to fetch and trust the new certificate. It prints the certificate's subject, expiry, and SHA-256 fingerprint.
 
 ### Testing Changes to the Gate
 
