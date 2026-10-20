@@ -24,7 +24,7 @@ mv controller.crt.tmp controller.crt
 echo "Trusting the controller certificate from $controller ($controller_ip):"
 openssl x509 -in controller.crt -noout -subject -enddate -fingerprint -sha256
 
-docker compose build --pull runner
+docker compose build --pull runner supervisor
 # Remove the long-lived runner container from before the supervisor, if it
 # is still around. This interrupts any job it is running.
 docker compose stop --timeout 300 runner

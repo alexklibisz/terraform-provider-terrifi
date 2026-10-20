@@ -1,14 +1,15 @@
 # GitHub Actions self-hosted runner (Ubuntu-based), one fresh container per job.
 #
-# The runner is ephemeral: it registers with GitHub, runs a single job, and
-# exits. The `supervisor` service then removes that container and starts a new
+# The runner is ephemeral: the supervisor registers it with GitHub, it runs a
+# single job, and it exits. The `supervisor` service then removes that container and starts a new
 # one from the image, so nothing a job writes (Go caches, the tool cache,
 # ~/.config) reaches the next job. A Docker restart policy on the runner would
 # reuse the old container's filesystem instead. Approved fork PRs run code
 # here, and later jobs hold the HIL state credentials.
 #
 # Only the supervisor gets the host Docker socket, which is equivalent to root
-# on the runner VM. It runs nothing but supervise.sh and exposes no ports. The
+# on the runner VM, and the ACCESS_TOKEN that registers runners. It runs
+# nothing but supervise.sh and exposes no ports. The
 # runner container, where PR code runs, never gets the socket. The hardware
 # acceptance target talks to the real controller and does not need Docker;
 # Docker-based tests run in ci-local on GitHub-hosted runners.
@@ -38,7 +39,10 @@ services:
     profiles: [build-only]
 
   supervisor:
-    image: docker:27-cli
+    build:
+      context: .
+      dockerfile: supervisor.Dockerfile
+    image: terrifi-github-runner-supervisor
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/supervise.sh"]
     # Also starts goproxy and creates the network the runners join.
@@ -55,20 +59,13 @@ services:
       # Use the local module cache, falling back to the public proxy on any
       # error (`|`), so CI keeps working if goproxy is down.
       GOPROXY: http://goproxy:3000|https://proxy.golang.org
+      # The supervisor uses these to register each runner. ACCESS_TOKEN never
+      # reaches the runner containers.
       REPO_URL: ${REPO_URL}
       ACCESS_TOKEN: ${ACCESS_TOKEN}
       RUNNER_NAME: ${RUNNER_NAME:-terrifi-hardware-runner}
       RUNNER_WORKDIR: /tmp/runner/work
       LABELS: ${LABELS:-self-hosted,terrifi-hardware-test}
-      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
-      # Required: the runner must exit after one job so the supervisor can
-      # replace the container. The entrypoint treats any nonempty value,
-      # including "false", as enabled.
-      EPHEMERAL: "true"
-      # Run jobs as the unprivileged `runner` user, not root. Root could read
-      # ACCESS_TOKEN from /proc/1/environ. The Dockerfile removes the user's
-      # sudo access so this cannot be undone from inside a job.
-      RUN_AS_ROOT: "false"
     # Covers supervise.sh's `docker stop --time 300` of the runner on shutdown.
     stop_grace_period: 6m
 
