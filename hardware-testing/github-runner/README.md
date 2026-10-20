@@ -8,14 +8,17 @@ A server with Docker, Docker Compose, rsync, OpenSSL, and Tailscale installed. T
 
 ## Creating a GitHub Personal Access Token
 
-The runner authenticates with a Personal Access Token (classic), which it uses to automatically mint short-lived registration tokens on each startup.
+The supervisor uses a fine-grained personal access token to register a single-use runner before each job.
 
-1. Go to https://github.com/settings/tokens
-2. Click **Generate new token** > **Generate new token (classic)**
-3. Give it a descriptive name (e.g., `terrifi-gh-runner`)
-4. Set an expiration (or no expiration for a long-lived runner)
-5. Select the **`repo`** scope (full control of private repositories)
-6. Click **Generate token** and copy the value
+1. Go to https://github.com/settings/personal-access-tokens/new.
+2. Name it something descriptive, e.g., `terrifi-gh-runner`.
+3. Set the resource owner to the repository owner.
+4. Set an expiration of about a year, and set a reminder to rotate it.
+5. Under **Repository access**, choose **Only select repositories** and select this repository.
+6. Under **Permissions**, add **Administration** with **Read and write** access. Metadata is added automatically as read-only. Add nothing else.
+7. Click **Generate token** and copy the value.
+
+Registering a repository-level runner requires Administration write. That permission also allows changing settings and deleting the repository, so keep the token only on the runner VM. Runner containers never receive it.
 
 ## Setup
 

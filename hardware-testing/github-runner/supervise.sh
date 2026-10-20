@@ -15,7 +15,7 @@ api="https://api.github.com/repos/${REPO_URL#https://github.com/}/actions/runner
 runner_id=
 
 github() {
-  curl --fail --silent --show-error \
+  curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
     -H "Authorization: Bearer $ACCESS_TOKEN" \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
