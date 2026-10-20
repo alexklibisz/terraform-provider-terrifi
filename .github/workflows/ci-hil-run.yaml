@@ -106,7 +106,7 @@ jobs:
     steps: &reset-steps
       - name: Checkout baseline
         timeout-minutes: 1
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: alexklibisz/terraform-provider-terrifi
           ref: ${{ env.BASELINE_REF }}
@@ -155,7 +155,7 @@ jobs:
     steps:
       - name: Checkout
         timeout-minutes: 1
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
