@@ -75,6 +75,7 @@ Other controls on these runs:
 - **No stored git credentials:** checkout uses `persist-credentials: false`.
 - **Explicit opt-in to fork checkout:** `actions/checkout` refuses fork code under `pull_request_target` unless `allow-unsafe-pr-checkout` is set. Only the gated job sets it, and only after approval. It has no effect on Dependabot branches, which are not forks.
 - **Minimal secrets:** the tests job receives the UniFi key. Gated runs never receive the heartbeat URL. The state credentials go only to the reset step of the cleanup jobs, which use `main`, so PR code never sees them.
+- **Pinned actions:** every action is pinned to a full commit SHA, so a moved tag cannot change the code that runs next to the UniFi key. `actions/checkout` is the only action the HIL jobs use. Dependabot updates the pins.
 - **No Actions caches:** the HIL jobs use no cache actions. Go, Task, and OpenTofu come from the runner image, so PR code cannot write a cache that a trusted run restores.
 
 ### Two Separate Approvals
@@ -143,7 +144,7 @@ These controls live in GitHub settings rather than in code. If any of them chang
   - Approval for running fork pull request workflows: require approval for all external contributors.
   - Workflow permissions: read repository contents and packages. Workflows that need more must request it.
   - Allow GitHub Actions to create and approve pull requests: off.
-  - Actions permissions: all actions and reusable workflows are allowed, and SHA pinning is not required. See Known Gaps.
+  - Actions permissions: all actions and reusable workflows are allowed, and actions must be pinned to a full-length commit SHA.
 - **Repository secrets:** `TERRIFI_HIL_TEST_UNIFI_API_KEY`, `TERRIFI_HIL_HEARTBEAT_URL`, and the four `TERRIFI_HIL_STATE_*` secrets listed in [`terraform/README.md`](./terraform/README.md).
 - **Dependabot secrets:** none. Dependabot's `pull_request` runs receive these without approval, so never store HIL secrets here. Gated Dependabot runs get the repository secrets through `pull_request_target` instead.
 - **Rulesets:** no ruleset requires the HIL check. Fork and Dependabot PRs can merge without it, at the maintainer's discretion.
@@ -158,7 +159,6 @@ These are accepted for now. Each one notes what would close it.
 4. **Jobs can reach the module cache.** A job can fill the `goproxy` cache and evict other modules, which only slows later jobs. It cannot change what the cache serves.
 5. **The runner VM runs Tailscale.** Job code can reach whatever the VM's tailnet access controls allow. Restrict the VM with a tag-based Tailscale ACL so it can reach only what it needs.
 6. **Admins can bypass the environment.** The environment allows administrator bypass. Leave it on only while the maintainer is the only administrator.
-7. **`actions/checkout` is pinned by major version.** It is the only action the HIL jobs run, and it runs with the UniFi key in the job's environment. Pinning it to a full commit SHA, and enabling the setting that requires it, would close this.
 
 ## Maintenance
 
