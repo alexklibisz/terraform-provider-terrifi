@@ -10,7 +10,7 @@ A server with Docker, Docker Compose, rsync, OpenSSL, and Tailscale installed. T
 
 ## Creating a GitHub Personal Access Token
 
-The runner uses a fine-grained personal access token to request a short-lived registration token each time it starts.
+The supervisor uses a fine-grained personal access token to register a single-use runner before each job.
 
 1. Go to https://github.com/settings/personal-access-tokens/new.
 2. Name it something descriptive, e.g., `terrifi-gh-runner`.
@@ -20,7 +20,7 @@ The runner uses a fine-grained personal access token to request a short-lived re
 6. Under **Permissions**, add **Administration** with **Read and write** access. Metadata is added automatically as read-only. Add nothing else.
 7. Click **Generate token** and copy the value.
 
-Registering a repository-level runner requires Administration write. That permission also allows changing settings and deleting the repository, so keep the token only on the runner VM. See [../SECURITY.md](../SECURITY.md) for rotation steps.
+Registering a repository-level runner requires Administration write. That permission also allows changing settings and deleting the repository, so keep the token only on the runner VM. Runner containers never receive it. See [../SECURITY.md](../SECURITY.md) for rotation steps.
 
 ## Setup
 
@@ -145,8 +145,9 @@ runner picked up the PR job again.
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
 - **One container per job** — the runner is ephemeral and exits after a job. The `supervisor` compose service (`supervise.sh`) then starts a new container from the image; `docker run --rm` deletes the old one. Docker's restart policies would reuse the old container's filesystem, so caches or config written by an approved fork PR's job could affect later jobs, including the HIL reset that holds the Terraform state credentials.
 - **Verified TLS to the controller** — the controller's certificate is self-signed for `unifi.local`. `run.sh` fetches it over Tailscale, which authenticates the controller VM, and the image trusts it. Runner containers resolve `unifi.local` to the controller's LAN address (`CONTROLLER_LAN_IP`, default `192.168.1.3`) through `--add-host`, so API traffic stays on the HIL LAN and jobs no longer set `UNIFI_INSECURE`.
-- **Docker socket only for the supervisor** — it is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh` and exposes no ports.
-- **Non-root jobs** — jobs run as the unprivileged `runner` user (`RUN_AS_ROOT=false`), and the Dockerfile removes that user's passwordless sudo from the base image. As root, job code could read `ACCESS_TOKEN` from the container's startup environment in `/proc/1/environ`.
+- **Docker socket and token only for the supervisor** — the socket is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh` and exposes no ports.
+- **Just-in-time registration** — before each job, the supervisor uses `ACCESS_TOKEN` to request a [JIT runner configuration](https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-a-repository), which registers one ephemeral runner. The runner container gets only that configuration and starts the runner directly, bypassing the base image's entrypoint, so `ACCESS_TOKEN` never enters it. After the job, the supervisor deletes the runner in case it never ran one.
+- **Non-root jobs** — the runner and its jobs run as the unprivileged `runner` user, and the Dockerfile removes that user's passwordless sudo from the base image.
 - **No Docker socket for jobs** — the runner container does not get the host socket, because it would give jobs root on the runner VM. HIL tests do not need Docker.
 - Go, Task, and OpenTofu are pre-installed in the image, and HIL jobs use them instead of downloading their own. Go and OpenTofu are copied from their official images, which Dependabot bumps; Task's `TASK_VERSION` is bumped by hand. Run `./run.sh` after merging a bump
 - **Go module cache** — the `goproxy` compose service is nginx caching `proxy.golang.org` (`goproxy.conf`). Runner containers join its network and use it through `GOPROXY`, so jobs fetch modules from the local cache instead of the internet; Go falls back to `proxy.golang.org` if the cache errors or times out. Module versions are immutable, so they are cached for 30 days since last use, capped at 2 GB with least-recently-used eviction. Jobs can make the cache fetch modules, but Go checks every module against `go.sum` and the checksum database, so fork code cannot plant modified modules for later jobs. Each job's own module cache still starts empty.
