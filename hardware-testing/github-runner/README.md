@@ -4,7 +4,9 @@ This directory contains a Docker Compose setup for running a GitHub Actions self
 
 ## Prerequisites
 
-A server with Docker, Docker Compose, rsync, OpenSSL, and Tailscale installed. The runner needs access to the UniFi controller on the local network. `run.sh` also fetches the controller's certificate over Tailscale, so the server and the controller VM (`terrifi-unifi-os-server`) must be on the same tailnet.
+A server with Docker, Docker Compose, rsync, and OpenSSL installed. The runner needs access to the UniFi controller on the local network. The server does not need Tailscale.
+
+A workstation with rsync, OpenSSL, and Tailscale, on the same tailnet as the controller VM (`terrifi-unifi-os-server`). `rsync.sh` fetches the controller's certificate over Tailscale before syncing.
 
 ## Creating a GitHub Personal Access Token
 
@@ -22,8 +24,8 @@ Registering a repository-level runner requires Administration write. That permis
 
 ## Setup
 
-1. Set up SSH access with an alias `terrifi-gh-runner`, i.e., you should be able to run `ssh terrifi-gh-runner` from your host.
-2. Rsync the Docker Compose files and `run.sh` to `~/github-runner` on the server: `./rsync.sh`
+1. Set up SSH access with an alias `terrifi-gh-runner`, i.e., you should be able to run `ssh terrifi-gh-runner` from your host. The runner VM is not on the tailnet, so reach it through the Proxmox host with `ProxyJump`.
+2. Fetch the controller's certificate and rsync it, the Docker Compose files, and `run.sh` to `~/github-runner` on the server: `./rsync.sh`
 3. SSH into the server.
 4. Copy the env file: `cd ~/github-runner && cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
 5. Start the runner: `cd ~/github-runner && ./run.sh`
@@ -37,10 +39,11 @@ supervisor. The next job's container uses the rebuilt image. The build uses
 `--pull` because Docker otherwise may reuse a cached base image even with
 `--build`.
 
-`run.sh` also fetches the controller's certificate and builds it into the image.
-Rerun it whenever the controller's certificate changes, for example after a
-UniFi OS Server upgrade; until then, HIL jobs fail TLS verification. To fetch
-from a different tailnet host, set `CONTROLLER_TAILNET_HOST`.
+`rsync.sh` also fetches the controller's certificate, and `run.sh` builds it
+into the image. Rerun both whenever the controller's certificate changes, for
+example after a UniFi OS Server upgrade; until then, HIL jobs fail TLS
+verification. To fetch from a different tailnet host, set
+`CONTROLLER_TAILNET_HOST` when running `rsync.sh`.
 
 To update directly on the server:
 
@@ -102,8 +105,9 @@ docker volume rm docker-compose_runner-work
 ### Controller Connection Errors
 
 HIL jobs reach the controller at `https://unifi.local:11443`. Both of these
-errors mean the runner needs `./run.sh`, either because it predates the
-controller TLS setup or because the controller's certificate changed:
+errors mean the runner needs `./rsync.sh` and then `./run.sh`, either because
+it predates the controller TLS setup or because the controller's certificate
+changed:
 
 1. `lookup unifi.local on 127.0.0.11:53: server misbehaving`: the job container
    was not started with the `unifi.local` host mapping from `supervise.sh`.
@@ -142,7 +146,7 @@ runner picked up the PR job again.
 
 - **Ubuntu Noble (24.04)** base image via [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner)
 - **One container per job** — the runner is ephemeral and exits after a job. The `supervisor` compose service (`supervise.sh`) then starts a new container from the image; `docker run --rm` deletes the old one. Docker's restart policies would reuse the old container's filesystem, so caches or config written by an approved fork PR's job could affect later jobs, including the HIL reset that holds the Terraform state credentials.
-- **Verified TLS to the controller** — the controller's certificate is self-signed for `unifi.local`. `run.sh` fetches it over Tailscale, which authenticates the controller VM, and the image trusts it. Runner containers resolve `unifi.local` to the controller's LAN address (`CONTROLLER_LAN_IP`, default `192.168.1.3`) through `--add-host`, so API traffic stays on the HIL LAN and jobs no longer set `UNIFI_INSECURE`.
+- **Verified TLS to the controller** — the controller's certificate is self-signed for `unifi.local`. `rsync.sh` fetches it on the workstation over Tailscale, which authenticates the controller VM, and the image trusts it. The runner VM is not on the tailnet, so job code cannot reach it. Runner containers resolve `unifi.local` to the controller's LAN address (`CONTROLLER_LAN_IP`, default `192.168.1.3`) through `--add-host`, so API traffic stays on the HIL LAN and jobs no longer set `UNIFI_INSECURE`.
 - **Docker socket and token only for the supervisor** — the socket is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh` and exposes no ports.
 - **Just-in-time registration** — before each job, the supervisor uses `ACCESS_TOKEN` to request a [JIT runner configuration](https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-a-repository), which registers one ephemeral runner. The runner container gets only that configuration and starts the runner directly, bypassing the base image's entrypoint, so `ACCESS_TOKEN` never enters it. After the job, the supervisor deletes the runner in case it never ran one.
 - **Non-root jobs** — the runner and its jobs run as the unprivileged `runner` user, and the Dockerfile removes that user's passwordless sudo from the base image.
