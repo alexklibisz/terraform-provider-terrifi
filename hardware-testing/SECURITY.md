@@ -35,7 +35,7 @@ Read this before approving a fork or Dependabot PR's HIL run, changing the HIL w
 flowchart TD
     trusted["Cron, manual dispatch,<br/>or same-repo PR"]
     untrusted["Fork or Dependabot PR"]
-    gate{"Maintainer approves<br/>this commit?"}
+    gate{"Maintainer approves<br/>the hil-fork-approval<br/>deployment?"}
     untrusted --> gate
     gate -->|no| skipped["Not run"]
     trusted --> run
