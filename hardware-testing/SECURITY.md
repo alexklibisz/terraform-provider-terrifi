@@ -60,31 +60,19 @@ The `Main` and `Fork or Dependabot PR` jobs share the `terrifi-hil-hardware` con
 
 ## Fork and Dependabot PR Flow
 
-Fork PRs and PRs opened by Dependabot go through `pull_request_target`. Dependabot branches live in this repository, but the dependency updates they bring are code nobody has reviewed. The workflow identifies Dependabot PRs by author, so one stays gated even after a maintainer pushes to it.
+Two kinds of PR run code that no maintainer has reviewed:
 
-1. Opening, reopening, or pushing to one of these PRs starts a run. For a fork PR, a maintainer first approves workflows on the PR. GitHub always loads `pull_request_target` workflows from `main`, so the PR cannot change the workflow, the approval gate, which secrets are passed, or the reset code.
-2. The `Fork or Dependabot PR approval` job runs on a GitHub-hosted runner and waits on the `hil-fork-approval` environment. It holds no secrets.
-3. A maintainer reviews the PR and approves the deployment. The job logs the PR number, head repository, and head commit SHA.
-4. The run enters the hardware queue. Cleanup resets the controller using `main`, the tests job checks out the approved SHA and runs it with the UniFi key, and cleanup resets the controller again. The result appears as a check on the PR.
-5. A new push to the PR cancels the older run, whether it is waiting for approval or already running. The new run needs its own approval.
+- **Fork PRs**, from outside contributors.
+- **Dependabot PRs.** Their branches live in this repository, but the dependency updates they bring are unreviewed code. The workflow identifies them by author, so one stays gated even after a maintainer pushes to it.
 
-Other controls on these runs:
+Both run HIL through `pull_request_target`, which GitHub always loads from `main`. The PR cannot change the workflow, the approval gate, which secrets are passed, or the reset code.
 
-- **Read-only token:** the workflow sets `permissions: contents: read`. By default, `pull_request_target` would grant a write token.
-- **No stored git credentials:** checkout uses `persist-credentials: false`.
-- **Explicit opt-in to fork checkout:** `actions/checkout` refuses fork code under `pull_request_target` unless `allow-unsafe-pr-checkout` is set. Only the gated job sets it, and only after approval. It has no effect on Dependabot branches, which are not forks.
-- **Minimal secrets:** the tests job receives the UniFi key. Gated runs never receive the heartbeat URL. The state credentials go only to the reset step of the cleanup jobs, which use `main`, so PR code never sees them.
-- **Pinned actions:** every action is pinned to a full commit SHA, so a moved tag cannot change the code that runs next to the UniFi key. `actions/checkout` is the only action the HIL jobs use. Dependabot updates the pins.
-- **No Actions caches:** the HIL jobs use no cache actions. Go, Task, and OpenTofu come from the runner image, so PR code cannot write a cache that a trusted run restores.
-
-### Two Approvals for Fork PRs
-
-A fork PR needs two approvals, in order, before HIL runs:
-
-1. **Approve workflows**, the banner on the PR. The repository requires approval for every external contributor before their workflows run. This also lets `CI - Local` run the fork's code on GitHub-hosted runners, with no secrets and a read-only token.
-2. **Review deployments** for the `hil-fork-approval` environment, on the `CI - HIL` run. This is the gate for the hardware runner and its secrets.
-
-Dependabot is not an external contributor, so its PRs need only the second approval.
+1. Opening, reopening, or pushing to the PR starts a run.
+2. **Fork PRs only:** a maintainer approves workflows with the banner on the PR. The repository requires this for every external contributor. It also lets `CI - Local` run the fork's code on GitHub-hosted runners, with no secrets and a read-only token.
+3. The `Fork or Dependabot PR approval` job runs on a GitHub-hosted runner and waits on the `hil-fork-approval` environment. It holds no secrets.
+4. A maintainer reviews the PR, as described below, and approves the deployment with **Review deployments**. The job logs the PR number, head repository, and head commit SHA.
+5. The run enters the hardware queue. Cleanup resets the controller using `main`, the tests job checks out the approved SHA and runs it with the UniFi key, and cleanup resets the controller again. The result appears as a check on the PR.
+6. A new push to the PR cancels the older run, whether it is waiting for approval or already running. The new run needs its own approvals.
 
 ### Before Approving a Fork or Dependabot Run
 
@@ -98,6 +86,15 @@ Approving lets the PR's code run on the runner as the `runner` user, with the Un
    - For a Dependabot PR, the new code is in the updated modules, not the PR diff. Check their release notes and upstream changes.
    - Changes under `.github/` and `hardware-testing/terraform/` do not take effect for gated runs, because the workflow and the baseline come from `main`. Still review them in case the PR is merged.
 3. Approve with **Review deployments**. Do not use **Start all waiting jobs**, which is the administrator bypass rather than a review.
+
+### Other Controls on These Runs
+
+- **Read-only token:** the workflow sets `permissions: contents: read`. By default, `pull_request_target` would grant a write token.
+- **No stored git credentials:** checkout uses `persist-credentials: false`.
+- **Explicit opt-in to fork checkout:** `actions/checkout` refuses fork code under `pull_request_target` unless `allow-unsafe-pr-checkout` is set. Only the gated job sets it, and only after approval. Dependabot branches are in this repository, so the opt-in does not apply to them.
+- **Minimal secrets:** the tests job receives the UniFi key. Gated runs never receive the heartbeat URL. The state credentials go only to the reset step of the cleanup jobs, which use `main`, so PR code never sees them.
+- **Pinned actions:** every action is pinned to a full commit SHA, so a moved tag cannot change the code that runs next to the UniFi key. `actions/checkout` is the only action the HIL jobs use. Dependabot updates the pins.
+- **No Actions caches:** the HIL jobs use no cache actions. Go, Task, and OpenTofu come from the runner image, so PR code cannot write a cache that a trusted run restores.
 
 ## Runner Hardening
 
