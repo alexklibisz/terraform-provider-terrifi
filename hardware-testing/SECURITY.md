@@ -75,14 +75,14 @@ Other controls on these runs:
 - **Pinned actions:** every action is pinned to a full commit SHA, so a moved tag cannot change the code that runs next to the UniFi key. `actions/checkout` is the only action the HIL jobs use. Dependabot updates the pins.
 - **No Actions caches:** the HIL jobs use no cache actions. Go, Task, and OpenTofu come from the runner image, so PR code cannot write a cache that a trusted run restores.
 
-### Two Separate Approvals
+### Only One Approval Gates the Hardware
 
-A fork PR asks the maintainer for two different approvals:
+A fork PR shows two approval prompts. Only the second one lets PR code reach the hardware runner.
 
-1. **Workflow approval**, shown as a banner on the PR. The repository requires approval for every external contributor before `pull_request` workflows run, for example the Docker-based tests in `CI - Local`. These run fork code on GitHub-hosted runners, with no secrets and a read-only token. This approval does not apply to `pull_request_target`, so it does not gate the HIL run.
-2. **Deployment approval** for the `hil-fork-approval` environment, shown on the HIL run itself. This is the gate for the hardware runner.
+1. **"Approve workflows to run"**, a banner on the PR. It lets `pull_request` workflows such as `CI - Local` run the fork's code on GitHub-hosted runners, with no secrets and a read-only token. `CI - HIL` uses `pull_request_target`, which this setting does not cover, so the banner neither starts nor blocks the HIL run.
+2. **"Review deployments"** for the `hil-fork-approval` environment, shown on the `CI - HIL` run. This is the HIL gate.
 
-Approving the first does not approve the second. Dependabot is not an external contributor, so its PRs ask only for the second.
+Approving the banner does not approve the HIL run. Dependabot PRs show only the second prompt.
 
 ### Before Approving a Fork or Dependabot Run
 
