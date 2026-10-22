@@ -13,8 +13,8 @@ controller="${CONTROLLER_TAILNET_HOST:-terrifi-unifi-os-server}"
 controller_ip="$(tailscale ip -4 "$controller")"
 # openssl s_client has no connect timeout, so fail fast if the controller is
 # unreachable instead of hanging. This only checks reachability; --insecure
-# sends nothing secret.
-if ! curl --silent --insecure --connect-timeout 5 --max-time 10 --output /dev/null \
+# sends nothing secret. Bypass any proxy to test the route s_client takes.
+if ! curl --silent --insecure --noproxy '*' --connect-timeout 5 --max-time 10 --output /dev/null \
   "https://$controller_ip:11443/"; then
   echo "Cannot reach $controller ($controller_ip) on port 11443 over Tailscale." >&2
   exit 1
