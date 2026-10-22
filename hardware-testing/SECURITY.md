@@ -32,14 +32,14 @@ Read this before approving a fork or Dependabot PR's HIL run, changing the HIL w
 [`ci-hil.yaml`](../.github/workflows/ci-hil.yaml) decides who may run and routes every event to the reusable [`ci-hil-run.yaml`](../.github/workflows/ci-hil-run.yaml), which does the work in three jobs on the hardware runner. Each job gets a fresh runner container (see [Runner Hardening](#runner-hardening)).
 
 ```mermaid
-flowchart LR
-    subgraph routing["ci-hil.yaml"]
-        direction TB
-        trusted["<b>Main</b><br/>cron, manual dispatch,<br/>same-repo PR except Dependabot<br/>calls ci-hil-run.yaml"]
-        approval["<b>Fork or Dependabot PR approval</b><br/>GitHub-hosted runner, no secrets<br/>pauses until a maintainer approves<br/>the hil-fork-approval environment"]
-        fork["<b>Fork or Dependabot PR</b><br/>calls ci-hil-run.yaml<br/>with the approved commit"]
-        approval -->|"then (needs:)"| fork
-    end
+flowchart TD
+    trusted["Cron, manual dispatch,<br/>or same-repo PR"]
+    untrusted["Fork or Dependabot PR"]
+    gate{"Maintainer approves<br/>this commit?"}
+    untrusted --> gate
+    gate -->|no| skipped["Not run"]
+    trusted --> run
+    gate -->|yes| run
 
     subgraph run["ci-hil-run.yaml, on the hardware runner"]
         direction LR
@@ -48,9 +48,6 @@ flowchart LR
         after["<b>Cleanup after</b><br/>code: same baseline commit<br/>secrets: UniFi key, state"]
         before --> tests --> after
     end
-
-    trusted --> run
-    fork --> run
 ```
 
 - **Cleanup before** checks out the baseline, builds the Terrifi CLI from it, and runs `terrifi-tests reset`. That restores the [Terraform baseline](./terraform/) from the R2 state and deletes any extra resources left on the controller. For same-repository runs the baseline is the commit under test, so baseline changes can be tested. For fork and Dependabot runs it is always `main`.
