@@ -26,6 +26,8 @@ import {
 }
 
 resource "terrifi_client_device" "gh_runner" {
-  mac  = "bc:24:11:70:ec:fe"
-  name = "terrifi-gh-runner"
+  mac        = "bc:24:11:70:ec:fe"
+  name       = "terrifi-gh-runner"
+  fixed_ip   = "192.168.1.5"
+  network_id = terrifi_network.default.id
 }
