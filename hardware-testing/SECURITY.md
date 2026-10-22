@@ -34,12 +34,14 @@ Read this before approving a fork or Dependabot PR's HIL run, changing the HIL w
 ```mermaid
 flowchart TD
     trusted["Cron, manual dispatch,<br/>or same-repo PR"]
-    untrusted["Fork or Dependabot PR"]
-    gate{"Maintainer approves<br/>the hil-fork-approval<br/>deployment?"}
-    untrusted --> gate
-    gate -->|no| skipped["Not run"]
+    fork["Fork PR"]
+    dependabot["Dependabot PR"]
+    banner["<b>Approval 1</b><br/>maintainer approves<br/>workflows on the PR"]
+    gate["<b>Approval 2</b><br/>maintainer approves the<br/>hil-fork-approval deployment"]
+    fork --> banner --> gate
+    dependabot --> gate
+    gate --> run
     trusted --> run
-    gate -->|yes| run
 
     subgraph run["ci-hil-run.yaml, on the hardware runner"]
         direction LR
@@ -60,7 +62,7 @@ The `Main` and `Fork or Dependabot PR` jobs share the `terrifi-hil-hardware` con
 
 Fork PRs and PRs opened by Dependabot go through `pull_request_target`. Dependabot branches live in this repository, but the dependency updates they bring are code nobody has reviewed. The workflow identifies Dependabot PRs by author, so one stays gated even after a maintainer pushes to it.
 
-1. Opening, reopening, or pushing to one of these PRs starts a run. GitHub always loads `pull_request_target` workflows from `main`, so the PR cannot change the workflow, the approval gate, which secrets are passed, or the reset code.
+1. Opening, reopening, or pushing to one of these PRs starts a run. For a fork PR, a maintainer first approves workflows on the PR. GitHub always loads `pull_request_target` workflows from `main`, so the PR cannot change the workflow, the approval gate, which secrets are passed, or the reset code.
 2. The `Fork or Dependabot PR approval` job runs on a GitHub-hosted runner and waits on the `hil-fork-approval` environment. It holds no secrets.
 3. A maintainer reviews the PR and approves the deployment. The job logs the PR number, head repository, and head commit SHA.
 4. The run enters the hardware queue. Cleanup resets the controller using `main`, the tests job checks out the approved SHA and runs it with the UniFi key, and cleanup resets the controller again. The result appears as a check on the PR.
@@ -75,14 +77,14 @@ Other controls on these runs:
 - **Pinned actions:** every action is pinned to a full commit SHA, so a moved tag cannot change the code that runs next to the UniFi key. `actions/checkout` is the only action the HIL jobs use. Dependabot updates the pins.
 - **No Actions caches:** the HIL jobs use no cache actions. Go, Task, and OpenTofu come from the runner image, so PR code cannot write a cache that a trusted run restores.
 
-### Only One Approval Gates the Hardware
+### Two Approvals for Fork PRs
 
-A fork PR shows two approval prompts. Only the second one lets PR code reach the hardware runner.
+A fork PR needs two approvals, in order, before HIL runs:
 
-1. **"Approve workflows to run"**, a banner on the PR. It lets `pull_request` workflows such as `CI - Local` run the fork's code on GitHub-hosted runners, with no secrets and a read-only token. `CI - HIL` uses `pull_request_target`, which this setting does not cover, so the banner neither starts nor blocks the HIL run.
-2. **"Review deployments"** for the `hil-fork-approval` environment, shown on the `CI - HIL` run. This is the HIL gate.
+1. **Approve workflows**, the banner on the PR. The repository requires approval for every external contributor before their workflows run. This also lets `CI - Local` run the fork's code on GitHub-hosted runners, with no secrets and a read-only token.
+2. **Review deployments** for the `hil-fork-approval` environment, on the `CI - HIL` run. This is the gate for the hardware runner and its secrets.
 
-Approving the banner does not approve the HIL run. Dependabot PRs show only the second prompt.
+Dependabot is not an external contributor, so its PRs need only the second approval.
 
 ### Before Approving a Fork or Dependabot Run
 
