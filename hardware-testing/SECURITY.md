@@ -14,7 +14,7 @@ Read this before approving a fork or Dependabot PR's HIL run, changing the HIL w
 | Terraform state credentials | Repository secrets `TERRIFI_HIL_STATE_*` | Read or corrupt the HIL baseline state in a private R2 bucket. The state describes the controller's configuration. |
 | Heartbeat URL | Repository secret `TERRIFI_HIL_HEARTBEAT_URL` | Someone could send fake heartbeats, hiding a broken nightly run |
 | Runner registration token | `.env` on the runner VM and the supervisor's environment, as `ACCESS_TOKEN` | Admin access to this repository, including settings and deletion |
-| Runner VM and HIL network | A Proxmox VM on the HIL network | A foothold for reaching the controller, the HIL network, and the VM's tailnet |
+| Runner VM and HIL network | A Proxmox VM on the HIL network | A foothold for reaching the controller and the HIL network |
 
 ## Which Code Runs on the Runner
 
@@ -123,7 +123,8 @@ flowchart TB
 - **Token only in the supervisor:** before each job, the supervisor uses the registration token to request a just-in-time (JIT) runner configuration, which registers one ephemeral runner. The runner container gets only that configuration and starts the runner directly as the `runner` user, bypassing the base image's root entrypoint, so the token never enters the container where PR code runs. After the job, the supervisor deletes the runner in case it never ran one.
 - **Docker socket only for the supervisor:** the socket is equivalent to root on the runner VM. The supervisor runs nothing but `supervise.sh`, exposes no ports, and is not on the runner's network. Job containers never get the socket. HIL tests do not need Docker; Docker-based tests run on GitHub-hosted runners.
 - **Non-root jobs without sudo:** the runner and its jobs run as the unprivileged `runner` user. The base image gives that user passwordless sudo, so the Dockerfile removes it and fails the build if it comes back. Root in the container would widen a job's reach toward the runner VM's kernel.
-- **Verified TLS to the controller:** the controller's certificate is self-signed for `unifi.local`. `run.sh` fetches it over Tailscale, which authenticates the controller VM, and builds it into the image as a trusted certificate. The supervisor maps `unifi.local` to the controller's LAN address with `--add-host`, so jobs verify TLS without depending on DNS on the HIL gateway, which the tests change. Something on the HIL network that impersonates the controller cannot get the UniFi key.
+- **Verified TLS to the controller:** the controller's certificate is self-signed for `unifi.local`. `rsync.sh` fetches it on the maintainer's workstation over Tailscale, which authenticates the controller VM, and `run.sh` builds it into the image as a trusted certificate. The supervisor maps `unifi.local` to the controller's LAN address with `--add-host`, so jobs verify TLS without depending on DNS on the HIL gateway, which the tests change. Something on the HIL network that impersonates the controller cannot get the UniFi key.
+- **Runner VM off the tailnet:** the runner VM does not run Tailscale, so job code cannot reach other tailnet devices. Maintainers reach the VM over SSH through the Proxmox host as a jump host.
 - **Tools from the image:** Go, Task, and OpenTofu are installed in the image, pinned by version. Jobs do not download tools, so no download can be swapped at job time. Dependabot bumps the Go and OpenTofu images.
 - **Shared Go module cache:** runner containers fetch modules through the `goproxy` service, which caches `proxy.golang.org`. Jobs can make it fetch and cache modules, but cannot change what it serves, and Go verifies every module against `go.sum` and the checksum database.
 - **Fine-grained registration token:** the runner uses a fine-grained personal access token scoped to this repository. Its only permission is Administration read and write, plus the required Metadata read. Registering a repository-level runner requires Administration write. GitHub offers a narrower "Self-hosted runners" permission, but only for organization runners.
@@ -154,12 +155,11 @@ These controls live in GitHub settings rather than in code. If any of them chang
 
 These are accepted for now. Each one notes what would close it.
 
-1. **Approved code is fully trusted.** It can read and send out the UniFi key, and it can reach the HIL network. Review is the only control. Rotate the key if a run looks suspicious.
+1. **Approved code is fully trusted.** It can read and send out the UniFi key, and it can reach the HIL network, including the Proxmox host's SSH and web interface. Review is the only control. Rotate the key if a run looks suspicious.
 2. **The registration token is on the runner VM.** It is in `.env` and the supervisor's environment, never in a runner container. A container escape or a compromised VM can still read it, and its Administration permission includes deleting this repository. Repository-level runners cannot register with anything narrower. Keeping the token off the VM entirely, for example by registering runners from an external service, would close this.
 3. **Jobs can read the runner's credentials.** This includes the JIT configuration and the session it opens. They are scoped to this one runner and stop working when GitHub removes it after the job.
 4. **Jobs can reach the module cache.** A job can fill the `goproxy` cache and evict other modules, which only slows later jobs. It cannot change what the cache serves.
-5. **The runner VM runs Tailscale.** Job code can reach whatever the VM's tailnet access controls allow. Restrict the VM with a tag-based Tailscale ACL so it can reach only what it needs.
-6. **Admins can bypass the environment.** The environment allows administrator bypass. Leave it on only while the maintainer is the only administrator.
+5. **Admins can bypass the environment.** The environment allows administrator bypass. Leave it on only while the maintainer is the only administrator.
 
 ## Maintenance
 
@@ -185,7 +185,7 @@ The runner files live in `~/github-runner` on the runner VM.
 
 ### When the Controller Certificate Changes
 
-UniFi OS Server can replace its certificate, for example on an upgrade. HIL jobs then fail with `x509: certificate signed by unknown authority`. Run `./run.sh` on the runner VM to fetch and trust the new certificate. It prints the certificate's subject, expiry, and SHA-256 fingerprint.
+UniFi OS Server can replace its certificate, for example on an upgrade. HIL jobs then fail with `x509: certificate signed by unknown authority`. Run `./rsync.sh` on the workstation to fetch the new certificate, then `./run.sh` on the runner VM to trust it. Both print the certificate's subject, expiry, and SHA-256 fingerprint.
 
 ### Testing Changes to the Gate
 

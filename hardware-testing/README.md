@@ -68,8 +68,9 @@ The Beelink Mini PC runs [Proxmox](https://www.proxmox.com/) as the hypervisor, 
 When I run the Github Actions CI, the HIL workflow executes in the runner container on the runner VM.
 It's on the same LAN as the UniFi OS Server VM, so it can communcate with it through the UniFi Gateway Lite.
 
-I also run [Tailscale](https://tailscale.com/) in each of the VMs.
+I also run [Tailscale](https://tailscale.com/) on the Proxmox host and the UniFi OS Server VM.
 This lets me communicate with them from my laptop, which is on my primary UniFi network.
+The runner VM is not on the tailnet, so I reach it over SSH through the Proxmox host.
 
 See the subdirectory READMEs for setup instructions:
 - [`terraform/`](./terraform/) — persistent UniFi baseline and private R2 state
