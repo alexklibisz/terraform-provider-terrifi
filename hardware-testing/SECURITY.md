@@ -35,10 +35,10 @@ Read this before approving a fork or Dependabot PR's HIL run, changing the HIL w
 flowchart LR
     subgraph routing["ci-hil.yaml"]
         direction TB
-        trusted["<b>Main</b><br/>cron, manual dispatch,<br/>same-repo PR except Dependabot"]
-        approval["<b>Fork or Dependabot PR approval</b><br/>GitHub-hosted runner<br/>waits on hil-fork-approval<br/>no secrets"]
-        fork["<b>Fork or Dependabot PR</b>"]
-        approval -->|maintainer approves| fork
+        trusted["<b>Main</b><br/>cron, manual dispatch,<br/>same-repo PR except Dependabot<br/>calls ci-hil-run.yaml"]
+        approval["<b>Fork or Dependabot PR approval</b><br/>GitHub-hosted runner, no secrets<br/>pauses until a maintainer approves<br/>the hil-fork-approval environment"]
+        fork["<b>Fork or Dependabot PR</b><br/>calls ci-hil-run.yaml<br/>with the approved commit"]
+        approval -->|"then (needs:)"| fork
     end
 
     subgraph run["ci-hil-run.yaml, on the hardware runner"]
