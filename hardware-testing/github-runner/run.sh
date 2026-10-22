@@ -8,8 +8,6 @@ if [[ ! -f controller.crt ]]; then
   echo "controller.crt is missing. Run ./rsync.sh on the workstation first." >&2
   exit 1
 fi
-echo "Trusting the controller certificate:"
-openssl x509 -in controller.crt -noout -subject -enddate -fingerprint -sha256
 
 docker compose build --pull runner supervisor
 # Remove the long-lived runner container from before the supervisor, if it
