@@ -4,7 +4,7 @@ This directory contains a Docker Compose setup for running a GitHub Actions self
 
 ## Prerequisites
 
-A server with Docker, Docker Compose, rsync, and OpenSSL installed. The runner needs access to the UniFi controller on the local network. The server does not need Tailscale.
+A server with Docker, Docker Compose, and rsync installed. The runner needs access to the UniFi controller on the local network. The server does not need Tailscale.
 
 A workstation with rsync, OpenSSL, and Tailscale, on the same tailnet as the controller VM (`terrifi-unifi-os-server`). `rsync.sh` fetches the controller's certificate over Tailscale before syncing.
 
