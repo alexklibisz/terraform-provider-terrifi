@@ -185,7 +185,7 @@ The runner files live in `~/github-runner` on the runner VM.
 
 ### When the Controller Certificate Changes
 
-UniFi OS Server can replace its certificate, for example on an upgrade. HIL jobs then fail with `x509: certificate signed by unknown authority`. Run `./rsync.sh` on the workstation to fetch the new certificate, then `./run.sh` on the runner VM to trust it. Both print the certificate's subject, expiry, and SHA-256 fingerprint.
+UniFi OS Server can replace its certificate, for example on an upgrade. HIL jobs then fail with `x509: certificate signed by unknown authority`. Run `./rsync.sh` on the workstation to fetch the new certificate, which prints its subject, expiry, and SHA-256 fingerprint. Then run `./run.sh` on the runner VM to trust it.
 
 ### Testing Changes to the Gate
 
