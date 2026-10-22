@@ -26,7 +26,7 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 
-# The HIL controller's self-signed certificate, fetched by run.sh. Go and curl
+# The HIL controller's self-signed certificate, fetched by rsync.sh. Go and curl
 # read the system trust store, so jobs verify the controller's TLS.
 COPY controller.crt /usr/local/share/ca-certificates/terrifi-hil-controller.crt
 RUN update-ca-certificates

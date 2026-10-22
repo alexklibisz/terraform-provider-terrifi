@@ -100,7 +100,7 @@ jobs:
       BASELINE_REF: ${{ inputs.untrusted_pr && 'main' || inputs.ref }}
       # unifi.local is the name on the controller's self-signed certificate.
       # Runner containers resolve it to the controller's LAN address and trust
-      # the certificate (see hardware-testing/github-runner/run.sh), so TLS is
+      # the certificate (see hardware-testing/github-runner/rsync.sh), so TLS is
       # verified and API traffic stays on the HIL LAN.
       UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
@@ -150,7 +150,7 @@ jobs:
     env:
       # unifi.local is the name on the controller's self-signed certificate.
       # Runner containers resolve it to the controller's LAN address and trust
-      # the certificate (see hardware-testing/github-runner/run.sh), so TLS is
+      # the certificate (see hardware-testing/github-runner/rsync.sh), so TLS is
       # verified and API traffic stays on the HIL LAN.
       UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
@@ -214,7 +214,7 @@ jobs:
       BASELINE_REF: ${{ needs.cleanup-before.outputs.baseline_sha }}
       # unifi.local is the name on the controller's self-signed certificate.
       # Runner containers resolve it to the controller's LAN address and trust
-      # the certificate (see hardware-testing/github-runner/run.sh), so TLS is
+      # the certificate (see hardware-testing/github-runner/rsync.sh), so TLS is
       # verified and API traffic stays on the HIL LAN.
       UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
