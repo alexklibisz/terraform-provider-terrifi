@@ -9,6 +9,8 @@ description: |-
 
 Manages settings on an adopted UniFi network device (access point, switch, or gateway). The device must already be adopted by the controller. This resource does not adopt or forget devices — it only manages configurable properties like name, LED behavior, and SNMP settings. Removing the resource from Terraform state does not affect the device on the controller.
 
+To assign port profiles and names to a device's ports, use [`terrifi_device_ports`](device_ports.md).
+
 ## Example Usage
 
 ### Basic — set device name

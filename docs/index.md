@@ -123,11 +123,13 @@ Supported resource types:
 |---|---|---|
 | `terrifi_client_device` | Client devices (aliases, fixed IPs, etc.) | [client_device](resources/client_device.md) |
 | `terrifi_client_group` | Client groups | [client_group](resources/client_group.md) |
+| `terrifi_device_ports` | Port profile and name assignments on device ports | [device_ports](resources/device_ports.md) |
 | `terrifi_dns_record` | DNS records | [dns_record](resources/dns_record.md) |
 | `terrifi_firewall_zone` | Firewall zones | [firewall_zone](resources/firewall_zone.md) |
 | `terrifi_firewall_policy` | Firewall policies | [firewall_policy](resources/firewall_policy.md) |
 | `terrifi_firewall_policy_order` | Firewall policy ordering | [firewall_policy_order](resources/firewall_policy_order.md) |
 | `terrifi_network` | Networks | [network](resources/network.md) |
+| `terrifi_port_profile` | Switch port profiles | [port_profile](resources/port_profile.md) |
 | `terrifi_wlan` | Wireless networks | [wlan](resources/wlan.md) |
 
 Example:

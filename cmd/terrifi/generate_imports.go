@@ -16,12 +16,14 @@ var validResourceTypes = []string{
 	"terrifi_client_device",
 	"terrifi_client_group",
 	"terrifi_device",
+	"terrifi_device_ports",
 	"terrifi_dns_record",
 	"terrifi_firewall_group",
 	"terrifi_firewall_zone",
 	"terrifi_firewall_policy",
 	"terrifi_firewall_policy_order",
 	"terrifi_network",
+	"terrifi_port_profile",
 	"terrifi_wlan",
 }
 
@@ -194,6 +196,24 @@ func generateResourceBlocks(ctx context.Context, client *provider.Client, site, 
 			return nil, fmt.Errorf("listing networks: %w", err)
 		}
 		blocks = generate.NetworkBlocks(networks)
+
+	case "terrifi_device_ports":
+		devices, err := client.ListDevicePorts(ctx, site, "")
+		if err != nil {
+			return fmt.Errorf("listing devices: %w", err)
+		}
+		blocks = generate.DevicePortsBlocks(devices)
+
+	case "terrifi_port_profile":
+		profiles, err := client.ListPortProfiles(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing port profiles: %w", err)
+		}
+		lan, err := client.ListLANNetworkIDs(ctx, site)
+		if err != nil {
+			return fmt.Errorf("listing networks: %w", err)
+		}
+		blocks = generate.PortProfileBlocks(profiles, lan)
 
 	case "terrifi_wlan":
 		wlans, err := client.ListWLAN(ctx, site)
