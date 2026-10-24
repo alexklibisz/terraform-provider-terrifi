@@ -20,6 +20,8 @@
 # - Callers pass secrets explicitly. Untrusted PR code never receives the
 #   heartbeat URL.
 # - The caller restricts GITHUB_TOKEN to `contents: read`.
+#
+# See hardware-testing/SECURITY.md for the full security model.
 
 name: CI - HIL (run)
 

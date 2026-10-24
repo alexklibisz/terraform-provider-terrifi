@@ -2,6 +2,8 @@
 
 This directory contains a Docker Compose setup for running a GitHub Actions self-hosted runner. The runner is used by the `CI - HIL` workflow to run acceptance tests against real UniFi hardware.
 
+The runner executes code from pull requests. Read [../SECURITY.md](../SECURITY.md) before changing anything here.
+
 ## Prerequisites
 
 A server with Docker, Docker Compose, and rsync installed. The runner needs access to the UniFi controller on the local network. The server does not need Tailscale.
@@ -20,16 +22,16 @@ The supervisor uses a fine-grained personal access token to register a single-us
 6. Under **Permissions**, add **Administration** with **Read and write** access. Metadata is added automatically as read-only. Add nothing else.
 7. Click **Generate token** and copy the value.
 
-Registering a repository-level runner requires Administration write. That permission also allows changing settings and deleting the repository, so keep the token only on the runner VM. Runner containers never receive it.
+Registering a repository-level runner requires Administration write. That permission also allows changing settings and deleting the repository, so keep the token only on the runner VM. Runner containers never receive it. See [../SECURITY.md](../SECURITY.md) for rotation steps.
 
 ## Setup
 
 1. Set up SSH access with an alias `terrifi-gh-runner`, i.e., you should be able to run `ssh terrifi-gh-runner` from your host. The runner VM is not on the tailnet, so reach it through the Proxmox host with `ProxyJump`.
-2. Fetch the controller's certificate and rsync it, the Docker Compose files, and `run.sh` to `~/github-runner` on the server: `./rsync.sh`
+2. Fetch the controller's certificate and rsync it, the Docker Compose files, and `run.sh` to `~/github-runner` on the server: `./rsync.sh`.
 3. SSH into the server.
 4. Copy the env file: `cd ~/github-runner && cp .env.example .env` and fill in `REPO_URL` and `ACCESS_TOKEN`.
-5. Start the runner: `cd ~/github-runner && ./run.sh`
-6. Confirm the runner appears at: https://github.com/your-org/terrifi/settings/actions/runners
+5. Start the runner: `cd ~/github-runner && ./run.sh`.
+6. Confirm the runner appears at: `https://github.com/<owner>/<repo>/settings/actions/runners`.
 
 ## Updating the Runner
 
@@ -95,10 +97,10 @@ docker volume rm docker-compose_runner-work
 
 ## Verifying the Runner in GitHub
 
-1. Go to your repository on GitHub
-2. Navigate to **Settings** > **Actions** > **Runners**
-3. The runner should appear with a green "Idle" status
-4. The labels `self-hosted` and `terrifi-hardware-test` should be listed
+1. Go to your repository on GitHub.
+2. Navigate to **Settings** > **Actions** > **Runners**.
+3. The runner should appear with a green "Idle" status.
+4. The labels `self-hosted` and `terrifi-hardware-test` should be listed.
 
 ## Troubleshooting
 

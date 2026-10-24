@@ -25,6 +25,9 @@
 # Never add a step to this workflow that checks out or runs PR code outside
 # ci-hil-run.yaml, and never run untrusted PR code before the approval gate.
 #
+# Security model, approval checklist, and required GitHub settings:
+# hardware-testing/SECURITY.md
+#
 # To opt a fork into HIL:
 # 1. replace the repository name in each job's `if:` with your own `owner/repo`
 # 2. register a self-hosted runner with the `self-hosted` + `terrifi-hardware-test` labels, pointed at your controller
@@ -121,7 +124,7 @@ jobs:
        github.event.pull_request.user.login == 'dependabot[bot]')
     # Required reviewers on this environment are the gate. This job runs on a
     # GitHub-hosted runner so a run waiting for approval never occupies the
-    # hardware runner or its concurrency group.
+    # hardware runner.
     environment: hil-fork-approval
     runs-on: ubuntu-latest
     steps:
