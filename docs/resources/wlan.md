@@ -95,9 +95,7 @@ resource "terrifi_wlan" "maintenance" {
 - `wpa3_support` (Boolean) — Whether to enable WPA3 support. Defaults to `false`.
 - `wpa3_transition` (Boolean) — Whether to enable WPA3 transition mode (WPA2/WPA3 mixed). Defaults to `false`.
 - `application` (String) — The application type. Must be `standard`, `hotspot`, or `iot`. `hotspot` enables guest behavior (captive portal); `iot` enables IoT-optimized behavior. Defaults to `standard`.
-- `optimize_iot_connectivity` (Boolean) — Enable IoT-specific radio optimizations that improve connection reliability for IoT devices. Only meaningful when `application = "iot"`. Defaults to `false`.
-
-~> **Note:** The UniFi controller coerces iot WLANs (especially with `optimize_iot_connectivity = true`) to the 2.4 GHz band. Set `wifi_band = "2g"` explicitly when using `application = "iot"` to avoid inconsistent-plan errors.
+- `optimize_iot_connectivity` (Boolean) — Enable IoT-specific radio optimizations that improve connection reliability for IoT devices. Only meaningful when `application = "iot"`. Defaults to `false`. See [IoT band selection](#iot-band-selection).
 - `site` (String) — The site to associate the WLAN with. Defaults to the provider site. Changing this forces a new resource.
 
 ### Read-Only
@@ -125,3 +123,9 @@ terrifi generate-imports terrifi_wlan
 ```
 
 ~> **Note:** The `passphrase` attribute cannot be imported because the UniFi API does not return it. After import, set the passphrase in your configuration and run `terraform apply` to update it.
+
+## Additional Notes
+
+### IoT band selection
+
+The UniFi controller coerces iot WLANs (especially with `optimize_iot_connectivity = true`) to the 2.4 GHz band. Set `wifi_band = "2g"` explicitly when using `application = "iot"` to avoid inconsistent-plan errors.
