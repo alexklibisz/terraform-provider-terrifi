@@ -106,7 +106,7 @@ func (index StateIndex) ExcludeManaged(blocks []ResourceBlock, site string) []Re
 		managed := index[stateIdentity{block.ResourceType, site, "id", block.ImportID}]
 		if block.ResourceType == "terrifi_device" || block.ResourceType == "terrifi_client_device" || block.ResourceType == "terrifi_device_ports" {
 			for _, attr := range block.Attributes {
-				if attr.Key != "mac" && !(block.ResourceType == "terrifi_device_ports" && attr.Key == "device_mac") {
+				if attr.Key != "mac" && (block.ResourceType != "terrifi_device_ports" || attr.Key != "device_mac") {
 					continue
 				}
 				mac, err := strconv.Unquote(attr.Value)
