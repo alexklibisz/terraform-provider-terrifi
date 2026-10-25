@@ -169,7 +169,9 @@ You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks fo
 terrifi generate-imports terrifi_port_profile
 ```
 
-## Tagged networks: `tagged_network_ids` vs `excluded_network_ids`
+## Additional Notes
+
+### Tagged networks: `tagged_network_ids` vs `excluded_network_ids`
 
 The UniFi UI shows the networks tagged on a port, but the controller stores the opposite: a list of *excluded* networks, containing every other network. The two attributes are the two ways of expressing that:
 
@@ -178,7 +180,7 @@ The UniFi UI shows the networks tagged on a port, but the controller stores the 
 
 Only networks with the `corporate` purpose are considered when converting `tagged_network_ids`.
 
-### New networks
+#### New networks
 
 When a network is created, whether in the UI or through the API, the controller adds it to the excluded list of every profile with `tagged_vlan_mgmt = "custom"`, so a new network is never tagged on existing custom ports. It does this in the background, about a second after the network is created. Deleting a network removes it from the excluded lists.
 
@@ -187,6 +189,6 @@ When a network is created, whether in the UI or through the API, the controller 
 
 A network created in the same apply as a profile that tags it is still being processed when the profile is written, and the controller would exclude it from that profile too. To prevent this, when a profile tags a network created within the last minute, Terrifi waits a few seconds after writing the profile, checks it, and writes it again if the controller has excluded the network. Other applies aren't delayed.
 
-## Advanced settings
+### Advanced settings
 
 Settings in the UI's **Advanced** section (everything from `egress_rate_limit_kbps` down in the schema) only apply when the profile's Advanced mode is **Manual**. Terrifi always sets Manual, including when it updates a profile that was created in the UI with Advanced left on Auto.

@@ -93,7 +93,9 @@ ports = {
 }
 ```
 
-## How ports are written
+## Additional Notes
+
+### How ports are written
 
 - **With `port_profile_id`**, the profile controls every setting of the port. Per-port settings made in the UI are cleared, as the UI does when you pick a profile. That includes PoE: set `poe_mode` on the profile.
 - **With `native_network_id` and `tagged_vlan_mode`**, the port is configured directly. `block_all` permits only the native network; `allow_all` also permits tagged VLAN traffic. Both attributes must be set together and conflict with `port_profile_id`. Other inline settings are preserved.
