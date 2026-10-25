@@ -543,6 +543,14 @@ func (r *portProfileResource) Create(
 		return
 	}
 	profile.ID = created.ID
+	// Persist the successful creation before any fallible verification. Terraform
+	// must retain the ID even if cancellation or a controller error interrupts it.
+	createdState := plan
+	r.apiToModel(created, &createdState, site, lan)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &createdState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	created, err = r.settleFreshTaggedNetworks(ctx, site, &plan, profile, created)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Port Profile", err.Error())
@@ -734,7 +742,7 @@ func (r *portProfileResource) settleFreshTaggedNetworks(ctx context.Context, sit
 	case <-time.After(portProfileSettleDelay):
 	}
 
-	got, err := r.client.GetPortProfile(ctx, site, written.ID)
+	got, err := r.client.getPortProfile(ctx, site, written.ID, false)
 	if err != nil {
 		return nil, err
 	}

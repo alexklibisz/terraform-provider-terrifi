@@ -41,3 +41,18 @@ func TestBaselineAddressesRejectsUnsafeConfigurations(t *testing.T) {
 		require.Error(t, err)
 	}
 }
+
+func TestCaptureConfigLinksPortDependencies(t *testing.T) {
+	blocks := []generate.ResourceBlock{
+		{ResourceType: "terrifi_network", ImportID: "network"},
+		{ResourceType: "terrifi_port_profile", ImportID: "profile", Attributes: []generate.Attr{{Key: "native_network_id", Value: `"network"`}}},
+		{ResourceType: "terrifi_device_ports", ImportID: "aa:bb:cc:dd:ee:ff", Attributes: []generate.Attr{{Key: "ports", Value: `{"2" = {name = "profile", port_profile_id = "profile"}, "3" = {native_network_id = "network", tagged_vlan_mode = "block_all"}}`}}},
+	}
+	config, count, err := captureConfig(blocks)
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
+	require.Contains(t, string(config), "port_profile_id = terrifi_port_profile.hil_reset_")
+	require.Contains(t, string(config), "native_network_id = terrifi_network.hil_reset_")
+	require.Contains(t, string(config), `name = "profile"`)
+	require.Equal(t, `"network"`, blocks[1].Attributes[0].Value)
+}

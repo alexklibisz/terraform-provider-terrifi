@@ -66,8 +66,11 @@ func ReadStateIndex(r io.Reader) (StateIndex, error) {
 				site = "default"
 			}
 			id, mac := value("id"), value("mac")
-			if resource.Type == "terrifi_device" && mac == "" {
-				return fmt.Errorf("managed terrifi_device has no MAC in state")
+			if resource.Type == "terrifi_device_ports" {
+				mac = value("device_mac")
+			}
+			if (resource.Type == "terrifi_device" || resource.Type == "terrifi_device_ports") && mac == "" {
+				return fmt.Errorf("managed %s has no MAC in state", resource.Type)
 			}
 			if id == "" && mac == "" {
 				return fmt.Errorf("managed %s has no identity in state", resource.Type)
@@ -101,9 +104,9 @@ func (index StateIndex) ExcludeManaged(blocks []ResourceBlock, site string) []Re
 	result := make([]ResourceBlock, 0, len(blocks))
 	for _, block := range blocks {
 		managed := index[stateIdentity{block.ResourceType, site, "id", block.ImportID}]
-		if block.ResourceType == "terrifi_device" || block.ResourceType == "terrifi_client_device" {
+		if block.ResourceType == "terrifi_device" || block.ResourceType == "terrifi_client_device" || block.ResourceType == "terrifi_device_ports" {
 			for _, attr := range block.Attributes {
-				if attr.Key != "mac" {
+				if attr.Key != "mac" && !(block.ResourceType == "terrifi_device_ports" && attr.Key == "device_mac") {
 					continue
 				}
 				mac, err := strconv.Unquote(attr.Value)

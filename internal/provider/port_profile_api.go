@@ -66,8 +66,15 @@ func normalizePortProfile(d *unifi.PortProfile) unifi.PortProfile {
 
 // ListPortProfiles returns every port profile on the site.
 func (c *Client) ListPortProfiles(ctx context.Context, site string) ([]unifi.PortProfile, error) {
+	return c.listPortProfiles(ctx, site, true)
+}
+
+func (c *Client) listPortProfiles(ctx context.Context, site string, useCached bool) ([]unifi.PortProfile, error) {
 	var resp portProfileEnvelope
-	if err := c.doPortProfileRequest(ctx, http.MethodGet, c.portProfileURL(site, ""), nil, &resp); err != nil {
+	if err := c.doRequest(ctx, http.MethodGet, c.portProfileURL(site, ""), nil, &resp, useCached); err != nil {
+		if strings.Contains(err.Error(), "(404)") {
+			return nil, &unifi.NotFoundError{}
+		}
 		return nil, err
 	}
 	if err := checkV1Meta(resp.Meta); err != nil {
@@ -81,7 +88,11 @@ func (c *Client) ListPortProfiles(ctx context.Context, site string) ([]unifi.Por
 // reported as unifi.NotFoundError regardless of how the controller signals an
 // unknown ID on the single-object endpoint.
 func (c *Client) GetPortProfile(ctx context.Context, site, id string) (*unifi.PortProfile, error) {
-	profiles, err := c.ListPortProfiles(ctx, site)
+	return c.getPortProfile(ctx, site, id, true)
+}
+
+func (c *Client) getPortProfile(ctx context.Context, site, id string, useCached bool) (*unifi.PortProfile, error) {
+	profiles, err := c.listPortProfiles(ctx, site, useCached)
 	if err != nil {
 		return nil, err
 	}

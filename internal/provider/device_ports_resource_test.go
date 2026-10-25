@@ -104,10 +104,10 @@ func TestMergePortOverrides(t *testing.T) {
 			expect:  `[` + inline5 + `]`,
 		},
 		{
-			name:    "unmanage keeps inline settings",
+			name:    "unmanage restores defaults",
 			current: `[` + inline5 + `]`,
 			want:    map[int64]*portWant{5: nil},
-			expect:  `[{"forward":"customize","native_networkconf_id":"` + testNetwork + `","poe_mode":"off","port_idx":5}]`,
+			expect:  `[]`,
 		},
 		{
 			name:    "unmanage a port with no entry",
@@ -257,7 +257,7 @@ type devicePortsTarget struct {
 func (tg devicePortsTarget) k1() string { return strconv.FormatInt(tg.p1, 10) }
 func (tg devicePortsTarget) k2() string { return strconv.FormatInt(tg.p2, 10) }
 
-func testAccDevicePortsTarget(t *testing.T) devicePortsTarget {
+func testAccDevicePortsTarget(t *testing.T, requireProfiles ...bool) devicePortsTarget {
 	t.Helper()
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
@@ -299,6 +299,16 @@ func testAccDevicePortsTarget(t *testing.T) devicePortsTarget {
 
 	d, err := client.GetDevicePorts(t.Context(), "default", tg.mac)
 	require.NoError(t, err)
+	if len(requireProfiles) > 0 && requireProfiles[0] && d.Model == "USMINI" {
+		t.Skip("USW Flex Mini does not support custom profiles; inline lifecycle is tested separately")
+	}
+	if os.Getenv("TERRIFI_ACC_TARGET") == "hardware" {
+		for _, p := range d.PortTable {
+			if (p.PortIdx == tg.p1 || p.PortIdx == tg.p2) && (p.Up || p.IsUplink) {
+				t.Fatalf("port %d is active or an uplink; hardware port tests require disconnected spare ports", p.PortIdx)
+			}
+		}
+	}
 	tg.original = d.PortOverrides
 	t.Cleanup(func() {
 		// Put the two test ports back exactly as they were.
@@ -475,7 +485,7 @@ resource "terrifi_device_ports" "test" {
 }
 
 func TestAccDevicePorts_basic(t *testing.T) {
-	tg := testAccDevicePortsTarget(t)
+	tg := testAccDeviceProfilePortsTarget(t)
 	suffix := randomSuffix()
 	name := "tfacc-dp-" + suffix
 	cfg := testAccDevicePortsConfig(tg, suffix, fmt.Sprintf(`
@@ -515,7 +525,7 @@ func TestAccDevicePorts_basic(t *testing.T) {
 // TestAccDevicePorts_lifecycle walks one port through every state: profile +
 // name, another profile + rename, name only, nothing, unmanaged.
 func TestAccDevicePorts_lifecycle(t *testing.T) {
-	tg := testAccDevicePortsTarget(t)
+	tg := testAccDeviceProfilePortsTarget(t)
 	suffix := randomSuffix()
 	port := func(body string) string { return fmt.Sprintf("    %q = { %s }", tg.k1(), body) }
 	step := func(ports string, check ...resource.TestCheckFunc) resource.TestStep {
@@ -552,7 +562,7 @@ func TestAccDevicePorts_lifecycle(t *testing.T) {
 }
 
 func TestAccDevicePorts_multiplePorts(t *testing.T) {
-	tg := testAccDevicePortsTarget(t)
+	tg := testAccDeviceProfilePortsTarget(t)
 	suffix := randomSuffix()
 	both := fmt.Sprintf(`
     %q = { name = "tfacc-dp-p1", port_profile_id = terrifi_port_profile.a.id }
@@ -597,7 +607,7 @@ func testAccInlinePortSettings() map[string]any {
 // TestAccDevicePorts_takeOverInline assigns a profile to a port that has
 // per-port settings: they're cleared, poe_mode included.
 func TestAccDevicePorts_takeOverInline(t *testing.T) {
-	tg := testAccDevicePortsTarget(t)
+	tg := testAccDeviceProfilePortsTarget(t)
 	suffix := randomSuffix()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -616,9 +626,9 @@ func TestAccDevicePorts_takeOverInline(t *testing.T) {
 	})
 }
 
-// TestAccDevicePorts_releaseKeepsInline manages only the name of a port with
-// per-port settings; renaming and then releasing it keeps those settings.
-func TestAccDevicePorts_releaseKeepsInline(t *testing.T) {
+// TestAccDevicePorts_releaseResetsInline manages only the name of a port with
+// per-port settings; renaming preserves them, releasing resets the port.
+func TestAccDevicePorts_releaseResetsInline(t *testing.T) {
 	tg := testAccDevicePortsTarget(t)
 	suffix := randomSuffix()
 	speedKept := func(*terraform.State) error {
@@ -648,8 +658,16 @@ func TestAccDevicePorts_releaseKeepsInline(t *testing.T) {
 			{
 				Config: testAccDevicePortsConfig(tg, suffix, " "),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					tg.checkPort(tg.p2, "", "", false),
-					speedKept,
+					func(*terraform.State) error {
+						e, _, err := tg.portEntry()(tg.p2)
+						if err != nil {
+							return err
+						}
+						if e != nil {
+							return fmt.Errorf("released port still has overrides: %v", e)
+						}
+						return nil
+					},
 					tg.checkOtherPorts,
 				),
 			},
@@ -660,7 +678,7 @@ func TestAccDevicePorts_releaseKeepsInline(t *testing.T) {
 // TestAccDevicePorts_drift detaches the profile behind Terraform's back (as
 // the UI does, writing default per-port settings); the next plan restores it.
 func TestAccDevicePorts_drift(t *testing.T) {
-	tg := testAccDevicePortsTarget(t)
+	tg := testAccDeviceProfilePortsTarget(t)
 	suffix := randomSuffix()
 	cfg := testAccDevicePortsConfig(tg, suffix, fmt.Sprintf(`
     %q = { name = "tfacc-dp-drift", port_profile_id = terrifi_port_profile.a.id }`, tg.k1()))
@@ -701,7 +719,7 @@ func TestAccDevicePorts_drift(t *testing.T) {
 // its own fields, so neither undoes the other. The device keeps its current
 // name.
 func TestAccDevicePorts_withDeviceResource(t *testing.T) {
-	tg := testAccDevicePortsTarget(t)
+	tg := testAccDeviceProfilePortsTarget(t)
 	suffix := randomSuffix()
 	d, err := testAccGetClient(t).GetDevicePorts(t.Context(), "default", tg.mac)
 	require.NoError(t, err)
@@ -737,7 +755,7 @@ resource "terrifi_device" "test" {
 // Terraform, then removes it from the config: the controller refuses, and
 // the error says why.
 func TestAccDevicePorts_deleteAssignedProfile(t *testing.T) {
-	tg := testAccDevicePortsTarget(t)
+	tg := testAccDeviceProfilePortsTarget(t)
 	suffix := randomSuffix()
 	var profileB string
 	onlyA := strings.Replace(testAccDevicePortsConfig(tg, suffix, ""), fmt.Sprintf(`
@@ -814,4 +832,11 @@ resource "terrifi_device_ports" "test" {
 			},
 		},
 	})
+}
+
+// Profile lifecycle tests need a device that supports profiles. Inline tests
+// continue to run on the explicitly designated Flex Mini ports.
+func testAccDeviceProfilePortsTarget(t *testing.T) devicePortsTarget {
+	t.Helper()
+	return testAccDevicePortsTarget(t, true)
 }

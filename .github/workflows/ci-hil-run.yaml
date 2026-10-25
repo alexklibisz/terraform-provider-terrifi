@@ -154,6 +154,10 @@ jobs:
       # verified and API traffic stays on the HIL LAN.
       UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
+      # Dedicated spare ports on the baseline Flex Mini. Override together if
+      # the fixture changes; never point these at active or uplink ports.
+      TERRIFI_ACC_PORTS_MAC: ${{ vars.TERRIFI_ACC_PORTS_MAC || '68:d7:9a:3a:79:ec' }}
+      TERRIFI_ACC_PORTS: ${{ vars.TERRIFI_ACC_PORTS || '4,5' }}
     steps:
       - name: Checkout
         timeout-minutes: 1

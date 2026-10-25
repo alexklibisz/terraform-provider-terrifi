@@ -47,3 +47,12 @@ repository secrets using the same values as the local environment:
 | `TERRIFI_HIL_STATE_ENDPOINT` | `AWS_ENDPOINT_URL_S3` |
 | `TERRIFI_HIL_STATE_ACCESS_KEY_ID` | `AWS_ACCESS_KEY_ID` |
 | `TERRIFI_HIL_STATE_SECRET_ACCESS_KEY` | `AWS_SECRET_ACCESS_KEY` |
+
+### Switch port tests
+
+Ports 4 and 5 on the baseline Flex Mini (`68:d7:9a:3a:79:ec`) are reserved
+for destructive port lifecycle tests. Keep them disconnected. The HIL workflow
+sets `TERRIFI_ACC_PORTS_MAC` and `TERRIFI_ACC_PORTS` accordingly; repository
+variables with those names can override the allocation when the fixture changes.
+Tests restore the original override entries afterwards. Custom-profile assignment
+tests skip on the original Flex Mini, while inline VLAN lifecycle tests run.

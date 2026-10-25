@@ -138,8 +138,15 @@ func (c *Client) DeleteFirewallZone(ctx context.Context, site string, id string)
 // Any non-GET request (POST, PUT, DELETE) invalidates the entire cache to ensure
 // subsequent reads see fresh data.
 func (c *Client) doV2Request(ctx context.Context, method, url string, body any, result any) error {
+	return c.doRequest(ctx, method, url, body, result, true)
+}
+
+// doRequest shares transport and authentication for local API contracts.
+// useCached=false forces a controller read when verifying asynchronous changes.
+// Fresh responses still replace the cached value for subsequent readers.
+func (c *Client) doRequest(ctx context.Context, method, url string, body, result any, useCached bool) error {
 	// Cache hit path: return cached bytes for GET requests without making an HTTP call.
-	if method == http.MethodGet && c.cache != nil {
+	if useCached && method == http.MethodGet && c.cache != nil {
 		if cached, ok := c.cache.get(url); ok {
 			if result != nil && len(cached) > 0 {
 				if err := json.Unmarshal(cached, result); err != nil {

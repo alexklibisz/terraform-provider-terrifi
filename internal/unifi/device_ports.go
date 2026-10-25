@@ -13,6 +13,7 @@ type DevicePorts struct {
 	ID            string                       `json:"_id"`
 	MAC           string                       `json:"mac"`
 	Name          string                       `json:"name"`
+	Model         string                       `json:"model"`
 	PortOverrides []map[string]json.RawMessage `json:"port_overrides"`
 	PortTable     []DevicePort                 `json:"port_table"`
 	// Gateways only: the LAN/WAN role of each interface. "WAN", "WAN2", ...
@@ -23,8 +24,10 @@ type DevicePorts struct {
 // DevicePort is a port_table entry: a physical port and its interface name
 // (eth0 for port 1 on a gateway).
 type DevicePort struct {
-	PortIdx int64  `json:"port_idx"`
-	Ifname  string `json:"ifname"`
+	PortIdx  int64  `json:"port_idx"`
+	Ifname   string `json:"ifname"`
+	Up       bool   `json:"up"`
+	IsUplink bool   `json:"is_uplink"`
 }
 
 // EthernetOverride is a gateway interface's LAN/WAN role.
@@ -42,4 +45,37 @@ func ParsePortOverride(e map[string]json.RawMessage) (idx int64, name, portconfI
 	_ = json.Unmarshal(e["name"], &name)
 	_ = json.Unmarshal(e["portconf_id"], &portconfID)
 	return idx, name, portconfID, nil
+}
+
+// PortVLANSettings reads inline VLAN settings. Profiles own their VLANs, so
+// cached inline keys on profiled entries are intentionally ignored.
+func PortVLANSettings(e map[string]json.RawMessage) (native, mode string) {
+	var profile string
+	_ = json.Unmarshal(e["portconf_id"], &profile)
+	if profile != "" {
+		return "", ""
+	}
+	_ = json.Unmarshal(e["native_networkconf_id"], &native)
+	_ = json.Unmarshal(e["tagged_vlan_mgmt"], &mode)
+	if mode == "auto" {
+		mode = "allow_all"
+	}
+	if mode == "" && native != "" {
+		var forward string
+		_ = json.Unmarshal(e["forward"], &forward)
+		switch forward {
+		case "native":
+			mode = "block_all"
+		case "all":
+			mode = "allow_all"
+		}
+	}
+	return
+}
+
+// PortNetwork is the network metadata needed for validating native VLANs.
+type PortNetwork struct {
+	ID          string `json:"_id"`
+	Purpose     string `json:"purpose"`
+	VLANEnabled bool   `json:"vlan_enabled"`
 }
