@@ -64,7 +64,7 @@ resource "terrifi_device" "office_ap" {
 }
 ```
 
-Each radio block is independent — omit a block to leave that radio's settings unchanged. Omit all blocks to leave the controller's current radio configuration untouched.
+See [radio configuration notes](#radio-settings) for how omitted settings are handled.
 
 ### Multiple settings
 
@@ -96,7 +96,7 @@ resource "terrifi_device" "core_switch" {
 }
 ```
 
-To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields:
+### DHCP management IP
 
 ```terraform
 resource "terrifi_device" "core_switch" {
@@ -158,7 +158,7 @@ resource "terrifi_device" "ap" {
 
 ### Nested schema for radio blocks
 
-All fields are optional. Omitting the block entirely leaves the radio's current settings unchanged. Within a configured block, omitted fields are also left unchanged on the controller.
+All fields are optional. See [radio configuration notes](#radio-settings) for how omitted settings are handled.
 
 - `channel` (String) — Channel number or `auto`. Valid channels depend on the radio band and country code.
 - `channel_width` (Number) — Channel width in MHz. Accepted values: `20`, `40`, `80`, `160`, `240`, `320`.
@@ -195,3 +195,15 @@ You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks fo
 ```shell
 terrifi generate-imports terrifi_device
 ```
+
+## Additional Notes
+
+### Radio settings
+
+Each radio block is independent — omit a block to leave that radio's settings unchanged. Omit all blocks to leave the controller's current radio configuration untouched.
+
+Within a configured radio block, omitted fields are also left unchanged on the controller.
+
+### Management address changes
+
+Omitting `config_network` leaves the device's current management configuration unchanged. To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields, as shown in the [DHCP management IP example](#dhcp-management-ip).

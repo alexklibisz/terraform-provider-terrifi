@@ -9,7 +9,7 @@ description: |-
 
 Manages the evaluation order of firewall policies for a specific zone pair on the UniFi controller. Policies are evaluated in the order specified by `policy_ids`, before any predefined (system) policies.
 
-~> **Note:** This resource only controls ordering. The policies themselves must be created separately using `terrifi_firewall_policy`. Destroying this resource removes it from Terraform state but does not change the ordering on the controller.
+Create the policies separately using [`terrifi_firewall_policy`](firewall_policy.md).
 
 ## Example Usage
 
@@ -98,3 +98,9 @@ You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks au
 ```shell
 terrifi generate-imports terrifi_firewall_policy_order
 ```
+
+## Additional Notes
+
+### Destroy behavior
+
+Destroying this resource removes it from Terraform state but does not change the ordering on the controller.
