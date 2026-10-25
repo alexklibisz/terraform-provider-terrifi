@@ -195,4 +195,4 @@ Settings in the UI's **Advanced** section (everything from `egress_rate_limit_kb
 
 ### Test coverage
 
-Unit and acceptance tests verify settings conversion, controller-side persistence, and the Terraform resource lifecycle. They do not verify that a physical switch enforces the profile's settings, such as VLAN filtering, PoE, STP, or rate limits.
+Unit and acceptance tests verify settings conversion, controller-side persistence, and the Terraform resource lifecycle. The HIL harness currently lacks a sufficiently capable switch to test profile enforcement, so these tests do not verify physical behavior such as VLAN filtering, PoE, STP, or rate limits.
