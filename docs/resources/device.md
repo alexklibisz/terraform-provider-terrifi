@@ -96,7 +96,7 @@ resource "terrifi_device" "core_switch" {
 }
 ```
 
-DHCP configuration:
+### DHCP management IP
 
 ```terraform
 resource "terrifi_device" "core_switch" {
@@ -158,7 +158,7 @@ resource "terrifi_device" "ap" {
 
 ### Nested schema for radio blocks
 
-All fields are optional. Omitting the block entirely leaves the radio's current settings unchanged. Within a configured block, omitted fields are also left unchanged on the controller.
+All fields are optional. See [radio configuration notes](#radio-settings) for how omitted settings are handled.
 
 - `channel` (String) — Channel number or `auto`. Valid channels depend on the radio band and country code.
 - `channel_width` (Number) — Channel width in MHz. Accepted values: `20`, `40`, `80`, `160`, `240`, `320`.
@@ -206,4 +206,4 @@ Within a configured radio block, omitted fields are also left unchanged on the c
 
 ### Management address changes
 
-Omitting `config_network` leaves the device's current management configuration unchanged. To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields, as shown in the [management IP example](#static-management-ip).
+Omitting `config_network` leaves the device's current management configuration unchanged. To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields, as shown in the [DHCP management IP example](#dhcp-management-ip).
