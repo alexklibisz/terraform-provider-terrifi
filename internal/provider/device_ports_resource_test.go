@@ -288,7 +288,7 @@ func testAccDevicePortsTarget(t *testing.T, requireProfiles ...bool) devicePorts
 	d, err := client.GetDevicePorts(t.Context(), "default", tg.mac)
 	require.NoError(t, err)
 	if len(requireProfiles) > 0 && requireProfiles[0] && d.Model == "USMINI" {
-		t.Skip("USW Flex Mini does not support custom profiles; inline lifecycle is tested separately")
+		t.Skip("no profile-assignment coverage: USW Flex Mini does not support custom profiles; inline lifecycle tests do not verify profile enforcement")
 	}
 	if os.Getenv("TERRIFI_ACC_TARGET") == "hardware" {
 		for _, p := range d.PortTable {
@@ -822,8 +822,8 @@ resource "terrifi_device_ports" "test" {
 	})
 }
 
-// Profile lifecycle tests need a device that supports profiles. Inline tests
-// continue to run on the explicitly designated Flex Mini ports.
+// Profile assignment lifecycle tests need a device that supports profiles.
+// Inline tests on the Flex Mini do not substitute for profile enforcement tests.
 func testAccDeviceProfilePortsTarget(t *testing.T) devicePortsTarget {
 	t.Helper()
 	return testAccDevicePortsTarget(t, true)

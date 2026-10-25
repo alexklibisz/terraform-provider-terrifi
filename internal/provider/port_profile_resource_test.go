@@ -1160,14 +1160,27 @@ func TestSettleFreshTaggedNetworks_SkippedOutsideTaggedList(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Acceptance tests
 //
-// These create, update and delete tfacc-* port profiles, and (in the tests
-// marked below) tfacc-* networks. No profile is ever assigned to a device
-// port, so they don't change how any physical port behaves. Creating a
-// network makes the controller add it to existing custom profiles'
-// exclude lists.
+// Coverage: controller-side persistence and Terraform lifecycle only, on both
+// Docker and hardware targets. These tests create, update, import and delete
+// tfacc-* profiles and networks, but never assign a profile to a physical port.
+// A passing test proves the controller stores and returns the settings, not
+// that a switch enforces VLAN filtering, PoE, STP, rate limits or 802.1X.
+//
+// Creating a network makes the controller add it to existing custom profiles'
+// exclude lists, which is also checked here.
+//
+// TODO: Add enforcement tests with a profile-capable switch and connected test
+// endpoints. The HIL Flex Mini cannot exercise custom-profile assignments.
 // ---------------------------------------------------------------------------
 
 const testAccPortProfileAddr = "terrifi_port_profile.test"
+
+// preCheckPortProfile makes the scope visible in verbose acceptance-test logs.
+func preCheckPortProfile(t *testing.T) {
+	t.Helper()
+	preCheck(t)
+	t.Log("Coverage: controller profile persistence and Terraform lifecycle; no physical port assignments or switch enforcement checks")
+}
 
 // testAccPortProfileNetworks returns HCL for n throwaway corporate networks,
 // terrifi_network.pp0 .. pp<n-1>, one block each. VLANs are random, so a test
@@ -1344,7 +1357,7 @@ resource "terrifi_port_profile" "test" {
 func TestAccPortProfile_basic(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-basic-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1384,7 +1397,7 @@ func TestAccPortProfile_basic(t *testing.T) {
 func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-all-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1468,7 +1481,7 @@ func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 func TestAccPortProfile_linkSettings(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-link-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1520,7 +1533,8 @@ func TestAccPortProfile_linkSettings(t *testing.T) {
 // TestAccPortProfile_newerSettings covers settings the Docker test controller
 // (Network Application 10.3.58) doesn't store: it drops eee_enabled,
 // flow_control_enabled, precision_time_protocol_enabled and link debounce on
-// write. UniFi OS 5.1 / Network 10.x stores them, so this runs on hardware only.
+// write. UniFi OS 5.1 / Network 10.x stores them, so this uses the hardware
+// target's controller. It still tests persistence, not device enforcement.
 func TestAccPortProfile_newerSettings(t *testing.T) {
 	if os.Getenv("TERRIFI_ACC_TARGET") != "hardware" {
 		t.Skip("the Docker controller doesn't store these settings (TERRIFI_ACC_TARGET=hardware)")
@@ -1533,7 +1547,7 @@ func TestAccPortProfile_newerSettings(t *testing.T) {
 		return resource.TestCheckResourceAttr(testAccPortProfileAddr, k, v)
 	}
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1556,7 +1570,7 @@ func TestAccPortProfile_newerSettings(t *testing.T) {
 func TestAccPortProfile_stormControl(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-storm-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1620,7 +1634,7 @@ func TestAccPortProfile_stormControl(t *testing.T) {
 func TestAccPortProfile_unmanagedFieldsPreserved(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-unmanaged-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1688,7 +1702,7 @@ func TestAccPortProfile_unmanagedFieldsPreserved(t *testing.T) {
 func TestAccPortProfile_importSiteID(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-impsid-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1717,7 +1731,7 @@ func TestAccPortProfile_disappears(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-gone-%s", randomSuffix())
 	var id, site string
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1764,7 +1778,7 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             resource.ComposeAggregateTestCheckFunc(testAccCheckPortProfileDestroyed, testAccCheckNoStaleExcludedIDs),
 		Steps: []resource.TestStep{
@@ -1913,7 +1927,7 @@ func TestAccPortProfile_newNetworks(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             resource.ComposeAggregateTestCheckFunc(testAccCheckPortProfileDestroyed, testAccCheckNoStaleExcludedIDs),
 		Steps: []resource.TestStep{
