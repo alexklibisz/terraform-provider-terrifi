@@ -26,7 +26,7 @@
 # 4. Run:
 #      terraform plan  -var switch_mac=aa:bb:cc:dd:ee:ff
 #      terraform apply -var switch_mac=aa:bb:cc:dd:ee:ff
-#      terraform destroy -var switch_mac=aa:bb:cc:dd:ee:ff # unassign and clean up
+#      terraform destroy -var switch_mac=aa:bb:cc:dd:ee:ff # restore defaults on managed ports and delete the profile
 terraform {
   required_providers {
     terrifi = {

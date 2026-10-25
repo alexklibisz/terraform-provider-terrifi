@@ -19,7 +19,7 @@ Use **one `terrifi_device_ports` per device**. The controller stores all of a de
 - **With `native_network_id` and `tagged_vlan_mode`**, the port is configured directly. `block_all` permits only the native network; `allow_all` also permits tagged VLAN traffic. Both attributes must be set together and conflict with `port_profile_id`. Other inline settings are preserved.
 - **With a name alone**, any profile is removed and existing inline settings are preserved. Removing previously managed inline VLAN attributes restores the default VLAN configuration.
 - **Without `name`**, the port shows the controller's default name (`Port N`).
-- **Removing a port from `ports`**, or destroying the resource, removes its entire port override and restores controller defaults, including settings originally made in the UI. Unlisted ports are untouched. This does not factory-reset or unadopt the device.
+- **Removing a port from `ports`**, or destroying the resource, clears its current port override and restores controller defaults. Unlisted ports are untouched. This does not factory-reset or unadopt the device.
 
 A profile can't be deleted while a port still uses it; the controller refuses. Because `port_profile_id` references the profile, Terraform removes the assignment before it deletes the profile, so `terraform destroy` works as expected.
 
@@ -54,7 +54,7 @@ resource "terrifi_device_ports" "core_switch" {
 
 ### Required
 
-- `device_mac` (String) The MAC address of the adopted device (e.g. `aa:bb:cc:dd:ee:ff`). Changing it moves the assignments to another device.
+- `device_mac` (String) The MAC address of the adopted device (e.g. `aa:bb:cc:dd:ee:ff`). Changing it replaces this resource.
 - `ports` (Attributes Map) The managed ports, keyed by port number (`"1"`, `"2"`, ...). (see [below for nested schema](#nestedatt--ports))
 
 ### Optional

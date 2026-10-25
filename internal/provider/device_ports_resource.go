@@ -105,7 +105,7 @@ func (r *devicePortsResource) Schema(
 
 			"ports": schema.MapNestedAttribute{
 				MarkdownDescription: "The managed ports, keyed by port number (`\"1\"`, `\"2\"`, ...). " +
-					"Removing a port restores its controller defaults, including settings originally made in the UI.",
+					"Removing a port clears its current port override and restores controller defaults.",
 				Required: true,
 				Validators: []validator.Map{
 					mapvalidator.KeysAre(stringvalidator.RegexMatches(portKeyRE, "must be a port number such as \"1\"")),
@@ -128,7 +128,7 @@ func (r *devicePortsResource) Schema(
 						"port_profile_id": schema.StringAttribute{
 							MarkdownDescription: "The ID of the `terrifi_port_profile` to assign. The profile then controls " +
 								"every setting of the port, PoE included, and per-port settings are cleared. " +
-								"Use inline VLAN settings instead, or omit all VLAN settings to use port defaults.",
+								"Use inline VLAN settings instead, or omit to remove the profile.",
 							Optional:   true,
 							Validators: []validator.String{stringvalidator.LengthAtLeast(1)},
 						},
