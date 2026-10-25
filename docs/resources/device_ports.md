@@ -7,7 +7,7 @@ description: |-
 
 # terrifi_device_ports (Resource)
 
-Configures ports directly, or assigns reusable [port profiles](port_profile.md). The original USW Flex Mini uses direct configuration because it does not support custom profiles.
+Configures VLAN settings and names on device ports, either directly or through reusable [port profiles](port_profile.md).
 
 Only the ports listed in `ports` are managed. Every other port on the device is left as it is, including ports configured in the UniFi UI.
 
@@ -39,8 +39,9 @@ resource "terrifi_device_ports" "core_switch" {
       port_profile_id = terrifi_port_profile.hypervisor_trunk.id
     }
     "2" = {
-      name            = "Hypervisor 2"
-      port_profile_id = terrifi_port_profile.hypervisor_trunk.id
+      name              = "Server"
+      native_network_id = terrifi_network.servers.id
+      tagged_vlan_mode  = "block_all"
     }
     "8" = {
       name = "Uplink"
@@ -48,29 +49,6 @@ resource "terrifi_device_ports" "core_switch" {
   }
 }
 ```
-
-## USW Flex Mini
-
-The original `USW-Flex-Mini` (`USMINI`) supports inline access ports using a native network and `block_all`. `allow_all` is supported only with its default native network. Custom profiles are rejected before any device write. Selective tagged VLAN lists are not currently supported by the inline API.
-
-For example, the switch on your home controller can place the HIL gateway's WAN connection on a dedicated home VLAN:
-
-```terraform
-resource "terrifi_device_ports" "home_switch" {
-  provider   = terrifi.home
-  device_mac = terrifi_device.home_switch.mac
-
-  ports = {
-    "3" = {
-      name              = "HIL gateway WAN"
-      native_network_id = terrifi_network.hil_uplink.id
-      tagged_vlan_mode  = "block_all"
-    }
-  }
-}
-```
-
-The network reference must belong to the same controller and site as the switch. Firewall rules controlling access from that VLAN are configured separately.
 
 ## Schema
 
@@ -94,7 +72,7 @@ Optional:
 
 - `name` (String) The port name. Omit to use the controller's default (`Port N`).
 - `port_profile_id` (String) The ID of the `terrifi_port_profile` to assign. Conflicts with inline VLAN attributes.
-- `native_network_id` (String) The native (untagged) LAN network. Requires `tagged_vlan_mode`.
+- `native_network_id` (String) The native (untagged) LAN network on the same controller and site as the device. Requires `tagged_vlan_mode`.
 - `tagged_vlan_mode` (String) `allow_all` or `block_all`. Requires `native_network_id`.
 
 ## Import

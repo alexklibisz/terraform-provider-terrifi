@@ -116,7 +116,7 @@ func (r *devicePortsResource) Schema(
 							Optional:            true, Validators: []validator.String{stringvalidator.LengthAtLeast(1)},
 						},
 						"tagged_vlan_mode": schema.StringAttribute{
-							MarkdownDescription: "Tagged traffic: allow_all or block_all. Set with native_network_id; conflicts with port_profile_id. The original Flex Mini supports allow_all only with its default native network.",
+							MarkdownDescription: "Tagged traffic: allow_all or block_all. Set with native_network_id; conflicts with port_profile_id.",
 							Optional:            true, Validators: []validator.String{stringvalidator.OneOf("allow_all", "block_all")},
 						},
 						"name": schema.StringAttribute{
