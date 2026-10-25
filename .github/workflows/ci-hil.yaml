@@ -65,13 +65,16 @@ on:
   schedule:
     - cron: '33 3 * * *'
 
-# A new push to a fork or Dependabot PR supersedes its older run, including one still
-# waiting for approval. Other events never cancel each other. The jobs that
-# call ci-hil-run.yaml share the `terrifi-hil-hardware` group below, which
-# serializes complete hardware runs across all events.
+# A new push to any PR supersedes its older run for the same event, including
+# a fork or Dependabot run still waiting for approval. Scheduled and manual
+# runs never cancel each other. The jobs that call ci-hil-run.yaml share the
+# `terrifi-hil-hardware` group below, which serializes complete hardware runs
+# across all events without cancelling the run using the hardware.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' ||
+        github.event_name == 'pull_request_target' }}
 
 # pull_request_target grants a write token by default. Nothing here needs it.
 permissions:

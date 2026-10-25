@@ -58,6 +58,8 @@ flowchart TD
 
 The `Main` and `Fork or Dependabot PR` jobs share the `terrifi-hil-hardware` concurrency group, which serializes whole runs. Nothing else touches the controller between the cleanups. A gated run joins the group only after approval, so a run waiting for a maintainer never holds the hardware.
 
+Workflow-level concurrency cancels an older run when a new push arrives for the same PR and event, for both same-repository and gated PRs. Scheduled and manual runs remain independent. The shared hardware concurrency group keeps cancellation disabled, so a different PR cannot interrupt the run using the hardware. Cleanup after cancellation remains enabled.
+
 ## Fork and Dependabot PR Flow
 
 Two kinds of PR run code that no maintainer has reviewed:
