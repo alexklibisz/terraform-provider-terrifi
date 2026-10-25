@@ -192,3 +192,7 @@ A network created in the same apply as a profile that tags it is still being pro
 ### Advanced settings
 
 Settings in the UI's **Advanced** section (everything from `egress_rate_limit_kbps` down in the schema) only apply when the profile's Advanced mode is **Manual**. Terrifi always sets Manual, including when it updates a profile that was created in the UI with Advanced left on Auto.
+
+### Test coverage
+
+Unit and acceptance tests verify settings conversion, controller-side persistence, and the Terraform resource lifecycle. They do not verify that a physical switch enforces the profile's settings, such as VLAN filtering, PoE, STP, or rate limits.
