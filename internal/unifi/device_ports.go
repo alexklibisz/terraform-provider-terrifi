@@ -26,7 +26,6 @@ type DevicePorts struct {
 type DevicePort struct {
 	PortIdx  int64  `json:"port_idx"`
 	Ifname   string `json:"ifname"`
-	Up       bool   `json:"up"`
 	IsUplink bool   `json:"is_uplink"`
 }
 

@@ -236,13 +236,10 @@ func TestDevicePortsWrite(t *testing.T) {
 // Acceptance tests
 // ---------------------------------------------------------------------------
 //
-// These reconfigure real ports, so on hardware they only run against ports
-// named explicitly:
-//
-//	TERRIFI_ACC_PORTS_MAC       an adopted switch or gateway
-//	TERRIFI_ACC_PORTS           two ports on it that are safe to change, e.g. "3,4"
-//	TERRIFI_ACC_PORTS_WAN_MAC   (optional) a gateway, for the WAN port check
-//	TERRIFI_ACC_PORTS_WAN_PORT  (optional) its WAN port; nothing is written to it
+// Hardware tests use ports 4 and 5 on the baseline HIL Flex Mini
+// (68:d7:9a:3a:79:ec), reserved and physically marked for testing.
+// Optional TERRIFI_ACC_PORTS_WAN_MAC and TERRIFI_ACC_PORTS_WAN_PORT select
+// a gateway WAN port for the read-only rejection test.
 //
 // Against the Docker controller they fall back to the first simulated device
 // with at least two ports. Every test restores the two ports' entries to what
@@ -266,17 +263,8 @@ func testAccDevicePortsTarget(t *testing.T, requireProfiles ...bool) devicePorts
 	client := testAccGetClient(t)
 
 	var tg devicePortsTarget
-	if mac, ports := os.Getenv("TERRIFI_ACC_PORTS_MAC"), os.Getenv("TERRIFI_ACC_PORTS"); mac != "" && ports != "" {
-		var err1, err2 error
-		p1, p2, ok := strings.Cut(ports, ",")
-		tg.mac = mac
-		tg.p1, err1 = strconv.ParseInt(strings.TrimSpace(p1), 10, 64)
-		tg.p2, err2 = strconv.ParseInt(strings.TrimSpace(p2), 10, 64)
-		if !ok || err1 != nil || err2 != nil || tg.p1 == tg.p2 {
-			t.Fatalf("TERRIFI_ACC_PORTS must be two different port numbers like \"3,4\", got %q", ports)
-		}
-	} else if os.Getenv("TERRIFI_ACC_TARGET") == "hardware" {
-		t.Skip("set TERRIFI_ACC_PORTS_MAC and TERRIFI_ACC_PORTS to run device port tests on hardware")
+	if os.Getenv("TERRIFI_ACC_TARGET") == "hardware" {
+		tg.mac, tg.p1, tg.p2 = "68:d7:9a:3a:79:ec", 4, 5
 	} else {
 		devices, err := client.ListDevicePorts(t.Context(), "default", "")
 		require.NoError(t, err)
@@ -304,8 +292,8 @@ func testAccDevicePortsTarget(t *testing.T, requireProfiles ...bool) devicePorts
 	}
 	if os.Getenv("TERRIFI_ACC_TARGET") == "hardware" {
 		for _, p := range d.PortTable {
-			if (p.PortIdx == tg.p1 || p.PortIdx == tg.p2) && (p.Up || p.IsUplink) {
-				t.Fatalf("port %d is active or an uplink; hardware port tests require disconnected spare ports", p.PortIdx)
+			if (p.PortIdx == tg.p1 || p.PortIdx == tg.p2) && p.IsUplink {
+				t.Fatalf("port %d is an uplink; reserved test ports must not be uplinks", p.PortIdx)
 			}
 		}
 	}

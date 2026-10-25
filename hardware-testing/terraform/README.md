@@ -51,8 +51,7 @@ repository secrets using the same values as the local environment:
 ### Switch port tests
 
 Ports 4 and 5 on the baseline Flex Mini (`68:d7:9a:3a:79:ec`) are reserved
-for destructive port lifecycle tests. Keep them disconnected. The HIL workflow
-sets `TERRIFI_ACC_PORTS_MAC` and `TERRIFI_ACC_PORTS` accordingly; repository
-variables with those names can override the allocation when the fixture changes.
-Tests restore the original override entries afterwards. Custom-profile assignment
+for destructive port lifecycle tests and physically marked with RJ45 plugs.
+The hardware tests use this fixed allocation directly; no CI port-selection
+variables are needed. Tests restore the original override entries afterwards. Custom-profile assignment
 tests skip on the original Flex Mini, while inline VLAN lifecycle tests run.
