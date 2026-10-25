@@ -11,7 +11,8 @@ import (
 
 // DevicePortsBlocks generates import + resource blocks for device ports: one
 // block per device with named, profiled, or inline VLAN ports, listing those
-// ports (the same set the resource imports).
+// ports (the same set the resource imports). Unsupported ports appear only as
+// commented-out entries, including devices with no importable ports.
 func DevicePortsBlocks(devices []unifi.DevicePorts) []ResourceBlock {
 	var blocks []ResourceBlock
 	for _, d := range devices {
@@ -19,13 +20,15 @@ func DevicePortsBlocks(devices []unifi.DevicePorts) []ResourceBlock {
 			idx             int64
 			name, profileID string
 			native, mode    string
+			unsupported     string
 		}
 		var ports []port
 		for _, e := range d.PortOverrides {
 			idx, name, profileID, err := unifi.ParsePortOverride(e)
 			native, mode := unifi.PortVLANSettings(e)
-			if err == nil && (name != "" || profileID != "" || native != "") {
-				ports = append(ports, port{idx, name, profileID, native, mode})
+			unsupported := unifi.UnsupportedPortVLANReason(e)
+			if err == nil && (unsupported != "" || name != "" || profileID != "" || native != "") {
+				ports = append(ports, port{idx, name, profileID, native, mode, unsupported})
 			}
 		}
 		if len(ports) == 0 {
@@ -49,7 +52,12 @@ func DevicePortsBlocks(devices []unifi.DevicePorts) []ResourceBlock {
 					fields = append(fields, "tagged_vlan_mode = "+HCLString(p.mode))
 				}
 			}
-			fmt.Fprintf(&b, "    %q = { %s }\n", fmt.Sprint(p.idx), strings.Join(fields, ", "))
+			prefix := "    "
+			if p.unsupported != "" {
+				fmt.Fprintf(&b, "    # Port %d excluded from import: %s.\n", p.idx, p.unsupported)
+				prefix += "# "
+			}
+			fmt.Fprintf(&b, "%s%q = { %s }\n", prefix, fmt.Sprint(p.idx), strings.Join(fields, ", "))
 		}
 		b.WriteString("  }")
 

@@ -35,7 +35,8 @@ resource "terrifi_device_ports" "core_switch" {
   device_mac = "00:00:5e:00:53:01"
   ports = {
     "2" = { name = "uplink", port_profile_id = "pp-b" }
-    "5" = { name = "desk" }
+    # Port 5 excluded from import: inline VLAN settings with forward mode "customize" cannot be represented.
+    # "5" = { name = "desk" }
     "10" = { port_profile_id = "pp-a" }
   } # TODO: reference the corresponding terrifi_port_profile resources
 }

@@ -77,7 +77,7 @@ Optional:
 
 ## Import
 
-Device ports can be imported using the device MAC address. Every port with a name, a profile, or an inline native network is imported:
+Device ports can be imported using the device MAC address. Ports with supported configurations are imported, including their names, profile assignments, or inline VLAN settings:
 
 ```shell
 terraform import terrifi_device_ports.core_switch aa:bb:cc:dd:ee:ff
@@ -93,4 +93,16 @@ You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks fo
 
 ```shell
 terrifi generate-imports terrifi_device_ports
+```
+
+Ports with unsupported inline VLAN settings are excluded entirely from import,
+including their names, and produce a warning. They remain outside Terraform's
+ownership, so updates and destroy leave them untouched. The CLI includes these
+ports only as commented-out entries:
+
+```terraform
+ports = {
+  # Port 3 excluded from import: inline VLAN mode "custom" is unsupported.
+  # "3" = { name = "Server" }
+}
 ```

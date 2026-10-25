@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -214,7 +215,13 @@ func (r *devicePortsResource) Read(
 
 	state.ID = types.StringValue(d.ID)
 	state.Site = types.StringValue(site)
-	state.Ports = portsToModel(portsFromOverrides(d.PortOverrides), state.Ports)
+	overrides := d.PortOverrides
+	if state.Ports == nil {
+		var warnings diag.Diagnostics
+		overrides, warnings = importableDevicePortOverrides(overrides)
+		resp.Diagnostics.Append(warnings...)
+	}
+	state.Ports = portsToModel(portsFromOverrides(overrides), state.Ports)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -291,6 +298,9 @@ func (r *devicePortsResource) write(ctx context.Context, site, mac string, want 
 	d, err := r.client.GetDevicePorts(ctx, site, mac)
 	if err != nil {
 		return "", fmt.Errorf("reading device %s: %w", mac, err)
+	}
+	if len(want) == 0 {
+		return d.ID, nil
 	}
 	if err := checkPortsAssignable(d, want); err != nil {
 		return "", err
@@ -387,4 +397,24 @@ func validateDevicePortModels(ports map[string]devicePortModel) diag.Diagnostics
 		}
 	}
 	return diags
+}
+
+// importableDevicePortOverrides excludes an entire unsupported port, including
+// its name, so later removal or destroy cannot reset settings we could not import.
+func importableDevicePortOverrides(overrides []map[string]json.RawMessage) ([]map[string]json.RawMessage, diag.Diagnostics) {
+	var warnings diag.Diagnostics
+	var imported []map[string]json.RawMessage
+	for _, entry := range overrides {
+		if reason := unifi.UnsupportedPortVLANReason(entry); reason != "" {
+			idx, err := portIdx(entry)
+			if err != nil {
+				warnings.AddWarning("Port Excluded from Import", err.Error())
+				continue
+			}
+			warnings.AddWarning("Port Excluded from Import", fmt.Sprintf("Port %d was excluded because %s. Its name and VLAN settings remain unmanaged and will not be reset when this resource is destroyed.", idx, reason))
+			continue
+		}
+		imported = append(imported, entry)
+	}
+	return imported, warnings
 }

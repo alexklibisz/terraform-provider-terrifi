@@ -47,21 +47,50 @@ func ParsePortOverride(e map[string]json.RawMessage) (idx int64, name, portconfI
 }
 
 // PortVLANSettings reads inline VLAN settings. Profiles own their VLANs, so
-// cached inline keys on profiled entries are intentionally ignored.
+// cached inline keys on profiled entries are intentionally ignored. Unsupported
+// configurations return empty settings; callers must exclude the whole port
+// from import using UnsupportedPortVLANReason, even when it has a name.
 func PortVLANSettings(e map[string]json.RawMessage) (native, mode string) {
+	if UnsupportedPortVLANReason(e) != "" {
+		return "", ""
+	}
+	native, mode, _ = portVLANSettings(e)
+	return
+}
+
+// UnsupportedPortVLANReason identifies inline VLAN configurations that cannot
+// round-trip through the resource schema. Such ports must remain unowned when
+// importing, rather than becoming name-only ports that reset on destroy.
+func UnsupportedPortVLANReason(e map[string]json.RawMessage) string {
+	native, mode, forward := portVLANSettings(e)
+	if native == "" && mode == "" && (forward == "" || forward == "all") {
+		return ""
+	}
+	if mode != "allow_all" && mode != "block_all" {
+		if mode != "" {
+			return fmt.Sprintf("inline VLAN mode %q is unsupported", mode)
+		}
+		return fmt.Sprintf("inline VLAN settings with forward mode %q cannot be represented", forward)
+	}
+	if native == "" {
+		return "inline VLAN settings without an explicit native network cannot be represented"
+	}
+	return ""
+}
+
+func portVLANSettings(e map[string]json.RawMessage) (native, mode, forward string) {
 	var profile string
 	_ = json.Unmarshal(e["portconf_id"], &profile)
 	if profile != "" {
-		return "", ""
+		return "", "", ""
 	}
 	_ = json.Unmarshal(e["native_networkconf_id"], &native)
 	_ = json.Unmarshal(e["tagged_vlan_mgmt"], &mode)
+	_ = json.Unmarshal(e["forward"], &forward)
 	if mode == "auto" {
 		mode = "allow_all"
 	}
 	if mode == "" && native != "" {
-		var forward string
-		_ = json.Unmarshal(e["forward"], &forward)
 		switch forward {
 		case "native":
 			mode = "block_all"
