@@ -79,9 +79,7 @@ resource "terrifi_port_profile" "guest_access" {
   native_network_id = terrifi_network.guest.id
   tagged_vlan_mode  = "block_all"
 
-  storm_control = {
-    broadcast = 20
-  }
+  port_isolation_enabled = true
 }
 
 output "hypervisor_trunk_id" {

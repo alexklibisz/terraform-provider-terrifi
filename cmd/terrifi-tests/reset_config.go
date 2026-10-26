@@ -102,7 +102,7 @@ func linkAttributes(attrs []generate.Attr, refs map[string]string) error {
 			}
 			attrs[i].Value = linked
 			continue
-		case "native_network_id", "voice_network_id", "tagged_network_ids", "excluded_network_ids",
+		case "native_network_id", "tagged_network_ids",
 			"network_id", "network_override_id", "network_ids", "client_group_ids",
 			"zone_id", "source_zone_id", "destination_zone_id", "policy_ids", "port_group_id", "device_ids":
 		default:
