@@ -89,7 +89,7 @@ func TestAccDevicePorts_inlineLifecycle(t *testing.T) {
 		if second {
 			ports += fmt.Sprintf("\n%q = { name = \"tfacc-inline-second\", native_network_id = terrifi_network.pp1.id, tagged_vlan_mode = \"block_all\" }", tg.k2())
 		}
-		return nets + fmt.Sprintf("\nresource \"terrifi_device_ports\" \"test\" {\n device_mac = %q\n ports = {\n%s\n}\n}\n", tg.mac, ports)
+		return nets + fmt.Sprintf("\nresource \"terrifi_device_ports\" \"test\" {\n device_mac = %q\n ports = terrifi_network.pp0.id != \"\" ? {\n%s\n} : {}\n}\n", tg.mac, ports)
 	}
 	check := func(network string, second bool) resource.TestCheckFunc {
 		return resource.ComposeAggregateTestCheckFunc(

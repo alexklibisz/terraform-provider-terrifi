@@ -43,7 +43,7 @@ func PortProfileBlocks(profiles []unifi.PortProfile, lanNetworkIDs []string) []R
 			add("native_network_id", HCLString(native), networkIDComment)
 		}
 		if p.TaggedVLANMgmt != "" && p.TaggedVLANMgmt != "auto" {
-			add("tagged_vlan_mgmt", HCLString(p.TaggedVLANMgmt), "")
+			add("tagged_vlan_mode", HCLString(unifi.TaggedVLANModeFromAPI(p.TaggedVLANMgmt)), "")
 		}
 		if p.TaggedVLANMgmt == "custom" {
 			tagged := unifi.TaggedFromExcluded(lanNetworkIDs, p.ExcludedNetworkIDs, native)
@@ -58,9 +58,9 @@ func PortProfileBlocks(profiles []unifi.PortProfile, lanNetworkIDs []string) []R
 			add("poe_mode", HCLString(*p.PoeMode), "")
 		}
 		if p.Autoneg != nil && !*p.Autoneg {
-			add("autoneg", HCLBool(false), "")
+			add("auto_negotiation_enabled", HCLBool(false), "")
 			if p.Speed != nil {
-				add("speed", HCLInt64(*p.Speed), "")
+				add("speed_mbps", HCLInt64(*p.Speed), "")
 			}
 			addBool("full_duplex", p.FullDuplex, false)
 		}
@@ -70,7 +70,7 @@ func PortProfileBlocks(profiles []unifi.PortProfile, lanNetworkIDs []string) []R
 		}
 		addBool("flow_control_enabled", p.FlowControlEnabled, true)
 		addBool("ptp_enabled", p.PTPEnabled, true)
-		addBool("isolation", p.Isolation, false)
+		addBool("port_isolation_enabled", p.Isolation, false)
 		addBool("stp_enabled", p.StpPortMode, true)
 		addBool("stp_uplink", p.StpUplink, false)
 		addBool("bpdu_guard_enabled", p.StpBpduGuardEnabled, false)
@@ -90,7 +90,7 @@ func PortProfileBlocks(profiles []unifi.PortProfile, lanNetworkIDs []string) []R
 			add("port_security_mac_addresses", HCLStringList(p.PortSecurityMACAddress), "")
 		}
 		if p.Dot1XCtrl != "" && p.Dot1XCtrl != "force_authorized" {
-			add("dot1x_ctrl", HCLString(p.Dot1XCtrl), "")
+			add("dot1x_control", HCLString(p.Dot1XCtrl), "")
 		}
 
 		if sc := stormControlHCL(&p); sc != "" {
@@ -112,7 +112,7 @@ func stormControlHCL(p *unifi.PortProfile) string {
 	}
 	var parts []string
 	if scType != "level" {
-		parts = append(parts, fmt.Sprintf("type = %s", HCLString(scType)))
+		parts = append(parts, fmt.Sprintf("type = %s", HCLString(unifi.StormControlTypeFromAPI(scType))))
 	}
 	classes := []struct {
 		name        string
@@ -121,7 +121,7 @@ func stormControlHCL(p *unifi.PortProfile) string {
 	}{
 		{"broadcast", p.StormctrlBcastEnabled, p.StormctrlBcastLevel, p.StormctrlBcastRate},
 		{"multicast", p.StormctrlMcastEnabled, p.StormctrlMcastLevel, p.StormctrlMcastRate},
-		{"unicast", p.StormctrlUcastEnabled, p.StormctrlUcastLevel, p.StormctrlUcastRate},
+		{"unknown_unicast", p.StormctrlUcastEnabled, p.StormctrlUcastLevel, p.StormctrlUcastRate},
 	}
 	anyEnabled := false
 	for _, c := range classes {

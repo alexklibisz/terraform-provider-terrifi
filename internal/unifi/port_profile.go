@@ -122,3 +122,41 @@ func TaggedFromExcluded(lan, excluded []string, native string) []string {
 	}
 	return tagged
 }
+
+// TaggedVLANModeToAPI converts the public VLAN mode to the controller value.
+func TaggedVLANModeToAPI(mode string) string {
+	if mode == "allow_all" {
+		return "auto"
+	}
+	return mode
+}
+
+// TaggedVLANModeFromAPI converts the controller value to the public VLAN mode.
+func TaggedVLANModeFromAPI(mode string) string {
+	if mode == "" || mode == "auto" {
+		return "allow_all"
+	}
+	return mode
+}
+
+// StormControlTypeToAPI converts the public threshold unit to the wire value.
+func StormControlTypeToAPI(unit string) string {
+	switch unit {
+	case "percentage":
+		return "level"
+	case "packets_per_second":
+		return "rate"
+	}
+	return unit
+}
+
+// StormControlTypeFromAPI converts the wire value to the public threshold unit.
+func StormControlTypeFromAPI(unit string) string {
+	switch unit {
+	case "", "level":
+		return "percentage"
+	case "rate":
+		return "packets_per_second"
+	}
+	return unit
+}

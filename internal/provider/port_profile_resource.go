@@ -40,10 +40,10 @@ var (
 // Network 10.x). Attributes with defaults are always sent explicitly, so
 // removing one from the config reverts it to the UI default.
 const (
-	portProfileDefaultTaggedVLANMgmt   = "auto"
+	portProfileDefaultTaggedVLANMgmt   = "allow_all"
 	portProfileDefaultPoeMode          = "auto"
 	portProfileDefaultDot1XCtrl        = "force_authorized"
-	portProfileDefaultStormControlType = "level"
+	portProfileDefaultStormControlType = "percentage"
 	portProfileDefaultAutoneg          = true
 	portProfileDefaultFlowControl      = true
 	portProfileDefaultPTP              = true
@@ -70,20 +70,20 @@ type portProfileResourceModel struct {
 	Name types.String `tfsdk:"name"`
 
 	NativeNetworkID    types.String `tfsdk:"native_network_id"`
-	TaggedVLANMgmt     types.String `tfsdk:"tagged_vlan_mgmt"`
+	TaggedVLANMgmt     types.String `tfsdk:"tagged_vlan_mode"`
 	TaggedNetworkIDs   types.Set    `tfsdk:"tagged_network_ids"`
 	ExcludedNetworkIDs types.Set    `tfsdk:"excluded_network_ids"`
 	VoiceNetworkID     types.String `tfsdk:"voice_network_id"`
 
 	PoeMode    types.String `tfsdk:"poe_mode"`
-	Autoneg    types.Bool   `tfsdk:"autoneg"`
-	Speed      types.Int64  `tfsdk:"speed"`
+	Autoneg    types.Bool   `tfsdk:"auto_negotiation_enabled"`
+	Speed      types.Int64  `tfsdk:"speed_mbps"`
 	FullDuplex types.Bool   `tfsdk:"full_duplex"`
 
 	EgressRateLimitKbps   types.Int64 `tfsdk:"egress_rate_limit_kbps"`
 	FlowControlEnabled    types.Bool  `tfsdk:"flow_control_enabled"`
 	PTPEnabled            types.Bool  `tfsdk:"ptp_enabled"`
-	Isolation             types.Bool  `tfsdk:"isolation"`
+	Isolation             types.Bool  `tfsdk:"port_isolation_enabled"`
 	StpEnabled            types.Bool  `tfsdk:"stp_enabled"`
 	StpUplink             types.Bool  `tfsdk:"stp_uplink"`
 	BpduGuardEnabled      types.Bool  `tfsdk:"bpdu_guard_enabled"`
@@ -94,7 +94,7 @@ type portProfileResourceModel struct {
 
 	PortSecurityEnabled      types.Bool   `tfsdk:"port_security_enabled"`
 	PortSecurityMACAddresses types.Set    `tfsdk:"port_security_mac_addresses"`
-	Dot1XCtrl                types.String `tfsdk:"dot1x_ctrl"`
+	Dot1XCtrl                types.String `tfsdk:"dot1x_control"`
 
 	StormControl *portProfileStormControlModel `tfsdk:"storm_control"`
 }
@@ -105,7 +105,7 @@ type portProfileStormControlModel struct {
 	Type      types.String `tfsdk:"type"`
 	Broadcast types.Int64  `tfsdk:"broadcast"`
 	Multicast types.Int64  `tfsdk:"multicast"`
-	Unicast   types.Int64  `tfsdk:"unicast"`
+	Unicast   types.Int64  `tfsdk:"unknown_unicast"`
 }
 
 // Metadata sets the resource type name.
@@ -178,32 +178,32 @@ func (r *portProfileResource) Schema(
 				},
 			},
 
-			"tagged_vlan_mgmt": schema.StringAttribute{
-				MarkdownDescription: "Tagged VLAN management. `auto` (UI \"Allow All\") tags every network, " +
+			"tagged_vlan_mode": schema.StringAttribute{
+				MarkdownDescription: "Tagged VLAN management. `allow_all` (UI \"Allow All\") tags every network, " +
 					"`block_all` tags none, and `custom` tags the networks given by `tagged_network_ids` " +
-					"or `excluded_network_ids`. Default: `auto`.",
+					"or `excluded_network_ids`. Default: `allow_all`.",
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString(portProfileDefaultTaggedVLANMgmt),
 				Validators: []validator.String{
-					stringvalidator.OneOf("auto", "block_all", "custom"),
+					stringvalidator.OneOf("allow_all", "block_all", "custom"),
 				},
 			},
 
 			"tagged_network_ids": schema.SetAttribute{
 				MarkdownDescription: "IDs of the networks tagged on the port, as selected in the UI. Only " +
-					"with `tagged_vlan_mgmt = \"custom\"`; conflicts with `excluded_network_ids`. The " +
-					"controller stores the inverse (every other corporate network is excluded), so a " +
-					"network created later that isn't excluded shows up as a planned change.",
+					"with `tagged_vlan_mode = \"custom\"`; conflicts with `excluded_network_ids`. The " +
+					"controller stores the inverse (every other corporate network is excluded). New networks are excluded automatically, matching an unchanged allow-list once the controller finishes processing.",
 				Optional:    true,
 				ElementType: types.StringType,
 			},
 
 			"excluded_network_ids": schema.SetAttribute{
 				MarkdownDescription: "IDs of the networks **not** tagged on the port, exactly as the " +
-					"controller stores them. Only with `tagged_vlan_mgmt = \"custom\"`; conflicts with " +
-					"`tagged_network_ids`, which is usually the better choice: with this attribute, a " +
-					"network created later is tagged on the port without any planned change.",
+					"controller stores them. Only with `tagged_vlan_mode = \"custom\"`; conflicts with " +
+					"`tagged_network_ids`. The controller automatically adds new networks to the excluded list. " +
+					"If a new network is absent from this attribute, the next plan removes its exclusion, " +
+					"allowing tagged traffic from that network after apply.",
 				Optional:    true,
 				ElementType: types.StringType,
 			},
@@ -230,11 +230,11 @@ func (r *portProfileResource) Schema(
 				},
 			},
 
-			"autoneg": boolAttr("Whether link speed and duplex are auto-negotiated. Set to `false` "+
-				"to use `speed` and `full_duplex`.", portProfileDefaultAutoneg),
+			"auto_negotiation_enabled": boolAttr("Whether link speed and duplex are auto-negotiated. Set to `false` "+
+				"to use `speed_mbps` and `full_duplex`.", portProfileDefaultAutoneg),
 
-			"speed": schema.Int64Attribute{
-				MarkdownDescription: "Fixed link speed in Mbps. Required when `autoneg` is `false`, not " +
+			"speed_mbps": schema.Int64Attribute{
+				MarkdownDescription: "Fixed link speed in Mbps. Required when `auto_negotiation_enabled` is `false`, not " +
 					"allowed otherwise. One of: `10`, `100`, `1000`, `2500`, `5000`, `10000`, `20000`, " +
 					"`25000`, `40000`, `50000`, `100000`.",
 				Optional: true,
@@ -244,7 +244,7 @@ func (r *portProfileResource) Schema(
 			},
 
 			"full_duplex": boolAttr("Whether a fixed-speed link runs full duplex. Can only be `true` "+
-				"when `autoneg` is `false`.", false),
+				"when `auto_negotiation_enabled` is `false`.", false),
 
 			// Advanced (UI "Advanced: Manual").
 
@@ -257,12 +257,12 @@ func (r *portProfileResource) Schema(
 				},
 			},
 
-			"flow_control_enabled": boolAttr("Whether flow control is enabled.", portProfileDefaultFlowControl),
-			"ptp_enabled":          boolAttr("Whether Precision Time Protocol is enabled.", portProfileDefaultPTP),
-			"isolation":            boolAttr("Whether port isolation is enabled.", false),
-			"stp_enabled":          boolAttr("Whether spanning tree (STP) is enabled.", portProfileDefaultStpEnabled),
-			"stp_uplink":           boolAttr("Whether the port is an STP uplink.", false),
-			"bpdu_guard_enabled":   boolAttr("Whether BPDU guard is enabled.", false),
+			"flow_control_enabled":   boolAttr("Whether flow control is enabled.", portProfileDefaultFlowControl),
+			"ptp_enabled":            boolAttr("Whether Precision Time Protocol is enabled.", portProfileDefaultPTP),
+			"port_isolation_enabled": boolAttr("Whether port isolation is enabled.", false),
+			"stp_enabled":            boolAttr("Whether spanning tree (STP) is enabled.", portProfileDefaultStpEnabled),
+			"stp_uplink":             boolAttr("Whether the port is an STP uplink.", false),
+			"bpdu_guard_enabled":     boolAttr("Whether BPDU guard is enabled.", false),
 			"loop_protection_enabled": boolAttr("Whether non-STP loop protection is enabled "+
 				"(`port_keepalive_enabled` in the API).", false),
 			"eee_enabled":     boolAttr("Whether Energy Efficient Ethernet is enabled.", false),
@@ -289,7 +289,7 @@ func (r *portProfileResource) Schema(
 				},
 			},
 
-			"dot1x_ctrl": schema.StringAttribute{
+			"dot1x_control": schema.StringAttribute{
 				MarkdownDescription: "802.1X control. One of: `auto`, `force_authorized`, `force_unauthorized`, " +
 					"`mac_based`, `multi_host` (the UI's \"Multi-auth\"). Default: `force_authorized`.",
 				Optional: true,
@@ -305,14 +305,14 @@ func (r *portProfileResource) Schema(
 				Optional:            true,
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
-						MarkdownDescription: "How thresholds are expressed: `level` (the UI's \"percentage\" " +
-							"of link bandwidth, 0–100) or `rate` (packets per second, 0–14880000). " +
-							"Default: `level`.",
+						MarkdownDescription: "How thresholds are expressed: `percentage` (percentage " +
+							"of link bandwidth, 0–100) or `packets_per_second` (packets per second, 0–14880000). " +
+							"Default: `percentage`.",
 						Optional: true,
 						Computed: true,
 						Default:  stringdefault.StaticString(portProfileDefaultStormControlType),
 						Validators: []validator.String{
-							stringvalidator.OneOf("level", "rate"),
+							stringvalidator.OneOf("percentage", "packets_per_second"),
 						},
 					},
 					"broadcast": schema.Int64Attribute{
@@ -323,8 +323,8 @@ func (r *portProfileResource) Schema(
 						MarkdownDescription: "Multicast threshold. When unset, multicast storm control is disabled.",
 						Optional:            true,
 					},
-					"unicast": schema.Int64Attribute{
-						MarkdownDescription: "Unknown-unicast threshold. When unset, unicast storm control is disabled.",
+					"unknown_unicast": schema.Int64Attribute{
+						MarkdownDescription: "Unknown-unicast threshold. When unset, unknown-unicast storm control is disabled.",
 						Optional:            true,
 					},
 				},
@@ -353,11 +353,23 @@ func (r *portProfileResource) ValidateConfig(
 // values are validated again once known.
 func known(v attr.Value) bool { return !v.IsUnknown() }
 
-// setContains reports whether a known set contains s.
-func setContains(ctx context.Context, set types.Set, s string) bool {
-	var vals []string
-	set.ElementsAs(ctx, &vals, false)
-	return slices.Contains(vals, s)
+// setMembership distinguishes a definite match or absence from an unresolved
+// membership test. A known match is conclusive even if other elements are unknown.
+func setMembership(set types.Set, s string) (contains, known bool) {
+	if set.IsUnknown() {
+		return false, false
+	}
+	known = true
+	for _, element := range set.Elements() {
+		if element.IsUnknown() {
+			known = false
+			continue
+		}
+		if !element.IsNull() && element.(types.String).ValueString() == s {
+			return true, true
+		}
+	}
+	return false, known
 }
 
 // validatePortProfileModel holds the cross-attribute checks so they can be
@@ -371,17 +383,17 @@ func validatePortProfileModel(ctx context.Context, m *portProfileResourceModel) 
 		autoneg := m.Autoneg.IsNull() || m.Autoneg.ValueBool()
 		if known(m.Speed) {
 			if autoneg && !m.Speed.IsNull() {
-				diags.AddAttributeError(path.Root("speed"), "Invalid Attribute Combination",
-					"`speed` can only be set when `autoneg` is `false`.")
+				diags.AddAttributeError(path.Root("speed_mbps"), "Invalid Attribute Combination",
+					"`speed_mbps` can only be set when `auto_negotiation_enabled` is `false`.")
 			}
 			if !autoneg && m.Speed.IsNull() {
-				diags.AddAttributeError(path.Root("speed"), "Missing Attribute",
-					"`speed` is required when `autoneg` is `false`.")
+				diags.AddAttributeError(path.Root("speed_mbps"), "Missing Attribute",
+					"`speed_mbps` is required when `auto_negotiation_enabled` is `false`.")
 			}
 		}
 		if autoneg && known(m.FullDuplex) && m.FullDuplex.ValueBool() {
 			diags.AddAttributeError(path.Root("full_duplex"), "Invalid Attribute Combination",
-				"`full_duplex` can only be `true` when `autoneg` is `false`.")
+				"`full_duplex` can only be `true` when `auto_negotiation_enabled` is `false`.")
 		}
 	}
 
@@ -394,26 +406,26 @@ func validatePortProfileModel(ctx context.Context, m *portProfileResourceModel) 
 		hasTagged, hasExcluded := !m.TaggedNetworkIDs.IsNull(), !m.ExcludedNetworkIDs.IsNull()
 		switch {
 		case mgmt != "custom" && (hasTagged || hasExcluded):
-			diags.AddAttributeError(path.Root("tagged_vlan_mgmt"), "Invalid Attribute Combination",
+			diags.AddAttributeError(path.Root("tagged_vlan_mode"), "Invalid Attribute Combination",
 				"`tagged_network_ids` and `excluded_network_ids` can only be set when "+
-					"`tagged_vlan_mgmt` is `custom`.")
+					"`tagged_vlan_mode` is `custom`.")
 		case mgmt == "custom" && hasTagged == hasExcluded:
-			diags.AddAttributeError(path.Root("tagged_vlan_mgmt"), "Invalid Attribute Combination",
-				"With `tagged_vlan_mgmt = \"custom\"`, set exactly one of `tagged_network_ids` "+
+			diags.AddAttributeError(path.Root("tagged_vlan_mode"), "Invalid Attribute Combination",
+				"With `tagged_vlan_mode = \"custom\"`, set exactly one of `tagged_network_ids` "+
 					"or `excluded_network_ids`.")
 		case mgmt == "custom" && hasTagged && len(m.TaggedNetworkIDs.Elements()) == 0:
 			// The controller rewrites custom-with-nothing-tagged to block_all.
 			diags.AddAttributeError(path.Root("tagged_network_ids"), "Invalid Attribute Value",
-				"`tagged_network_ids` can't be empty: use `tagged_vlan_mgmt = \"block_all\"` to tag no networks.")
+				"`tagged_network_ids` can't be empty: use `tagged_vlan_mode = \"block_all\"` to tag no networks.")
 		}
 
 		if known(m.NativeNetworkID) && !m.NativeNetworkID.IsNull() {
 			native := m.NativeNetworkID.ValueString()
-			if hasTagged && setContains(ctx, m.TaggedNetworkIDs, native) {
+			if contains, _ := setMembership(m.TaggedNetworkIDs, native); hasTagged && contains {
 				diags.AddAttributeError(path.Root("tagged_network_ids"), "Invalid Attribute Value",
 					"The native network can't also be tagged.")
 			}
-			if hasExcluded && setContains(ctx, m.ExcludedNetworkIDs, native) {
+			if contains, _ := setMembership(m.ExcludedNetworkIDs, native); hasExcluded && contains {
 				diags.AddAttributeError(path.Root("excluded_network_ids"), "Invalid Attribute Value",
 					"The native network can't be excluded.")
 			}
@@ -422,14 +434,16 @@ func validatePortProfileModel(ctx context.Context, m *portProfileResourceModel) 
 		// Voice VLAN: must be tagged on the port, and needs LLDP-MED.
 		if known(m.VoiceNetworkID) && !m.VoiceNetworkID.IsNull() {
 			voice := m.VoiceNetworkID.ValueString()
+			tagged, membershipKnown := setMembership(m.TaggedNetworkIDs, voice)
+			excluded, _ := setMembership(m.ExcludedNetworkIDs, voice)
 			switch {
 			case mgmt == "block_all":
 				diags.AddAttributeError(path.Root("voice_network_id"), "Invalid Attribute Combination",
-					"A voice network can't be set when `tagged_vlan_mgmt` is `block_all`.")
-			case hasTagged && !setContains(ctx, m.TaggedNetworkIDs, voice):
+					"A voice network can't be set when `tagged_vlan_mode` is `block_all`.")
+			case hasTagged && membershipKnown && !tagged:
 				diags.AddAttributeError(path.Root("voice_network_id"), "Invalid Attribute Value",
 					"The voice network must be one of `tagged_network_ids`.")
-			case hasExcluded && setContains(ctx, m.ExcludedNetworkIDs, voice):
+			case hasExcluded && excluded:
 				diags.AddAttributeError(path.Root("voice_network_id"), "Invalid Attribute Value",
 					"The voice network can't be in `excluded_network_ids`.")
 			}
@@ -452,7 +466,7 @@ func validatePortProfileModel(ctx context.Context, m *portProfileResourceModel) 
 
 	// Storm control.
 	if sc := m.StormControl; sc != nil {
-		classes := map[string]types.Int64{"broadcast": sc.Broadcast, "multicast": sc.Multicast, "unicast": sc.Unicast}
+		classes := map[string]types.Int64{"broadcast": sc.Broadcast, "multicast": sc.Multicast, "unknown_unicast": sc.Unicast}
 		anyConfigured := false
 		for _, v := range classes {
 			if !v.IsNull() {
@@ -461,7 +475,7 @@ func validatePortProfileModel(ctx context.Context, m *portProfileResourceModel) 
 		}
 		if !anyConfigured {
 			diags.AddAttributeError(path.Root("storm_control"), "Missing Attribute",
-				"`storm_control` must set at least one of `broadcast`, `multicast`, `unicast`. "+
+				"`storm_control` must set at least one of `broadcast`, `multicast`, `unknown_unicast`. "+
 					"Omit the block to disable storm control.")
 		}
 
@@ -471,7 +485,7 @@ func validatePortProfileModel(ctx context.Context, m *portProfileResourceModel) 
 				scType = portProfileDefaultStormControlType
 			}
 			limit := int64(100)
-			if scType == "rate" {
+			if scType == "packets_per_second" {
 				limit = 14880000
 			}
 			for name, v := range classes {
@@ -693,7 +707,7 @@ func usesTaggedList(m *portProfileResourceModel) bool {
 }
 
 // lanNetworksIfNeeded lists the site's LAN networks when the allow-list
-// conversion needs them: tagged_vlan_mgmt "custom" with tagged_network_ids.
+// conversion needs them: tagged_vlan_mode "custom" with tagged_network_ids.
 func (r *portProfileResource) lanNetworksIfNeeded(ctx context.Context, site string, m *portProfileResourceModel, taggedVLANMgmt string) ([]string, error) {
 	if taggedVLANMgmt != "custom" || !usesTaggedList(m) {
 		return nil, nil
@@ -802,7 +816,7 @@ func (r *portProfileResource) modelToAPI(ctx context.Context, m *portProfileReso
 		SettingPreference: "manual",
 
 		Forward:        portProfileForward(m.TaggedVLANMgmt.ValueString()),
-		TaggedVLANMgmt: m.TaggedVLANMgmt.ValueString(),
+		TaggedVLANMgmt: unifi.TaggedVLANModeToAPI(m.TaggedVLANMgmt.ValueString()),
 		// The controller represents "none" as an empty string, so send ""
 		// rather than omitting the key; that clears a previously set value.
 		NativeNetworkID: ptrTo(m.NativeNetworkID.ValueString()),
@@ -864,7 +878,7 @@ func (r *portProfileResource) modelToAPI(ctx context.Context, m *portProfileReso
 	p.StormctrlMcastEnabled = ptrTo(false)
 	p.StormctrlUcastEnabled = ptrTo(false)
 	if sc := m.StormControl; sc != nil {
-		p.StormctrlType = sc.Type.ValueString()
+		p.StormctrlType = unifi.StormControlTypeToAPI(sc.Type.ValueString())
 		setStormControlClass(p.StormctrlType, sc.Broadcast, &p.StormctrlBcastEnabled, &p.StormctrlBcastLevel, &p.StormctrlBcastRate)
 		setStormControlClass(p.StormctrlType, sc.Multicast, &p.StormctrlMcastEnabled, &p.StormctrlMcastLevel, &p.StormctrlMcastRate)
 		setStormControlClass(p.StormctrlType, sc.Unicast, &p.StormctrlUcastEnabled, &p.StormctrlUcastLevel, &p.StormctrlUcastRate)
@@ -874,7 +888,7 @@ func (r *portProfileResource) modelToAPI(ctx context.Context, m *portProfileReso
 }
 
 // portProfileForward returns the forward mode the controller derives from
-// tagged_vlan_mgmt: "native" when all tagged traffic is blocked, otherwise
+// tagged_vlan_mode: "native" when all tagged traffic is blocked, otherwise
 // "customize". The controller computes the field itself (it also stores "all"
 // for native = Default network with auto tagging), so the provider sends a
 // consistent value but never exposes or reads it.
@@ -905,7 +919,7 @@ func stormControlClassToModel(scType string, enabled *bool, level, rate *int64) 
 		return types.Int64Null()
 	}
 	v := level
-	if scType == "rate" {
+	if scType == "packets_per_second" {
 		v = rate
 	}
 	if v == nil {
@@ -919,7 +933,7 @@ func stormControlClassToModel(scType string, enabled *bool, level, rate *int64) 
 // defaults, matching the schema defaults. Values the controller keeps but
 // ignores (speed and duplex under autoneg, a voice network without LLDP-MED,
 // disabled limits) are read as unset. lan is needed only when m uses
-// tagged_network_ids with tagged_vlan_mgmt "custom".
+// tagged_network_ids with tagged_vlan_mode "custom".
 func (r *portProfileResource) apiToModel(p *unifi.PortProfile, m *portProfileResourceModel, site string, lan []string) {
 	m.ID = types.StringValue(p.ID)
 	m.Site = types.StringValue(site)
@@ -930,7 +944,7 @@ func (r *portProfileResource) apiToModel(p *unifi.PortProfile, m *portProfileRes
 		native = *p.NativeNetworkID
 	}
 	m.NativeNetworkID = nonEmptyStringOrNull(p.NativeNetworkID)
-	m.TaggedVLANMgmt = types.StringValue(stringOr(p.TaggedVLANMgmt, portProfileDefaultTaggedVLANMgmt))
+	m.TaggedVLANMgmt = types.StringValue(unifi.TaggedVLANModeFromAPI(p.TaggedVLANMgmt))
 	switch {
 	case m.TaggedVLANMgmt.ValueString() != "custom":
 		m.TaggedNetworkIDs = types.SetNull(types.StringType)
@@ -991,7 +1005,7 @@ func (r *portProfileResource) apiToModel(p *unifi.PortProfile, m *portProfileRes
 	m.PortSecurityMACAddresses = stringSetValue(p.PortSecurityMACAddress)
 	m.Dot1XCtrl = types.StringValue(stringOr(p.Dot1XCtrl, portProfileDefaultDot1XCtrl))
 
-	scType := stringOr(p.StormctrlType, portProfileDefaultStormControlType)
+	scType := unifi.StormControlTypeFromAPI(p.StormctrlType)
 	sc := &portProfileStormControlModel{
 		Type:      types.StringValue(scType),
 		Broadcast: stormControlClassToModel(scType, p.StormctrlBcastEnabled, p.StormctrlBcastLevel, p.StormctrlBcastRate),

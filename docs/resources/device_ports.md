@@ -103,6 +103,8 @@ ports = {
 - **Without `name`**, the port shows the controller's default name (`Port N`).
 - **Removing a port from `ports`**, or destroying the resource, clears its current port override and restores controller defaults. Unlisted ports are untouched. This does not factory-reset or unadopt the device.
 
+Removing the resource with `terraform state rm` only stops tracking it; it does not change any port settings.
+
 A profile can't be deleted while a port still uses it; the controller refuses. Because `port_profile_id` references the profile, Terraform removes the assignment before it deletes the profile, so `terraform destroy` works as expected.
 
 On a gateway, inline VLAN settings and port profiles only apply to LAN ports. Assigning a profile to a WAN port (set under the gateway's WAN settings) is an error, because the controller strips the profile when a port becomes a WAN port.

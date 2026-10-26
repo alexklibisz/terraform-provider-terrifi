@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/alexklibisz/terrifi/internal/unifi"
 )
@@ -105,7 +106,7 @@ func (r *devicePortsResource) Schema(
 
 			"ports": schema.MapNestedAttribute{
 				MarkdownDescription: "The managed ports, keyed by port number (`\"1\"`, `\"2\"`, ...). " +
-					"Removing a port clears its current port override and restores controller defaults.",
+					"Removing a port from this map clears its current port override and restores controller defaults.",
 				Required: true,
 				Validators: []validator.Map{
 					mapvalidator.KeysAre(stringvalidator.RegexMatches(portKeyRE, "must be a port number such as \"1\"")),
@@ -377,10 +378,26 @@ func portsToModel(got map[int64]portWant, prior map[string]devicePortModel) map[
 }
 
 func (r *devicePortsResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var config devicePortsResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if !resp.Diagnostics.HasError() {
-		resp.Diagnostics.Append(validateDevicePortModels(config.Ports)...)
+	var ports types.Map
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("ports"), &ports)...)
+	if resp.Diagnostics.HasError() || ports.IsNull() || ports.IsUnknown() {
+		return
+	}
+	for key, value := range ports.Elements() {
+		object := value.(types.Object)
+		if object.IsUnknown() {
+			continue
+		}
+		if object.IsNull() {
+			resp.Diagnostics.AddAttributeError(path.Root("ports").AtMapKey(key), "Invalid Port Settings", "Port settings must be an object, not null.")
+			continue
+		}
+		var port devicePortModel
+		diags := object.As(ctx, &port, basetypes.ObjectAsOptions{})
+		resp.Diagnostics.Append(diags...)
+		if !diags.HasError() {
+			resp.Diagnostics.Append(validateDevicePortModels(map[string]devicePortModel{key: port})...)
+		}
 	}
 }
 
