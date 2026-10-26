@@ -26,7 +26,7 @@
 # 4. Run:
 #      terraform plan  -var switch_mac=aa:bb:cc:dd:ee:ff
 #      terraform apply -var switch_mac=aa:bb:cc:dd:ee:ff
-#      terraform destroy -var switch_mac=aa:bb:cc:dd:ee:ff # unassign and clean up
+#      terraform destroy -var switch_mac=aa:bb:cc:dd:ee:ff # restore defaults on managed ports and delete the profile
 terraform {
   required_providers {
     terrifi = {
@@ -55,7 +55,7 @@ resource "terrifi_network" "servers" {
 resource "terrifi_port_profile" "servers_access" {
   name              = "Access - Servers"
   native_network_id = terrifi_network.servers.id
-  tagged_vlan_mgmt  = "block_all"
+  tagged_vlan_mode  = "block_all"
 }
 
 # Only ports 7 and 8 are managed; every other port is left as it is.

@@ -10,20 +10,25 @@ import (
 )
 
 // DevicePortsBlocks generates import + resource blocks for device ports: one
-// block per device with at least one named or profiled port, listing those
-// ports (the same set the resource imports).
+// block per device with named, profiled, or inline VLAN ports, listing those
+// ports (the same set the resource imports). Unsupported ports appear only as
+// commented-out entries, including devices with no importable ports.
 func DevicePortsBlocks(devices []unifi.DevicePorts) []ResourceBlock {
 	var blocks []ResourceBlock
 	for _, d := range devices {
 		type port struct {
 			idx             int64
 			name, profileID string
+			native, mode    string
+			unsupported     string
 		}
 		var ports []port
 		for _, e := range d.PortOverrides {
 			idx, name, profileID, err := unifi.ParsePortOverride(e)
-			if err == nil && (name != "" || profileID != "") {
-				ports = append(ports, port{idx, name, profileID})
+			native, mode := unifi.PortVLANSettings(e)
+			unsupported := unifi.UnsupportedPortVLANReason(e)
+			if err == nil && (unsupported != "" || name != "" || profileID != "" || native != "") {
+				ports = append(ports, port{idx, name, profileID, native, mode, unsupported})
 			}
 		}
 		if len(ports) == 0 {
@@ -41,10 +46,28 @@ func DevicePortsBlocks(devices []unifi.DevicePorts) []ResourceBlock {
 			if p.profileID != "" {
 				fields = append(fields, "port_profile_id = "+HCLString(p.profileID))
 			}
-			fmt.Fprintf(&b, "    %q = { %s }\n", fmt.Sprint(p.idx), strings.Join(fields, ", "))
+			if p.native != "" {
+				fields = append(fields, "native_network_id = "+HCLString(p.native))
+				if p.mode != "" {
+					fields = append(fields, "tagged_vlan_mode = "+HCLString(p.mode))
+				}
+			}
+			prefix := "    "
+			if p.unsupported != "" {
+				fmt.Fprintf(&b, "    # Port %d excluded from import: %s.\n", p.idx, p.unsupported)
+				prefix += "# "
+			}
+			fmt.Fprintf(&b, "%s%q = { %s }\n", prefix, fmt.Sprint(p.idx), strings.Join(fields, ", "))
 		}
 		b.WriteString("  }")
 
+		comment := "TODO: reference the corresponding terrifi_port_profile resources"
+		for _, p := range ports {
+			if p.native != "" {
+				comment = "TODO: reference the corresponding terrifi_network and terrifi_port_profile resources"
+				break
+			}
+		}
 		name := d.Name
 		if name == "" {
 			name = d.MAC
@@ -55,9 +78,10 @@ func DevicePortsBlocks(devices []unifi.DevicePorts) []ResourceBlock {
 			ImportID:     d.MAC,
 			Attributes: []Attr{
 				{Key: "device_mac", Value: HCLString(d.MAC)},
-				{Key: "ports", Value: b.String(), Comment: "TODO: reference the corresponding terrifi_port_profile resources"},
+				{Key: "ports", Value: b.String(), Comment: comment},
 			},
 		})
 	}
+	DeduplicateNames(blocks)
 	return blocks
 }

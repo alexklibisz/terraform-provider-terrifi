@@ -94,7 +94,7 @@ func defaultPortProfileModel(name string) portProfileResourceModel {
 		Site:                     types.StringUnknown(),
 		Name:                     types.StringValue(name),
 		NativeNetworkID:          types.StringNull(),
-		TaggedVLANMgmt:           types.StringValue("auto"),
+		TaggedVLANMgmt:           types.StringValue("allow_all"),
 		TaggedNetworkIDs:         types.SetNull(types.StringType),
 		ExcludedNetworkIDs:       types.SetNull(types.StringType),
 		VoiceNetworkID:           types.StringNull(),
@@ -224,7 +224,7 @@ func TestPortProfileAPIToModel_StaleValuesIgnored(t *testing.T) {
 			StormctrlBcastRate:    ptrTo(int64(12345)),
 		})
 		require.NotNil(t, m.StormControl)
-		assert.Equal(t, "rate", m.StormControl.Type.ValueString())
+		assert.Equal(t, "packets_per_second", m.StormControl.Type.ValueString())
 		assert.Equal(t, int64(12345), m.StormControl.Broadcast.ValueInt64())
 		assert.True(t, m.StormControl.Multicast.IsNull())
 	})
@@ -368,7 +368,7 @@ func TestPortProfileModelToAPI_AllSettings(t *testing.T) {
 	m.PortSecurityMACAddresses = stringSet("00:00:5e:00:53:01")
 	m.Dot1XCtrl = types.StringValue("multi_host")
 	m.StormControl = &portProfileStormControlModel{
-		Type:      types.StringValue("rate"),
+		Type:      types.StringValue("packets_per_second"),
 		Broadcast: types.Int64Value(100),
 		Multicast: types.Int64Null(),
 		Unicast:   types.Int64Value(300),
@@ -506,13 +506,13 @@ func TestPortProfileRoundTrip(t *testing.T) {
 		},
 		"storm control level, one class": func(m *portProfileResourceModel) {
 			m.StormControl = &portProfileStormControlModel{
-				Type: types.StringValue("level"), Broadcast: types.Int64Value(37),
+				Type: types.StringValue("percentage"), Broadcast: types.Int64Value(37),
 				Multicast: types.Int64Null(), Unicast: types.Int64Null(),
 			}
 		},
 		"storm control rate, all classes": func(m *portProfileResourceModel) {
 			m.StormControl = &portProfileStormControlModel{
-				Type: types.StringValue("rate"), Broadcast: types.Int64Value(12345),
+				Type: types.StringValue("packets_per_second"), Broadcast: types.Int64Value(12345),
 				Multicast: types.Int64Value(14880000), Unicast: types.Int64Value(0),
 			}
 		},
@@ -582,7 +582,7 @@ func TestPortProfileApplyPlanToState(t *testing.T) {
 	state.EgressRateLimitKbps = types.Int64Value(1000)
 	state.LinkDebounceMs = types.Int64Value(1200)
 	state.StormControl = &portProfileStormControlModel{
-		Type: types.StringValue("level"), Broadcast: types.Int64Value(10),
+		Type: types.StringValue("percentage"), Broadcast: types.Int64Value(10),
 		Multicast: types.Int64Null(), Unicast: types.Int64Null(),
 	}
 
@@ -626,7 +626,7 @@ func TestValidatePortProfileModel(t *testing.T) {
 		{
 			name:    "speed with autoneg on",
 			mutate:  func(m *portProfileResourceModel) { m.Speed = types.Int64Value(1000) },
-			wantErr: "`speed` can only be set when `autoneg` is `false`",
+			wantErr: "`speed_mbps` can only be set when `auto_negotiation_enabled` is `false`",
 		},
 		{
 			name: "speed with autoneg null (defaults to on)",
@@ -634,17 +634,17 @@ func TestValidatePortProfileModel(t *testing.T) {
 				m.Autoneg = types.BoolNull()
 				m.Speed = types.Int64Value(1000)
 			},
-			wantErr: "`speed` can only be set when `autoneg` is `false`",
+			wantErr: "`speed_mbps` can only be set when `auto_negotiation_enabled` is `false`",
 		},
 		{
 			name:    "autoneg off without speed",
 			mutate:  func(m *portProfileResourceModel) { m.Autoneg = types.BoolValue(false) },
-			wantErr: "`speed` is required when `autoneg` is `false`",
+			wantErr: "`speed_mbps` is required when `auto_negotiation_enabled` is `false`",
 		},
 		{
 			name:    "full duplex with autoneg on",
 			mutate:  func(m *portProfileResourceModel) { m.FullDuplex = types.BoolValue(true) },
-			wantErr: "`full_duplex` can only be `true` when `autoneg` is `false`",
+			wantErr: "`full_duplex` can only be `true` when `auto_negotiation_enabled` is `false`",
 		},
 		{
 			name: "speed unknown is not validated yet",
@@ -671,7 +671,7 @@ func TestValidatePortProfileModel(t *testing.T) {
 		{
 			name:    "custom with empty tagged list",
 			mutate:  func(m *portProfileResourceModel) { custom(m); m.TaggedNetworkIDs = stringSet() },
-			wantErr: "`tagged_network_ids` can't be empty: use `tagged_vlan_mgmt = \"block_all\"`",
+			wantErr: "`tagged_network_ids` can't be empty: use `tagged_vlan_mode = \"block_all\"`",
 		},
 		{
 			name: "custom with both",
@@ -685,12 +685,12 @@ func TestValidatePortProfileModel(t *testing.T) {
 		{
 			name:    "tagged list without custom",
 			mutate:  func(m *portProfileResourceModel) { m.TaggedNetworkIDs = stringSet(testNetB) },
-			wantErr: "can only be set when `tagged_vlan_mgmt` is `custom`",
+			wantErr: "can only be set when `tagged_vlan_mode` is `custom`",
 		},
 		{
 			name:    "excluded list without custom",
 			mutate:  func(m *portProfileResourceModel) { m.ExcludedNetworkIDs = stringSet(testNetB) },
-			wantErr: "can only be set when `tagged_vlan_mgmt` is `custom`",
+			wantErr: "can only be set when `tagged_vlan_mode` is `custom`",
 		},
 		{
 			name:    "native also tagged",
@@ -744,7 +744,7 @@ func TestValidatePortProfileModel(t *testing.T) {
 				m.TaggedVLANMgmt = types.StringValue("block_all")
 				m.VoiceNetworkID = types.StringValue(testNetB)
 			},
-			wantErr: "can't be set when `tagged_vlan_mgmt` is `block_all`",
+			wantErr: "can't be set when `tagged_vlan_mode` is `block_all`",
 		},
 		{
 			name: "voice without LLDP-MED",
@@ -793,13 +793,13 @@ func TestValidatePortProfileModel(t *testing.T) {
 		{
 			name: "storm control rate above 100 is fine",
 			mutate: func(m *portProfileResourceModel) {
-				m.StormControl = storm(types.StringValue("rate"), types.Int64Value(12345), types.Int64Null(), types.Int64Null())
+				m.StormControl = storm(types.StringValue("packets_per_second"), types.Int64Value(12345), types.Int64Null(), types.Int64Null())
 			},
 		},
 		{
 			name: "storm control rate above max",
 			mutate: func(m *portProfileResourceModel) {
-				m.StormControl = storm(types.StringValue("rate"), types.Int64Null(), types.Int64Value(14880001), types.Int64Null())
+				m.StormControl = storm(types.StringValue("packets_per_second"), types.Int64Null(), types.Int64Value(14880001), types.Int64Null())
 			},
 			wantErr: "`multicast` must be between 0 and 14880000",
 		},
@@ -1136,7 +1136,7 @@ func TestSettleFreshTaggedNetworks_SkippedOutsideTaggedList(t *testing.T) {
 		setup func(m *portProfileResourceModel)
 	}{
 		{"allow all", func(m *portProfileResourceModel) {
-			m.TaggedVLANMgmt = types.StringValue("auto")
+			m.TaggedVLANMgmt = types.StringValue("allow_all")
 			m.TaggedNetworkIDs = types.SetNull(types.StringType)
 		}},
 		{"excluded list", func(m *portProfileResourceModel) {
@@ -1160,14 +1160,27 @@ func TestSettleFreshTaggedNetworks_SkippedOutsideTaggedList(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Acceptance tests
 //
-// These create, update and delete tfacc-* port profiles, and (in the tests
-// marked below) tfacc-* networks. No profile is ever assigned to a device
-// port, so they don't change how any physical port behaves. Creating a
-// network makes the controller add it to existing custom profiles'
-// exclude lists.
+// Coverage: controller-side persistence and Terraform lifecycle only, on both
+// Docker and hardware targets. These tests create, update, import and delete
+// tfacc-* profiles and networks, but never assign a profile to a physical port.
+// A passing test proves the controller stores and returns the settings, not
+// that a switch enforces VLAN filtering, PoE, STP, rate limits or 802.1X.
+//
+// Creating a network makes the controller add it to existing custom profiles'
+// exclude lists, which is also checked here.
+//
+// TODO: Add enforcement tests with a profile-capable switch and connected test
+// endpoints. The HIL Flex Mini cannot exercise custom-profile assignments.
 // ---------------------------------------------------------------------------
 
 const testAccPortProfileAddr = "terrifi_port_profile.test"
+
+// preCheckPortProfile makes the scope visible in verbose acceptance-test logs.
+func preCheckPortProfile(t *testing.T) {
+	t.Helper()
+	preCheck(t)
+	t.Log("Coverage: controller profile persistence and Terraform lifecycle; no physical port assignments or switch enforcement checks")
+}
 
 // testAccPortProfileNetworks returns HCL for n throwaway corporate networks,
 // terrifi_network.pp0 .. pp<n-1>, one block each. VLANs are random, so a test
@@ -1306,18 +1319,18 @@ func testAccPortProfileIDs(s *terraform.State) (site, id string, err error) {
 func portProfileDefaultsChecks() resource.TestCheckFunc {
 	return resource.ComposeAggregateTestCheckFunc(
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "native_network_id"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mgmt", "auto"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "allow_all"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "tagged_network_ids"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "voice_network_id"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "auto"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "true"),
-		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "speed"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "auto_negotiation_enabled", "true"),
+		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "speed_mbps"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "egress_rate_limit_kbps"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "flow_control_enabled", "true"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "ptp_enabled", "true"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "isolation", "false"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_isolation_enabled", "false"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_enabled", "true"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_uplink", "false"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "bpdu_guard_enabled", "false"),
@@ -1327,7 +1340,7 @@ func portProfileDefaultsChecks() resource.TestCheckFunc {
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "link_debounce_ms"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_security_enabled", "false"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_security_mac_addresses.#", "0"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "dot1x_ctrl", "force_authorized"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "dot1x_control", "force_authorized"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control"),
 	)
 }
@@ -1344,7 +1357,7 @@ resource "terrifi_port_profile" "test" {
 func TestAccPortProfile_basic(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-basic-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1384,18 +1397,18 @@ func TestAccPortProfile_basic(t *testing.T) {
 func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-all-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccPortProfileConfig(name, `
   poe_mode                    = "off"
-  autoneg                     = false
-  speed                       = 100
+  auto_negotiation_enabled                     = false
+  speed_mbps                       = 100
   full_duplex                 = true
   egress_rate_limit_kbps      = 10000
-  isolation                   = true
+  port_isolation_enabled                   = true
   stp_enabled                 = false
   stp_uplink                  = true
   bpdu_guard_enabled          = true
@@ -1403,21 +1416,21 @@ func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
   lldpmed_enabled             = false
   port_security_enabled       = true
   port_security_mac_addresses = ["00:00:5e:00:53:01", "00:00:5e:00:53:02"]
-  dot1x_ctrl                  = "multi_host"
+  dot1x_control                  = "multi_host"
   storm_control = {
-    type      = "level"
+    type      = "percentage"
     broadcast = 20
     multicast = 30
-    unicast   = 40
+    unknown_unicast   = 40
   }
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "off"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "false"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "100"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "auto_negotiation_enabled", "false"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed_mbps", "100"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "true"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "egress_rate_limit_kbps", "10000"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "isolation", "true"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_isolation_enabled", "true"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_enabled", "false"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_uplink", "true"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "bpdu_guard_enabled", "true"),
@@ -1426,11 +1439,11 @@ func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_security_enabled", "true"),
 					resource.TestCheckTypeSetElemAttr(testAccPortProfileAddr, "port_security_mac_addresses.*", "00:00:5e:00:53:01"),
 					resource.TestCheckTypeSetElemAttr(testAccPortProfileAddr, "port_security_mac_addresses.*", "00:00:5e:00:53:02"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "dot1x_ctrl", "multi_host"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "level"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "dot1x_control", "multi_host"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "percentage"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.broadcast", "20"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.multicast", "30"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.unicast", "40"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.unknown_unicast", "40"),
 				),
 			},
 			{
@@ -1448,14 +1461,14 @@ func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 				Config: testAccPortProfileConfig(name, `
   poe_mode               = "off"
   egress_rate_limit_kbps = 64
-  storm_control          = { unicast = 100 }
+  storm_control          = { unknown_unicast = 100 }
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "off"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "egress_rate_limit_kbps", "64"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "level"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "percentage"),
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.broadcast"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.unicast", "100"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.unknown_unicast", "100"),
 				),
 			},
 		},
@@ -1468,48 +1481,48 @@ func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 func TestAccPortProfile_linkSettings(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-link-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccPortProfileConfig(name, `
-  autoneg = false
-  speed   = 100
+  auto_negotiation_enabled = false
+  speed_mbps   = 100
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "false"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "100"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "auto_negotiation_enabled", "false"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed_mbps", "100"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
 				),
 			},
 			{
 				Config: testAccPortProfileConfig(name, `
-  autoneg     = false
-  speed       = 1000
+  auto_negotiation_enabled     = false
+  speed_mbps       = 1000
   full_duplex = true
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "1000"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed_mbps", "1000"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "true"),
 				),
 			},
 			{
 				Config: testAccPortProfileConfig(name, ""),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "true"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "speed"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "auto_negotiation_enabled", "true"),
+					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "speed_mbps"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
 				),
 			},
 			// Fixed again, to a value different from the stale one, half duplex.
 			{
 				Config: testAccPortProfileConfig(name, `
-  autoneg = false
-  speed   = 10
+  auto_negotiation_enabled = false
+  speed_mbps   = 10
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "10"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed_mbps", "10"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
 				),
 			},
@@ -1520,7 +1533,8 @@ func TestAccPortProfile_linkSettings(t *testing.T) {
 // TestAccPortProfile_newerSettings covers settings the Docker test controller
 // (Network Application 10.3.58) doesn't store: it drops eee_enabled,
 // flow_control_enabled, precision_time_protocol_enabled and link debounce on
-// write. UniFi OS 5.1 / Network 10.x stores them, so this runs on hardware only.
+// write. UniFi OS 5.1 / Network 10.x stores them, so this uses the hardware
+// target's controller. It still tests persistence, not device enforcement.
 func TestAccPortProfile_newerSettings(t *testing.T) {
 	if os.Getenv("TERRIFI_ACC_TARGET") != "hardware" {
 		t.Skip("the Docker controller doesn't store these settings (TERRIFI_ACC_TARGET=hardware)")
@@ -1533,7 +1547,7 @@ func TestAccPortProfile_newerSettings(t *testing.T) {
 		return resource.TestCheckResourceAttr(testAccPortProfileAddr, k, v)
 	}
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1556,7 +1570,7 @@ func TestAccPortProfile_newerSettings(t *testing.T) {
 func TestAccPortProfile_stormControl(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-storm-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1565,23 +1579,23 @@ func TestAccPortProfile_stormControl(t *testing.T) {
   storm_control = { broadcast = 37 }
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "level"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "percentage"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.broadcast", "37"),
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.multicast"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.unicast"),
+					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.unknown_unicast"),
 				),
 			},
 			// Switch to rate: the old level value must not leak into the rate.
 			{
 				Config: testAccPortProfileConfig(name, `
   storm_control = {
-    type      = "rate"
+    type      = "packets_per_second"
     broadcast = 12345
     multicast = 6000
   }
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "rate"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "packets_per_second"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.broadcast", "12345"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.multicast", "6000"),
 				),
@@ -1590,7 +1604,7 @@ func TestAccPortProfile_stormControl(t *testing.T) {
 			{
 				Config: testAccPortProfileConfig(name, `
   storm_control = {
-    type      = "rate"
+    type      = "packets_per_second"
     multicast = 6000
   }
 `),
@@ -1620,7 +1634,7 @@ func TestAccPortProfile_stormControl(t *testing.T) {
 func TestAccPortProfile_unmanagedFieldsPreserved(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-unmanaged-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1688,14 +1702,14 @@ func TestAccPortProfile_unmanagedFieldsPreserved(t *testing.T) {
 func TestAccPortProfile_importSiteID(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-impsid-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccPortProfileConfig(name, `
   poe_mode  = "off"
-  isolation = true
+  port_isolation_enabled = true
 `),
 			},
 			{
@@ -1717,7 +1731,7 @@ func TestAccPortProfile_disappears(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-gone-%s", randomSuffix())
 	var id, site string
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1764,7 +1778,7 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             resource.ComposeAggregateTestCheckFunc(testAccCheckPortProfileDestroyed, testAccCheckNoStaleExcludedIDs),
 		Steps: []resource.TestStep{
@@ -1772,12 +1786,12 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp0.id
-  tagged_vlan_mgmt   = "custom"
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [terrifi_network.pp1.id]
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "native_network_id", "terrifi_network.pp0", "id"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mgmt", "custom"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "custom"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "1"),
 					resource.TestCheckTypeSetElemAttrPair(testAccPortProfileAddr, "tagged_network_ids.*", "terrifi_network.pp1", "id"),
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
@@ -1787,7 +1801,7 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp0.id
-  tagged_vlan_mgmt   = "custom"
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [terrifi_network.pp1.id, terrifi_network.pp2.id]
   voice_network_id   = terrifi_network.pp2.id
 `),
@@ -1805,7 +1819,7 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp2.id
-  tagged_vlan_mgmt   = "custom"
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [terrifi_network.pp0.id]
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -1819,7 +1833,7 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 			{
 				Config: cfg(`
   native_network_id    = terrifi_network.pp2.id
-  tagged_vlan_mgmt     = "custom"
+  tagged_vlan_mode     = "custom"
   excluded_network_ids = [terrifi_network.pp0.id]
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -1832,10 +1846,10 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 			{
 				Config: cfg(`
   native_network_id = terrifi_network.pp1.id
-  tagged_vlan_mgmt  = "block_all"
+  tagged_vlan_mode  = "block_all"
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mgmt", "block_all"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "block_all"),
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "tagged_network_ids"),
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
 				),
@@ -1874,7 +1888,8 @@ func TestAccPortProfile_newNetworks(t *testing.T) {
 	profile := func(tagged string) string {
 		return testAccPortProfileConfig(name, `
   native_network_id  = terrifi_network.pp0.id
-  tagged_vlan_mgmt   = "custom"
+  voice_network_id   = terrifi_network.pp1.id
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [`+tagged+`]
 `)
 	}
@@ -1913,7 +1928,7 @@ func TestAccPortProfile_newNetworks(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             resource.ComposeAggregateTestCheckFunc(testAccCheckPortProfileDestroyed, testAccCheckNoStaleExcludedIDs),
 		Steps: []resource.TestStep{

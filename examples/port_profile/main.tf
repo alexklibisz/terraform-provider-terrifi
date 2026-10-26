@@ -64,7 +64,7 @@ resource "terrifi_network" "guest" {
 resource "terrifi_port_profile" "hypervisor_trunk" {
   name              = "Trunk - Hypervisor"
   native_network_id = terrifi_network.management.id
-  tagged_vlan_mgmt  = "custom"
+  tagged_vlan_mode  = "custom"
 
   tagged_network_ids = [
     terrifi_network.servers.id,
@@ -77,7 +77,7 @@ resource "terrifi_port_profile" "hypervisor_trunk" {
 resource "terrifi_port_profile" "guest_access" {
   name              = "Access - Guest"
   native_network_id = terrifi_network.guest.id
-  tagged_vlan_mgmt  = "block_all"
+  tagged_vlan_mode  = "block_all"
 
   storm_control = {
     broadcast = 20

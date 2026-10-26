@@ -81,3 +81,16 @@ func TestTaggedFromExcluded(t *testing.T) {
 		}
 	})
 }
+
+func TestPortProfilePublicModeTranslations(t *testing.T) {
+	for _, tc := range []struct{ public, wire string }{{"allow_all", "auto"}, {"block_all", "block_all"}, {"custom", "custom"}} {
+		assert.Equal(t, tc.wire, TaggedVLANModeToAPI(tc.public))
+		assert.Equal(t, tc.public, TaggedVLANModeFromAPI(tc.wire))
+	}
+	for _, tc := range []struct{ public, wire string }{{"percentage", "level"}, {"packets_per_second", "rate"}} {
+		assert.Equal(t, tc.wire, StormControlTypeToAPI(tc.public))
+		assert.Equal(t, tc.public, StormControlTypeFromAPI(tc.wire))
+	}
+	assert.Equal(t, "allow_all", TaggedVLANModeFromAPI(""))
+	assert.Equal(t, "percentage", StormControlTypeFromAPI(""))
+}

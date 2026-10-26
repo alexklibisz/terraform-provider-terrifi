@@ -77,7 +77,7 @@ func TestPortProfileBlocks_Trunk(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"name":               `"Trunk - Example"`,
 		"native_network_id":  `"net-a"`,
-		"tagged_vlan_mgmt":   `"custom"`,
+		"tagged_vlan_mode":   `"custom"`,
 		"tagged_network_ids": `["net-c"]`,
 		"poe_mode":           `"off"`,
 	}, attrs)
@@ -115,13 +115,13 @@ func TestPortProfileBlocks_NonDefaults(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"name":                        `"Everything"`,
 		"voice_network_id":            `"net-b"`,
-		"autoneg":                     "false",
-		"speed":                       "100",
+		"auto_negotiation_enabled":    "false",
+		"speed_mbps":                  "100",
 		"full_duplex":                 "true",
 		"egress_rate_limit_kbps":      "5000",
 		"flow_control_enabled":        "false",
 		"ptp_enabled":                 "false",
-		"isolation":                   "true",
+		"port_isolation_enabled":      "true",
 		"stp_enabled":                 "false",
 		"stp_uplink":                  "true",
 		"bpdu_guard_enabled":          "true",
@@ -130,8 +130,8 @@ func TestPortProfileBlocks_NonDefaults(t *testing.T) {
 		"link_debounce_ms":            "1200",
 		"port_security_enabled":       "true",
 		"port_security_mac_addresses": `["00:00:5e:00:53:01"]`,
-		"dot1x_ctrl":                  `"multi_host"`,
-		"storm_control":               `{ type = "rate", broadcast = 12345, unicast = 2000 }`,
+		"dot1x_control":               `"multi_host"`,
+		"storm_control":               `{ type = "packets_per_second", broadcast = 12345, unknown_unicast = 2000 }`,
 	}, attrs)
 }
 
