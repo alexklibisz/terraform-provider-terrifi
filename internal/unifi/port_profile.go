@@ -5,8 +5,7 @@ import "fmt"
 // PortProfile mirrors the controller's representation of a switch port
 // profile at /api/s/{site}/rest/portconf. Only fields the provider manages are
 // typed; the controller returns more (qos_profile, multicast router settings,
-// dot1x_idle_timeout, lldpmed_notify_enabled, voice_networkconf_id, ...),
-// which are ignored on read
+// dot1x_idle_timeout, lldpmed_notify_enabled, ...), which are ignored on read
 // and preserved on update by a read-modify-write of the raw object (see
 // UpdatePortProfile).
 //
@@ -37,6 +36,7 @@ type PortProfile struct {
 	// The UI shows an allow-list of tagged networks but stores this
 	// deny-list: every LAN network except the tagged and native ones.
 	ExcludedNetworkIDs []string `json:"excluded_networkconf_ids"`
+	VoiceNetworkID     *string  `json:"voice_networkconf_id,omitempty"` // "" = none
 
 	// Link.
 	PoeMode    *string `json:"poe_mode,omitempty"` // auto|off (UI "Auto PoE")

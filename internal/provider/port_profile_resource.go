@@ -74,6 +74,7 @@ type portProfileResourceModel struct {
 	TaggedVLANMgmt     types.String `tfsdk:"tagged_vlan_mode"`
 	TaggedNetworkIDs   types.Set    `tfsdk:"tagged_network_ids"`
 	ExcludedNetworkIDs types.Set    `tfsdk:"excluded_network_ids"`
+	VoiceNetworkID     types.String `tfsdk:"voice_network_id"`
 
 	PoeMode    types.String `tfsdk:"poe_mode"`
 	Autoneg    types.Bool   `tfsdk:"auto_negotiation_enabled"`
@@ -206,6 +207,15 @@ func (r *portProfileResource) Schema(
 					"allowing tagged traffic from that network after apply.",
 				Optional:    true,
 				ElementType: types.StringType,
+			},
+
+			"voice_network_id": schema.StringAttribute{
+				MarkdownDescription: "The ID of the voice VLAN network, advertised over LLDP-MED. Requires " +
+					"`lldpmed_enabled`, and must be a network tagged on the port.",
+				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 
 			// Link.
@@ -363,18 +373,23 @@ func (r *portProfileResource) ValidateConfig(
 // values are validated again once known.
 func known(v attr.Value) bool { return !v.IsUnknown() }
 
-// setContains reports whether set definitely contains s. A known match is
-// conclusive even if other elements are unknown.
-func setContains(set types.Set, s string) bool {
+// setMembership distinguishes a definite match or absence from an unresolved
+// membership test. A known match is conclusive even if other elements are unknown.
+func setMembership(set types.Set, s string) (contains, known bool) {
 	if set.IsUnknown() {
-		return false
+		return false, false
 	}
+	known = true
 	for _, element := range set.Elements() {
-		if !element.IsUnknown() && !element.IsNull() && element.(types.String).ValueString() == s {
-			return true
+		if element.IsUnknown() {
+			known = false
+			continue
+		}
+		if !element.IsNull() && element.(types.String).ValueString() == s {
+			return true, true
 		}
 	}
-	return false
+	return false, known
 }
 
 // validatePortProfileModel holds the cross-attribute checks so they can be
@@ -426,15 +441,38 @@ func validatePortProfileModel(ctx context.Context, m *portProfileResourceModel) 
 
 		if known(m.NativeNetworkID) && !m.NativeNetworkID.IsNull() {
 			native := m.NativeNetworkID.ValueString()
-			if hasTagged && setContains(m.TaggedNetworkIDs, native) {
+			if contains, _ := setMembership(m.TaggedNetworkIDs, native); hasTagged && contains {
 				diags.AddAttributeError(path.Root("tagged_network_ids"), "Invalid Attribute Value",
 					"The native network can't also be tagged.")
 			}
-			if hasExcluded && setContains(m.ExcludedNetworkIDs, native) {
+			if contains, _ := setMembership(m.ExcludedNetworkIDs, native); hasExcluded && contains {
 				diags.AddAttributeError(path.Root("excluded_network_ids"), "Invalid Attribute Value",
 					"The native network can't be excluded.")
 			}
 		}
+
+		// Voice VLAN: must be tagged on the port, and needs LLDP-MED.
+		if known(m.VoiceNetworkID) && !m.VoiceNetworkID.IsNull() {
+			voice := m.VoiceNetworkID.ValueString()
+			tagged, membershipKnown := setMembership(m.TaggedNetworkIDs, voice)
+			excluded, _ := setMembership(m.ExcludedNetworkIDs, voice)
+			switch {
+			case mgmt == "block_all":
+				diags.AddAttributeError(path.Root("voice_network_id"), "Invalid Attribute Combination",
+					"A voice network can't be set when `tagged_vlan_mode` is `block_all`.")
+			case hasTagged && membershipKnown && !tagged:
+				diags.AddAttributeError(path.Root("voice_network_id"), "Invalid Attribute Value",
+					"The voice network must be one of `tagged_network_ids`.")
+			case hasExcluded && excluded:
+				diags.AddAttributeError(path.Root("voice_network_id"), "Invalid Attribute Value",
+					"The voice network can't be in `excluded_network_ids`.")
+			}
+		}
+	}
+	if known(m.VoiceNetworkID) && !m.VoiceNetworkID.IsNull() && known(m.LldpmedEnabled) &&
+		!m.LldpmedEnabled.IsNull() && !m.LldpmedEnabled.ValueBool() {
+		diags.AddAttributeError(path.Root("voice_network_id"), "Invalid Attribute Combination",
+			"A voice network requires `lldpmed_enabled`.")
 	}
 
 	// Link debounce: 0 (off) or 100–5000 in steps of 100 (custom).
@@ -802,6 +840,7 @@ func (r *portProfileResource) modelToAPI(ctx context.Context, m *portProfileReso
 		// The controller represents "none" as an empty string, so send ""
 		// rather than omitting the key; that clears a previously set value.
 		NativeNetworkID: ptrTo(m.NativeNetworkID.ValueString()),
+		VoiceNetworkID:  ptrTo(m.VoiceNetworkID.ValueString()),
 
 		PoeMode:    ptrTo(m.PoeMode.ValueString()),
 		Autoneg:    ptrTo(m.Autoneg.ValueBool()),
@@ -912,7 +951,8 @@ func stormControlClassToModel(scType string, enabled *bool, level, rate *int64) 
 // apiToModel converts the local PortProfile struct back to our Terraform
 // model. Fields missing from the controller response fall back to the UI
 // defaults, matching the schema defaults. Values the controller keeps but
-// ignores (speed and duplex under autoneg, disabled limits) are read as unset. lan is needed only when m uses
+// ignores (speed and duplex under autoneg, a voice network without LLDP-MED,
+// disabled limits) are read as unset. lan is needed only when m uses
 // tagged_network_ids with tagged_vlan_mode "custom".
 func (r *portProfileResource) apiToModel(p *unifi.PortProfile, m *portProfileResourceModel, site string, lan []string) {
 	m.ID = types.StringValue(p.ID)
@@ -938,6 +978,11 @@ func (r *portProfileResource) apiToModel(p *unifi.PortProfile, m *portProfileRes
 	}
 
 	m.LldpmedEnabled = types.BoolValue(boolOr(p.LldpmedEnabled, portProfileDefaultLldpmedEnabled))
+	if m.LldpmedEnabled.ValueBool() {
+		m.VoiceNetworkID = nonEmptyStringOrNull(p.VoiceNetworkID)
+	} else {
+		m.VoiceNetworkID = types.StringNull()
+	}
 
 	m.PoeMode = types.StringValue(portProfileDefaultPoeMode)
 	if p.PoeMode != nil && *p.PoeMode != "" {

@@ -46,6 +46,16 @@ resource "terrifi_port_profile" "iot_access" {
 }
 ```
 
+### Phone port with a voice VLAN
+
+```terraform
+resource "terrifi_port_profile" "desk_phone" {
+  name              = "Desk + Phone"
+  native_network_id = terrifi_network.office.id
+  voice_network_id  = terrifi_network.voice.id
+}
+```
+
 ### Fixed link speed, rate limiting and storm control
 
 ```terraform
@@ -92,6 +102,7 @@ VLANs:
 - `tagged_vlan_mode` (String) — Tagged VLAN management. `allow_all` (UI "Allow All") tags every network, `block_all` tags none, and `custom` tags the networks given by `tagged_network_ids` or `excluded_network_ids`. Default: `allow_all`.
 - `tagged_network_ids` (Set of String) — IDs of the networks tagged on the port, as selected in the UI. Only with `tagged_vlan_mode = "custom"`; conflicts with `excluded_network_ids`. Must not include the native network, and must not be empty (use `tagged_vlan_mode = "block_all"` to tag no networks; the controller rewrites an empty custom selection to `block_all`). See [tagged network configuration](#tagged-networks-tagged_network_ids-vs-excluded_network_ids).
 - `excluded_network_ids` (Set of String) — IDs of the networks **not** tagged on the port, exactly as the controller stores them. Only with `tagged_vlan_mode = "custom"`; conflicts with `tagged_network_ids`. Must not include the native network. Excluding every network is rewritten by the controller to `block_all`, which then shows as a planned change; use `block_all` instead.
+- `voice_network_id` (String) — The ID of the voice VLAN network, advertised over LLDP-MED. Requires `lldpmed_enabled`, and must be tagged on the port: any network with `allow_all`, one of `tagged_network_ids` (or not in `excluded_network_ids`) with `custom`, and not allowed with `block_all`.
 
 Link:
 
@@ -177,10 +188,6 @@ When a network is created, whether in the UI or through the API, the controller 
 - With `excluded_network_ids`, the new network appears in the stored list but not in your config, so the next plan removes it, and applying that tags the new network on the port. Add new networks to the list to keep them off the port.
 
 A network created in the same apply as a profile that tags it is still being processed when the profile is written, and the controller would exclude it from that profile too. To prevent this, when a profile tags a network created within the last minute, Terrifi waits a few seconds after writing the profile, checks it, and writes it again if the controller has excluded the network. Other applies aren't delayed.
-
-### Unmanaged settings
-
-Settings without an attribute, such as the voice VLAN, are not managed. Values set in the UI are kept when Terrifi updates the profile.
 
 ### Advanced settings
 

@@ -14,8 +14,8 @@ const networkIDComment = "TODO: reference the corresponding terrifi_network reso
 // VLAN selection as tagged_network_ids (as the UI shows it) rather than the
 // stored deny-list. Attributes equal to the resource's schema defaults are
 // omitted, and values the controller keeps but ignores (speed and duplex
-// under autoneg, disabled limits) are skipped, mirroring how the resource
-// reads them.
+// under autoneg, a voice network without LLDP-MED, disabled limits) are
+// skipped, mirroring how the resource reads them.
 func PortProfileBlocks(profiles []unifi.PortProfile, lanNetworkIDs []string) []ResourceBlock {
 	blocks := make([]ResourceBlock, 0, len(profiles))
 	for _, p := range profiles {
@@ -48,6 +48,10 @@ func PortProfileBlocks(profiles []unifi.PortProfile, lanNetworkIDs []string) []R
 		if p.TaggedVLANMgmt == "custom" {
 			tagged := unifi.TaggedFromExcluded(lanNetworkIDs, p.ExcludedNetworkIDs, native)
 			add("tagged_network_ids", HCLStringList(tagged), networkIDComment)
+		}
+		lldpmed := p.LldpmedEnabled == nil || *p.LldpmedEnabled
+		if lldpmed && p.VoiceNetworkID != nil && *p.VoiceNetworkID != "" {
+			add("voice_network_id", HCLString(*p.VoiceNetworkID), networkIDComment)
 		}
 
 		if p.PoeMode != nil && *p.PoeMode != "" && *p.PoeMode != "auto" {

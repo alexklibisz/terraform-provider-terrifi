@@ -97,6 +97,7 @@ func defaultPortProfileModel(name string) portProfileResourceModel {
 		TaggedVLANMgmt:           types.StringValue("allow_all"),
 		TaggedNetworkIDs:         types.SetNull(types.StringType),
 		ExcludedNetworkIDs:       types.SetNull(types.StringType),
+		VoiceNetworkID:           types.StringNull(),
 		PoeMode:                  types.StringValue("auto"),
 		Autoneg:                  types.BoolValue(true),
 		Speed:                    types.Int64Null(),
@@ -187,6 +188,12 @@ func TestPortProfileAPIToModel_StaleValuesIgnored(t *testing.T) {
 		m := read(&unifi.PortProfile{Autoneg: ptrTo(false), Speed: ptrTo(int64(100)), FullDuplex: ptrTo(true)})
 		assert.Equal(t, int64(100), m.Speed.ValueInt64())
 		assert.True(t, m.FullDuplex.ValueBool())
+	})
+
+	t.Run("voice network ignored while LLDP-MED is off", func(t *testing.T) {
+		m := read(&unifi.PortProfile{LldpmedEnabled: ptrTo(false), VoiceNetworkID: ptrTo(testNetA)})
+		assert.True(t, m.VoiceNetworkID.IsNull())
+		assert.False(t, m.LldpmedEnabled.ValueBool())
 	})
 
 	t.Run("egress kbps ignored while disabled", func(t *testing.T) {
@@ -313,6 +320,7 @@ func TestPortProfileModelToAPI_Defaults(t *testing.T) {
 		"native_networkconf_id":           "",
 		"tagged_vlan_mgmt":                "auto",
 		"excluded_networkconf_ids":        []any{},
+		"voice_networkconf_id":            "",
 		"poe_mode":                        "auto",
 		"autoneg":                         true,
 		"full_duplex":                     false,
@@ -341,6 +349,7 @@ func TestPortProfileModelToAPI_AllSettings(t *testing.T) {
 	m.NativeNetworkID = types.StringValue(testNetA)
 	m.TaggedVLANMgmt = types.StringValue("custom")
 	m.TaggedNetworkIDs = stringSet(testNetC)
+	m.VoiceNetworkID = types.StringValue(testNetC)
 	m.PoeMode = types.StringValue("off")
 	m.Autoneg = types.BoolValue(false)
 	m.Speed = types.Int64Value(1000)
@@ -372,7 +381,7 @@ func TestPortProfileModelToAPI_AllSettings(t *testing.T) {
 	assert.Equal(t, "custom", wire["tagged_vlan_mgmt"])
 	assert.ElementsMatch(t, []any{testDefaultNetID, testNetB}, wire["excluded_networkconf_ids"],
 		"deny-list = LAN − tagged − native")
-	assert.NotContains(t, wire, "voice_networkconf_id", "voice VLANs are not managed")
+	assert.Equal(t, testNetC, wire["voice_networkconf_id"])
 	assert.Equal(t, "off", wire["poe_mode"])
 	assert.Equal(t, false, wire["autoneg"])
 	assert.Equal(t, float64(1000), wire["speed"])
@@ -462,6 +471,9 @@ func TestPortProfileRoundTrip(t *testing.T) {
 		"access port": func(m *portProfileResourceModel) {
 			m.NativeNetworkID = types.StringValue(testNetA)
 			m.TaggedVLANMgmt = types.StringValue("block_all")
+		},
+		"voice network": func(m *portProfileResourceModel) {
+			m.VoiceNetworkID = types.StringValue(testNetB)
 		},
 		"poe off": func(m *portProfileResourceModel) { m.PoeMode = types.StringValue("off") },
 		"fixed speed half duplex": func(m *portProfileResourceModel) {
@@ -559,22 +571,6 @@ func TestMergePortProfile(t *testing.T) {
 	assert.Equal(t, "new name", got["name"])
 	assert.Equal(t, "manual", got["setting_preference"])
 	assert.Equal(t, "", got["native_networkconf_id"])
-}
-
-// Voice VLANs are not managed. One set in the UI survives an update, as other
-// unmanaged settings do, rather than being cleared.
-func TestMergePortProfile_PreservesVoiceNetwork(t *testing.T) {
-	var existing map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal([]byte(uiDefaultPortProfileJSON), &existing))
-	existing["voice_networkconf_id"] = json.RawMessage(`"` + testNetB + `"`)
-
-	m := defaultPortProfileModel("phones")
-	m.TaggedVLANMgmt = types.StringValue("custom")
-	m.TaggedNetworkIDs = stringSet(testNetB)
-	merged, err := mergePortProfile(existing, mustModelToAPI(t, &m, testLANNetworks))
-	require.NoError(t, err)
-	assert.JSONEq(t, `"`+testNetB+`"`, string(merged["voice_networkconf_id"]))
-	assert.JSONEq(t, `"custom"`, string(merged["tagged_vlan_mgmt"]))
 }
 
 func TestPortProfileApplyPlanToState(t *testing.T) {
@@ -709,6 +705,54 @@ func TestValidatePortProfileModel(t *testing.T) {
 		{
 			name:   "tagged list unknown is not validated yet",
 			mutate: func(m *portProfileResourceModel) { custom(m); m.TaggedNetworkIDs = types.SetUnknown(types.StringType) },
+		},
+
+		// Voice VLAN.
+		{
+			name:   "voice with allow all",
+			mutate: func(m *portProfileResourceModel) { m.VoiceNetworkID = types.StringValue(testNetB) },
+		},
+		{
+			name: "voice in tagged list",
+			mutate: func(m *portProfileResourceModel) {
+				custom(m)
+				m.TaggedNetworkIDs = stringSet(testNetB)
+				m.VoiceNetworkID = types.StringValue(testNetB)
+			},
+		},
+		{
+			name: "voice not in tagged list",
+			mutate: func(m *portProfileResourceModel) {
+				custom(m)
+				m.TaggedNetworkIDs = stringSet(testNetB)
+				m.VoiceNetworkID = types.StringValue(testNetC)
+			},
+			wantErr: "The voice network must be one of `tagged_network_ids`",
+		},
+		{
+			name: "voice in excluded list",
+			mutate: func(m *portProfileResourceModel) {
+				custom(m)
+				m.ExcludedNetworkIDs = stringSet(testNetB)
+				m.VoiceNetworkID = types.StringValue(testNetB)
+			},
+			wantErr: "The voice network can't be in `excluded_network_ids`",
+		},
+		{
+			name: "voice with block all",
+			mutate: func(m *portProfileResourceModel) {
+				m.TaggedVLANMgmt = types.StringValue("block_all")
+				m.VoiceNetworkID = types.StringValue(testNetB)
+			},
+			wantErr: "can't be set when `tagged_vlan_mode` is `block_all`",
+		},
+		{
+			name: "voice without LLDP-MED",
+			mutate: func(m *portProfileResourceModel) {
+				m.LldpmedEnabled = types.BoolValue(false)
+				m.VoiceNetworkID = types.StringValue(testNetB)
+			},
+			wantErr: "A voice network requires `lldpmed_enabled`",
 		},
 
 		// Link debounce.
@@ -1278,6 +1322,7 @@ func portProfileDefaultsChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "allow_all"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "tagged_network_ids"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
+		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "voice_network_id"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "auto"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "auto_negotiation_enabled", "true"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "speed_mbps"),
@@ -1752,21 +1797,25 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
 				),
 			},
-			// Tag pp2 too.
+			// Tag pp2 too, with pp2 as the voice VLAN.
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp0.id
   tagged_vlan_mode   = "custom"
   tagged_network_ids = [terrifi_network.pp1.id, terrifi_network.pp2.id]
+  voice_network_id   = terrifi_network.pp2.id
 `),
-				Check: resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "2"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "2"),
+					resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "voice_network_id", "terrifi_network.pp2", "id"),
+				),
 			},
 			{
 				ResourceName:      testAccPortProfileAddr,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// Swap the native network and the tagged one.
+			// Swap the native network and the tagged one; voice VLAN removed.
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp2.id
@@ -1777,6 +1826,7 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 					resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "native_network_id", "terrifi_network.pp2", "id"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "1"),
 					resource.TestCheckTypeSetElemAttrPair(testAccPortProfileAddr, "tagged_network_ids.*", "terrifi_network.pp0", "id"),
+					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "voice_network_id"),
 				),
 			},
 			// The literal deny-list form.
@@ -1804,7 +1854,15 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
 				),
 			},
-			// Back to defaults: native network cleared.
+			// Allow all with a voice VLAN.
+			{
+				Config: cfg(`
+  native_network_id = terrifi_network.pp1.id
+  voice_network_id  = terrifi_network.pp0.id
+`),
+				Check: resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "voice_network_id", "terrifi_network.pp0", "id"),
+			},
+			// Back to defaults: native and voice network cleared.
 			{
 				Config: cfg(""),
 				Check:  portProfileDefaultsChecks(),
@@ -1830,6 +1888,7 @@ func TestAccPortProfile_newNetworks(t *testing.T) {
 	profile := func(tagged string) string {
 		return testAccPortProfileConfig(name, `
   native_network_id  = terrifi_network.pp0.id
+  voice_network_id   = terrifi_network.pp1.id
   tagged_vlan_mode   = "custom"
   tagged_network_ids = [`+tagged+`]
 `)
