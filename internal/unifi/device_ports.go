@@ -64,10 +64,11 @@ func PortVLANSettings(e map[string]json.RawMessage) (native, mode string) {
 func UnsupportedPortVLANReason(e map[string]json.RawMessage) string {
 	// Forwarding modes such as disabled cannot be represented by the schema,
 	// even when the VLAN fields themselves look supported. Inspect the raw
-	// field before profile handling can hide cached inline settings.
+	// field before profile handling can hide cached inline settings. customize
+	// can still represent a profile or explicit VLAN mode; inspect those below.
 	var forwardMode string
 	_ = json.Unmarshal(e["forward"], &forwardMode)
-	if forwardMode != "" && forwardMode != "all" && forwardMode != "native" {
+	if forwardMode != "" && forwardMode != "all" && forwardMode != "native" && forwardMode != "customize" {
 		return fmt.Sprintf("forward mode %q cannot be represented", forwardMode)
 	}
 	native, mode, forward := portVLANSettings(e)

@@ -78,6 +78,23 @@ func TestDevicePorts_InlineImportAndRefresh(t *testing.T) {
 	assert.Nil(t, want[4])
 }
 
+// Controller responses may use customize for representable inline settings or
+// profile assignments. Both import and subsequent refresh must retain them.
+func TestDevicePorts_CustomizeImportAndRefresh(t *testing.T) {
+	overrides := overridesJSON(t, `[{
+		"port_idx":2,"forward":"customize","native_networkconf_id":"network","tagged_vlan_mgmt":"auto"
+	},{"port_idx":4,"forward":"customize","portconf_id":"profile"}]`)
+	filtered, diags := importableDevicePortOverrides(overrides)
+	require.Empty(t, diags)
+	imported := portsToModel(portsFromOverrides(filtered), nil)
+	require.Len(t, imported, 2)
+	assert.Equal(t, types.StringValue("network"), imported["2"].NativeNetworkID)
+	assert.Equal(t, types.StringValue("allow_all"), imported["2"].TaggedVLANMode)
+	assert.Equal(t, types.StringValue("profile"), imported["4"].PortProfileID)
+	refreshed := portsToModel(portsFromOverrides(overrides), imported)
+	assert.Equal(t, imported, refreshed, "refresh must not clear representable VLAN settings")
+}
+
 // Runs only on explicitly designated spare ports on hardware. Exercises access
 // VLAN changes, import, drift correction, reset of one port, and full destroy.
 func TestAccDevicePorts_inlineLifecycle(t *testing.T) {
