@@ -94,3 +94,19 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 4. Create `internal/generate/<name>.go` with a `<Name>Blocks()` function for import generation
 5. Add the resource type to `cmd/terrifi/generate_imports.go` (`validResourceTypes` slice and switch statement)
 6. Add docs in `docs/resources/` and examples in `examples/`
+
+## Merging Pull Requests
+
+PRs are squash-merged. Never use GitHub's default squash message, which concatenates every branch commit into a bullet list. Write the message explicitly:
+
+- **Subject:** the PR title followed by the PR number, e.g. `Add switch port profiles and device port assignments (#183)`.
+- **Body:** one short paragraph (1–3 sentences) summarizing what the PR changes and why, written for someone reading `git log` on `main`. Do not list the branch commits, review fixes, or intermediate steps.
+- **Trailers:** keep a `Co-authored-by:` line for every co-author of the branch commits. GitHub only adds them automatically to its default message.
+
+```sh
+gh pr merge 183 --squash \
+  --subject "Add switch port profiles and device port assignments (#183)" \
+  --body "Add terrifi_port_profile and terrifi_device_ports, including local UniFi API contracts, import generation, documentation, and lifecycle tests.
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>"
+```
