@@ -103,7 +103,8 @@ PRs are squash-merged. Never use GitHub's default squash message, which concaten
 
 - **Subject:** the PR title followed by the PR number, e.g. `Add switch port profiles and device port assignments (#183)`.
 - **Body:** one short paragraph (1–3 sentences) summarizing what the PR changes and why, written for someone reading `git log` on `main`. Do not list the branch commits, review fixes, or intermediate steps.
-- **Trailers:** keep a `Co-authored-by:` line for every co-author of the branch commits. GitHub only adds them automatically to its default message.
+- **Trailers:** keep a `Co-authored-by:` line for every co-author of the branch commits except the person merging (GitHub may add one for the merger's other email address). GitHub only adds them automatically to its default message.
+- **No separator:** do not add the `---------` line that the GitHub web UI puts before the trailers. Separate the body and the trailers with one blank line.
 
 ```sh
 gh pr merge 183 --squash \
