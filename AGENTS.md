@@ -95,7 +95,9 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 5. Add the resource type to `cmd/terrifi/generate_imports.go` (`validResourceTypes` slice and switch statement)
 6. Add docs in `docs/resources/` and examples in `examples/`
 
-## Merging Pull Requests
+## Git Workflow
+
+### Merging Pull Requests
 
 PRs are squash-merged. Never use GitHub's default squash message, which concatenates every branch commit into a bullet list. Write the message explicitly:
 
