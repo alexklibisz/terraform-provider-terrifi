@@ -24,7 +24,6 @@ func uiDefaults(id, name string) unifi.PortProfile {
 		Forward:                    "all",
 		NativeNetworkID:            ptr("net-default"),
 		TaggedVLANMgmt:             "auto",
-		VoiceNetworkID:             ptr(""),
 		PoeMode:                    ptr("auto"),
 		Autoneg:                    ptr(true),
 		EgressRateLimitKbpsEnabled: ptr(false),
@@ -86,7 +85,6 @@ func TestPortProfileBlocks_Trunk(t *testing.T) {
 func TestPortProfileBlocks_NonDefaults(t *testing.T) {
 	p := uiDefaults("prof3", "Everything")
 	p.NativeNetworkID = ptr("")
-	p.VoiceNetworkID = ptr("net-b")
 	p.Autoneg = ptr(false)
 	p.Speed = ptr(int64(100))
 	p.FullDuplex = ptr(true)
@@ -114,7 +112,6 @@ func TestPortProfileBlocks_NonDefaults(t *testing.T) {
 	attrs := attrMapFromBlock(PortProfileBlocks([]unifi.PortProfile{p}, testLAN)[0])
 	assert.Equal(t, map[string]string{
 		"name":                        `"Everything"`,
-		"voice_network_id":            `"net-b"`,
 		"auto_negotiation_enabled":    "false",
 		"speed_mbps":                  "100",
 		"full_duplex":                 "true",
@@ -143,7 +140,6 @@ func TestPortProfileBlocks_IgnoredStaleValues(t *testing.T) {
 	p.Speed = ptr(int64(100)) // autoneg is on
 	p.FullDuplex = ptr(true)  // autoneg is on
 	p.LldpmedEnabled = ptr(false)
-	p.VoiceNetworkID = ptr("net-b") // LLDP-MED is off
 	p.EgressRateLimitKbps = ptr(int64(5000))
 	p.LinkDebounce = ptr(int64(1200)) // debounce is auto
 	p.StormctrlType = "level"

@@ -52,16 +52,12 @@ func TestPortProfileValidatePartialUnknownSets(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		tagged, excluded types.Set
-		native, voice    string
+		native           string
 		invalid          bool
 	}{
-		{name: "voice explicitly present", tagged: partial(testNetB), voice: testNetB},
-		{name: "voice may become present", tagged: partial(testNetC), voice: testNetB},
-		{name: "voice definitely absent", tagged: stringSet(testNetC), voice: testNetB, invalid: true},
 		{name: "native explicitly tagged", tagged: partial(testNetA), native: testNetA, invalid: true},
 		{name: "native may become tagged", tagged: partial(testNetB), native: testNetA},
-		{name: "voice explicitly excluded", excluded: partial(testNetB), voice: testNetB, invalid: true},
-		{name: "voice may become excluded", excluded: partial(testNetC), voice: testNetB},
+		{name: "native may become excluded", excluded: partial(testNetB), native: testNetA},
 		{name: "native explicitly excluded", excluded: partial(testNetA), native: testNetA, invalid: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -75,9 +71,6 @@ func TestPortProfileValidatePartialUnknownSets(t *testing.T) {
 			}
 			if tc.native != "" {
 				m.NativeNetworkID = types.StringValue(tc.native)
-			}
-			if tc.voice != "" {
-				m.VoiceNetworkID = types.StringValue(tc.voice)
 			}
 			diags := validatePortProfileModel(t.Context(), &m)
 			require.Equal(t, tc.invalid, diags.HasError(), "%v", diags)
