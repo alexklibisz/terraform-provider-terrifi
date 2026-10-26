@@ -1128,8 +1128,8 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 				TimeRangeStart: "09:00",
 				TimeRangeEnd:   "12:00",
 				RepeatOnDays:   []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
-				DateStart:      "2030-01-01",
-				DateEnd:        "2030-12-31",
+				DateStart: "2030-01-01",
+				DateEnd:   "2030-12-31",
 			},
 		}, &model, "default")
 
@@ -1401,8 +1401,8 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 			"time_range_start": types.StringValue("09:00"),
 			"time_range_end":   types.StringValue("12:00"),
 			"repeat_on_days":   types.SetNull(types.StringType),
-			"date_start":       types.StringNull(),
-			"date_end":         types.StringNull(),
+			"date_start": types.StringNull(),
+			"date_end":   types.StringNull(),
 		})
 		state := &firewallPolicyResourceModel{
 			Name:     types.StringValue("Scheduled Policy"),
