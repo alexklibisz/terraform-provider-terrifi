@@ -320,10 +320,11 @@ func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPoli
 // "network_ids" field back into a single slice so the resource layer can handle
 // all target types uniformly via the IPs field on the SDK struct.
 func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
-	if ep.MatchingTarget == "NETWORK" && len(ep.NetworkIDs) > 0 {
-		return ep.NetworkIDs
-	}
 	switch ep.MatchingTarget {
+	case "NETWORK":
+		if len(ep.NetworkIDs) > 0 {
+			return ep.NetworkIDs
+		}
 	case "IID", "MAC", "CLIENT":
 		if len(ep.MACs) > 0 {
 			return ep.MACs
@@ -338,9 +339,11 @@ func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 // resolveMatchOpposite returns the invert flag for the endpoint's values. The
 // API stores it as match_opposite_networks for NETWORK targets and as
 // match_opposite_ips otherwise; the SDK struct only has MatchOppositeIPs.
+// The request side only sends the flag that belongs to the target, so a stale
+// match_opposite_ips on a NETWORK endpoint is ignored rather than read back.
 func (ep *firewallPolicyEndpointResponse) resolveMatchOpposite() bool {
 	if ep.MatchingTarget == "NETWORK" {
-		return ep.MatchOppositeNetworks || ep.MatchOppositeIPs
+		return ep.MatchOppositeNetworks
 	}
 	return ep.MatchOppositeIPs
 }

@@ -164,7 +164,7 @@ func (r *firewallPolicyResource) Schema(
 			Optional:            true,
 		},
 		"match_opposite_ips": schema.BoolAttribute{
-			MarkdownDescription: "Inverts IP matching. When `true` and action is `ALLOW`, all IPs except the specified ones are allowed. When `true` and action is `BLOCK`, all IPs except the specified ones are blocked.",
+			MarkdownDescription: "Inverts the match on `ips` or `network_ids`. When `true` and action is `ALLOW`, everything except the specified IPs or networks is allowed. When `true` and action is `BLOCK`, everything except the specified IPs or networks is blocked.",
 			Optional:            true,
 		},
 	}

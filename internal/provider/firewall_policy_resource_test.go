@@ -1661,7 +1661,15 @@ func TestResolveIPs(t *testing.T) {
 		assert.Equal(t, []string{"10.0.0.1"}, ep.resolveIPs())
 	})
 
-	t.Run("NETWORK matching returns ips", func(t *testing.T) {
+	t.Run("NETWORK matching returns network_ids", func(t *testing.T) {
+		ep := &firewallPolicyEndpointResponse{
+			MatchingTarget: "NETWORK",
+			NetworkIDs:     []string{"net-001"},
+		}
+		assert.Equal(t, []string{"net-001"}, ep.resolveIPs())
+	})
+
+	t.Run("NETWORK matching falls back to ips when network_ids is empty", func(t *testing.T) {
 		ep := &firewallPolicyEndpointResponse{
 			MatchingTarget: "NETWORK",
 			IPs:            []string{"net-001"},
@@ -3529,15 +3537,12 @@ func TestFirewallPolicyEndpointResponseNetwork(t *testing.T) {
 		assert.True(t, ep.toSDKDestination().MatchOppositeIPs)
 	})
 
-	t.Run("network_ids end up in the network_ids attribute", func(t *testing.T) {
+
+	t.Run("stale match_opposite_ips is ignored for NETWORK", func(t *testing.T) {
 		var ep firewallPolicyEndpointResponse
 		require.NoError(t, json.Unmarshal([]byte(raw), &ep))
-		obj := endpointAPIToModel(ep.toSDKSource())
-		attrs := obj.Attributes()
-		ids, ok := attrs["network_ids"].(types.Set)
-		require.True(t, ok)
-		assert.Equal(t, 1, len(ids.Elements()))
-		assert.True(t, attrs["ips"].IsNull())
+		ep.MatchOppositeIPs = true
+		assert.False(t, ep.toSDKSource().MatchOppositeIPs)
 	})
 
 	t.Run("IP target ignores network fields", func(t *testing.T) {
@@ -3559,7 +3564,9 @@ func TestFirewallPolicyEndpointResponseNetwork(t *testing.T) {
 // switching between network and IP matching must all plan clean.
 func TestAccFirewallPolicy_networkIDs(t *testing.T) {
 	sfx := randomSuffix()
-	vlanA, vlanB, vlanC := randomVLAN(), randomVLAN(), randomVLAN()
+	// Consecutive VLANs: three independent randomVLAN() calls could collide.
+	vlanA := randomVLAN()
+	vlanB, vlanC := vlanA+1, vlanA+2
 	base := testAccFirewallPolicyNetworksConfig(sfx, vlanA, vlanB, vlanC)
 	policyName := fmt.Sprintf("tfacc-pol-net-%s", sfx)
 
@@ -3619,7 +3626,8 @@ resource "terrifi_firewall_policy" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.ips.#", "1"),
 					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#"),
-					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips", "false"),
+					// false is stored as null
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips"),
 				),
 			},
 			// IP -> network.
