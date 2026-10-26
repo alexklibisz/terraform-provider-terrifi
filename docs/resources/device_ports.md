@@ -101,12 +101,18 @@ ports = {
 - **With `native_network_id` and `tagged_vlan_mode`**, the port is configured directly. `block_all` permits only the native network; `allow_all` also permits tagged VLAN traffic. Both attributes must be set together and conflict with `port_profile_id`. Other inline settings are preserved.
 - **With a name alone**, any profile is removed and existing inline settings are preserved. Removing previously managed inline VLAN attributes restores the default VLAN configuration.
 - **Without `name`**, the port shows the controller's default name (`Port N`).
-- **Removing a port from `ports`**, or destroying the resource, clears its current port override and restores controller defaults. Unlisted ports are untouched. This does not factory-reset or unadopt the device.
-
-Removing the resource with `terraform state rm` only stops tracking it; it does not change any port settings.
-
-A profile can't be deleted while a port still uses it; the controller refuses. Because `port_profile_id` references the profile, Terraform removes the assignment before it deletes the profile, so `terraform destroy` works as expected.
+- **Removing a port from `ports`**, or destroying the resource, deletes its entire port override. See [port ownership and removal](#port-ownership-and-removal).
 
 On a gateway, inline VLAN settings and port profiles only apply to LAN ports. Assigning a profile to a WAN port (set under the gateway's WAN settings) is an error, because the controller strips the profile when a port becomes a WAN port.
 
 Each change re-provisions the device. On the switches tested this didn't interrupt traffic on other ports.
+
+### Port ownership and removal
+
+Listing a port in `ports` puts its entire controller override under Terraform's management. Updates preserve unspecified inline settings, but removal deletes the whole override. For example, a name-only entry can preserve an existing inline VLAN and PoE configuration; removing that entry from the map and applying also removes those preserved settings.
+
+Terrifi removes the override rather than sending a hard-coded set of defaults. The controller determines how the port behaves without it. This avoids field-by-field reset rules for settings that interact with each other, such as profiles, native networks, and tagged VLANs. Unlisted ports and device-level settings are untouched.
+
+Deleting the override also releases its profile assignment. When `port_profile_id` references a managed profile, Terraform removes the assignment before deleting the profile; the controller refuses to delete profiles that are still assigned.
+
+Removing the resource with `terraform state rm` only stops tracking it; it does not change any port settings.
