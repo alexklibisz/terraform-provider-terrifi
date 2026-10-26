@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/alexklibisz/terrifi/internal/unifi"
@@ -341,8 +342,27 @@ func (r *portProfileResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() || config.IsNull() || config.IsUnknown() {
+		return
+	}
+	attributes := config.Attributes()
+	stormControl := attributes["storm_control"].(types.Object)
+	if stormControl.IsUnknown() {
+		// The CRUD model uses a pointer for this optional object, which cannot
+		// represent an unknown object. Defer only its checks while continuing
+		// to validate the other known attributes. Leave the config unchanged.
+		attributes["storm_control"] = types.ObjectNull(stormControl.AttributeTypes(ctx))
+		var diags diag.Diagnostics
+		config, diags = types.ObjectValue(config.AttributeTypes(ctx), attributes)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 	var m portProfileResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &m)...)
+	resp.Diagnostics.Append(config.As(ctx, &m, basetypes.ObjectAsOptions{})...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

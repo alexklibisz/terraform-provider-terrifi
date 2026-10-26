@@ -84,3 +84,51 @@ func TestPortProfileValidatePartialUnknownSets(t *testing.T) {
 		})
 	}
 }
+
+func TestPortProfileValidateConfigStormControl(t *testing.T) {
+	r := &portProfileResource{}
+	var schemaResp resource.SchemaResponse
+	r.Schema(t.Context(), resource.SchemaRequest{}, &schemaResp)
+	objectType := types.ObjectType{AttrTypes: map[string]attr.Type{
+		"type": types.StringType, "broadcast": types.Int64Type,
+		"multicast": types.Int64Type, "unknown_unicast": types.Int64Type,
+	}}
+	storm := func(kind types.String, broadcast types.Int64) types.Object {
+		return types.ObjectValueMust(objectType.AttrTypes, map[string]attr.Value{
+			"type": kind, "broadcast": broadcast,
+			"multicast": types.Int64Null(), "unknown_unicast": types.Int64Null(),
+		})
+	}
+	for _, tc := range []struct {
+		name         string
+		storm        types.Object
+		invalidSpeed bool
+		invalid      bool
+	}{
+		{name: "whole object unknown", storm: types.ObjectUnknown(objectType.AttrTypes)},
+		{name: "null object", storm: types.ObjectNull(objectType.AttrTypes)},
+		{name: "unknown threshold", storm: storm(types.StringValue("percentage"), types.Int64Unknown())},
+		{name: "unknown type", storm: storm(types.StringUnknown(), types.Int64Value(200))},
+		{name: "valid known object", storm: storm(types.StringValue("percentage"), types.Int64Value(10))},
+		{name: "invalid known threshold", storm: storm(types.StringValue("percentage"), types.Int64Value(200)), invalid: true},
+		{name: "empty known object", storm: storm(types.StringNull(), types.Int64Null()), invalid: true},
+		{name: "unknown object does not hide invalid speed", storm: types.ObjectUnknown(objectType.AttrTypes), invalidSpeed: true, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := defaultPortProfileModel("storm")
+			if tc.invalidSpeed {
+				model.Speed = types.Int64Value(100)
+			}
+			state := tfsdk.State{Schema: schemaResp.Schema}
+			require.False(t, state.Set(t.Context(), &model).HasError())
+			require.False(t, state.SetAttribute(t.Context(), path.Root("storm_control"), tc.storm).HasError())
+			config := tfsdk.Config{Schema: schemaResp.Schema, Raw: state.Raw}
+			var resp resource.ValidateConfigResponse
+			r.ValidateConfig(t.Context(), resource.ValidateConfigRequest{Config: config}, &resp)
+			require.Equal(t, tc.invalid, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
+			var unchanged types.Object
+			require.False(t, config.GetAttribute(t.Context(), path.Root("storm_control"), &unchanged).HasError())
+			require.True(t, tc.storm.Equal(unchanged), "validation must not change the config")
+		})
+	}
+}

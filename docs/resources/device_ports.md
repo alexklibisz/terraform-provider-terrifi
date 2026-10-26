@@ -81,8 +81,9 @@ You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks fo
 terrifi generate-imports terrifi_device_ports
 ```
 
-Ports with unsupported inline VLAN settings are excluded entirely from import,
-including their names, and produce a warning. They remain outside Terraform's
+Ports with unsupported inline VLAN settings or forwarding modes (including
+disabled ports) are excluded entirely from import, including their names, and
+produce a warning. They remain outside Terraform's
 ownership, so updates and destroy leave them untouched. The CLI includes these
 ports only as commented-out entries:
 

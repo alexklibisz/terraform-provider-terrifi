@@ -62,6 +62,14 @@ func PortVLANSettings(e map[string]json.RawMessage) (native, mode string) {
 // round-trip through the resource schema. Such ports must remain unowned when
 // importing, rather than becoming name-only ports that reset on destroy.
 func UnsupportedPortVLANReason(e map[string]json.RawMessage) string {
+	// Forwarding modes such as disabled cannot be represented by the schema,
+	// even when the VLAN fields themselves look supported. Inspect the raw
+	// field before profile handling can hide cached inline settings.
+	var forwardMode string
+	_ = json.Unmarshal(e["forward"], &forwardMode)
+	if forwardMode != "" && forwardMode != "all" && forwardMode != "native" {
+		return fmt.Sprintf("forward mode %q cannot be represented", forwardMode)
+	}
 	native, mode, forward := portVLANSettings(e)
 	if native == "" && mode == "" && (forward == "" || forward == "all") {
 		return ""
