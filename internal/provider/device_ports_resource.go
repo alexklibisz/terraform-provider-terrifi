@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -306,10 +308,7 @@ func (r *devicePortsResource) write(ctx context.Context, site, mac string, want 
 	if err := checkPortsAssignable(d, want); err != nil {
 		return "", err
 	}
-	for _, w := range want {
-		if w == nil || w.NativeNetworkID == nil {
-			continue
-		}
+	if slices.ContainsFunc(slices.Collect(maps.Values(want)), func(w *portWant) bool { return w != nil && w.NativeNetworkID != nil }) {
 		networks, err := r.client.listPortNetworks(ctx, site)
 		if err != nil {
 			return "", fmt.Errorf("reading port networks: %w", err)
@@ -317,7 +316,6 @@ func (r *devicePortsResource) write(ctx context.Context, site, mac string, want 
 		if err := validatePortNetworks(d, want, networks); err != nil {
 			return "", err
 		}
-		break
 	}
 	overrides, err := mergePortOverrides(d.PortOverrides, want)
 	if err != nil {

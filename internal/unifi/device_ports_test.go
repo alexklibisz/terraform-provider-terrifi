@@ -35,6 +35,11 @@ func TestPortVLANSettingsImportability(t *testing.T) {
 		{name: "missing native", data: `{"tagged_vlan_mgmt":"block_all"}`, unsupported: true},
 		{name: "custom without native", data: `{"forward":"customize"}`, unsupported: true},
 		{name: "profile with stale inline fields", data: `{"portconf_id":"profile","tagged_vlan_mgmt":"custom","native_networkconf_id":"stale"}`},
+		{name: "inline trunk with voice", data: `{"native_networkconf_id":"lan","tagged_vlan_mgmt":"auto","voice_networkconf_id":"voice"}`, unsupported: true},
+		{name: "inline access with voice", data: `{"native_networkconf_id":"lan","tagged_vlan_mgmt":"block_all","voice_networkconf_id":"voice"}`, unsupported: true},
+		{name: "voice without native", data: `{"name":"phone","voice_networkconf_id":"voice"}`, unsupported: true},
+		{name: "empty voice", data: `{"native_networkconf_id":"lan","tagged_vlan_mgmt":"auto","voice_networkconf_id":""}`, native: "lan", mode: "allow_all"},
+		{name: "profile with stale voice", data: `{"portconf_id":"profile","voice_networkconf_id":"voice"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var entry map[string]json.RawMessage

@@ -86,7 +86,9 @@ type portWant struct {
 //     as the UI does: the profile then owns every setting, and a leftover
 //     poe_mode would shadow the profile's;
 //   - no profile removes portconf_id and keeps any inline settings;
-//   - no name removes the name (the controller shows "Port N").
+//   - no name removes the name (the controller shows "Port N");
+//   - inline VLAN settings, or a reset, replace every VLAN key (inlineVLANKeys)
+//     so an old voice VLAN or tagged list cannot outlive the new mode.
 //
 // An entry left with only port_idx is dropped: the port is back to default.
 // portconf_id is never sent as "" (the controller rejects it).
@@ -107,19 +109,19 @@ func mergePortOverrides(current []map[string]json.RawMessage, want map[int64]*po
 
 	for idx, w := range want {
 		if w == nil {
-			continue
-		} // Removing the override restores controller defaults.
+			continue // Removing the override restores controller defaults.
+		}
 		e := byIdx[idx]
 		if e == nil {
 			e = map[string]json.RawMessage{}
 		}
-		if w != nil && w.ProfileID != nil {
+		if w.ProfileID != nil {
 			e = map[string]json.RawMessage{"portconf_id": rawString(*w.ProfileID)}
 		} else {
 			delete(e, "portconf_id")
 		}
 		if w.ResetVLAN || w.NativeNetworkID != nil {
-			for _, key := range []string{"native_networkconf_id", "tagged_vlan_mgmt", "excluded_networkconf_ids", "forward"} {
+			for _, key := range inlineVLANKeys {
 				delete(e, key)
 			}
 		}
@@ -135,7 +137,7 @@ func mergePortOverrides(current []map[string]json.RawMessage, want map[int64]*po
 			e["setting_preference"] = rawString("manual")
 		}
 		delete(e, "name")
-		if w != nil && w.Name != nil {
+		if w.Name != nil {
 			e["name"] = rawString(*w.Name)
 		}
 		e["port_idx"] = json.RawMessage(fmt.Sprint(idx))
@@ -150,6 +152,15 @@ func mergePortOverrides(current []map[string]json.RawMessage, want map[int64]*po
 		return cmp.Compare(i, j)
 	})
 	return out, nil
+}
+
+// inlineVLANKeys are the port_overrides keys that together define a port's
+// inline VLAN configuration. setting_preference is included because inline
+// writes set it to manual; leaving it behind would keep a reset port from
+// returning to an empty override.
+var inlineVLANKeys = []string{
+	"native_networkconf_id", "tagged_vlan_mgmt", "excluded_networkconf_ids", "forward",
+	"voice_networkconf_id", "tagged_networkconf_ids", "setting_preference",
 }
 
 func portIdx(e map[string]json.RawMessage) (int64, error) {

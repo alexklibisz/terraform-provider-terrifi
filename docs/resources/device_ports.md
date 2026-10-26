@@ -82,7 +82,7 @@ terrifi generate-imports terrifi_device_ports
 ```
 
 Ports with unsupported inline VLAN settings or forwarding modes (including
-disabled ports) are excluded entirely from import, including their names, and
+disabled ports and inline voice VLANs) are excluded entirely from import, including their names, and
 produce a warning. They remain outside Terraform's
 ownership, so updates and destroy leave them untouched. The CLI includes these
 ports only as commented-out entries:
@@ -99,7 +99,7 @@ ports = {
 ### How ports are written
 
 - **With `port_profile_id`**, the profile controls every setting of the port. Per-port settings made in the UI are cleared, as the UI does when you pick a profile. That includes PoE: set `poe_mode` on the profile.
-- **With `native_network_id` and `tagged_vlan_mode`**, the port is configured directly. `block_all` permits only the native network; `allow_all` also permits tagged VLAN traffic. Both attributes must be set together and conflict with `port_profile_id`. Other inline settings are preserved.
+- **With `native_network_id` and `tagged_vlan_mode`**, the port is configured directly. `block_all` permits only the native network; `allow_all` also permits tagged VLAN traffic. Both attributes must be set together and conflict with `port_profile_id`. Any previous VLAN settings on the port, including a voice VLAN, are replaced. Other inline settings are preserved.
 - **With a name alone**, any profile is removed and existing inline settings are preserved. Removing previously managed inline VLAN attributes restores the default VLAN configuration.
 - **Without `name`**, the port shows the controller's default name (`Port N`).
 - **Removing a port from `ports`**, or destroying the resource, deletes its entire port override. See [port ownership and removal](#port-ownership-and-removal).

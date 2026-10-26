@@ -49,6 +49,49 @@ func TestMergePortOverrides_InlineTransitions(t *testing.T) {
 	assert.JSONEq(t, `[{"port_idx":2,"name":"desk"}]`, got)
 }
 
+func TestMergePortOverrides_ResetRemovesEveryVLANKey(t *testing.T) {
+	// Inline writes add setting_preference; a reset must remove it with the
+	// other VLAN keys so an otherwise empty override is dropped.
+	written := mergedJSON(t, `[]`, map[int64]*portWant{2: {NativeNetworkID: ptrTo("network"), TaggedVLANMode: ptrTo("allow_all")}})
+	assert.JSONEq(t, `[{"port_idx":2,"native_networkconf_id":"network","tagged_vlan_mgmt":"auto","forward":"all","excluded_networkconf_ids":[],"setting_preference":"manual"}]`, written)
+	assert.JSONEq(t, `[]`, mergedJSON(t, written, map[int64]*portWant{2: {ResetVLAN: true}}))
+	assert.JSONEq(t, `[{"port_idx":2,"name":"desk"}]`, mergedJSON(t, written, map[int64]*portWant{2: {Name: ptrTo("desk"), ResetVLAN: true}}))
+
+	// Voice and tagged lists set in the UI are VLAN keys too. Unrelated inline
+	// settings survive the reset.
+	ui := `[{"port_idx":2,"native_networkconf_id":"network","tagged_vlan_mgmt":"custom","forward":"customize","excluded_networkconf_ids":["iot"],"tagged_networkconf_ids":["cams"],"voice_networkconf_id":"voice","setting_preference":"auto","poe_mode":"off"}]`
+	assert.JSONEq(t, `[{"port_idx":2,"poe_mode":"off"}]`, mergedJSON(t, ui, map[int64]*portWant{2: {ResetVLAN: true}}))
+}
+
+func TestMergePortOverrides_InlineWriteReplacesVoiceVLAN(t *testing.T) {
+	// A voice VLAN cannot be combined with the written mode; block_all in
+	// particular would contradict a tagged voice network.
+	start := `[{"port_idx":2,"native_networkconf_id":"old","tagged_vlan_mgmt":"auto","forward":"all","voice_networkconf_id":"voice","tagged_networkconf_ids":["cams"],"poe_mode":"off"}]`
+	for _, tc := range []struct{ mode, wire, forward string }{{"block_all", "block_all", "native"}, {"allow_all", "auto", "all"}} {
+		t.Run(tc.mode, func(t *testing.T) {
+			got := mergedJSON(t, start, map[int64]*portWant{2: {NativeNetworkID: ptrTo("network"), TaggedVLANMode: ptrTo(tc.mode)}})
+			assert.JSONEq(t, fmt.Sprintf(`[{"port_idx":2,"poe_mode":"off","native_networkconf_id":"network","tagged_vlan_mgmt":%q,"forward":%q,"excluded_networkconf_ids":[],"setting_preference":"manual"}]`, tc.wire, tc.forward), got)
+		})
+	}
+	// Assigning a profile already replaces the whole entry.
+	assert.JSONEq(t, `[{"port_idx":2,"portconf_id":"profile"}]`, mergedJSON(t, start, map[int64]*portWant{2: {ProfileID: ptrTo("profile")}}))
+}
+
+func TestDevicePorts_ImportExcludesInlineVoiceVLAN(t *testing.T) {
+	overrides := overridesJSON(t, `[{"port_idx":2,"name":"phone","native_networkconf_id":"network","tagged_vlan_mgmt":"auto","voice_networkconf_id":"voice"},{"port_idx":3,"name":"desk","portconf_id":"profile","voice_networkconf_id":"stale"}]`)
+	imported, warnings := importableDevicePortOverrides(overrides)
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0].Detail(), "Port 2")
+	assert.Contains(t, warnings[0].Detail(), "voice VLAN")
+	ports := portsToModel(portsFromOverrides(imported), nil)
+	require.Len(t, ports, 1)
+	assert.Equal(t, types.StringValue("profile"), ports["3"].PortProfileID)
+
+	// Destroying the imported resource leaves the excluded port untouched.
+	got := mergedJSON(t, `[{"port_idx":2,"name":"phone","native_networkconf_id":"network","tagged_vlan_mgmt":"auto","voice_networkconf_id":"voice"},{"port_idx":3,"name":"desk","portconf_id":"profile"}]`, portWants(nil, ports))
+	assert.JSONEq(t, `[{"port_idx":2,"name":"phone","native_networkconf_id":"network","tagged_vlan_mgmt":"auto","voice_networkconf_id":"voice"}]`, got)
+}
+
 func TestDevicePorts_FlexMiniCapabilities(t *testing.T) {
 	d := &unifi.DevicePorts{Model: "USMINI", PortTable: []unifi.DevicePort{{PortIdx: 2}}}
 	assert.ErrorContains(t, checkPortsAssignable(d, map[int64]*portWant{2: {ProfileID: ptrTo("profile")}}), "does not support custom port profiles")

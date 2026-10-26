@@ -47,7 +47,8 @@ func ParsePortOverride(e map[string]json.RawMessage) (idx int64, name, portconfI
 }
 
 // PortVLANSettings reads inline VLAN settings. Profiles own their VLANs, so
-// cached inline keys on profiled entries are intentionally ignored. Unsupported
+// cached inline VLAN keys on profiled entries are intentionally ignored; an
+// unrepresentable forward mode still makes any entry unsupported. Unsupported
 // configurations return empty settings; callers must exclude the whole port
 // from import using UnsupportedPortVLANReason, even when it has a name.
 func PortVLANSettings(e map[string]json.RawMessage) (native, mode string) {
@@ -70,6 +71,14 @@ func UnsupportedPortVLANReason(e map[string]json.RawMessage) string {
 	_ = json.Unmarshal(e["forward"], &forwardMode)
 	if forwardMode != "" && forwardMode != "all" && forwardMode != "native" && forwardMode != "customize" {
 		return fmt.Sprintf("forward mode %q cannot be represented", forwardMode)
+	}
+	// A voice VLAN on an inline port has no schema attribute. Importing the
+	// port would hide it from state while Terraform owns the override.
+	var profile, voice string
+	_ = json.Unmarshal(e["portconf_id"], &profile)
+	_ = json.Unmarshal(e["voice_networkconf_id"], &voice)
+	if profile == "" && voice != "" {
+		return "inline voice VLAN settings cannot be represented"
 	}
 	native, mode, forward := portVLANSettings(e)
 	if native == "" && mode == "" && (forward == "" || forward == "all") {
