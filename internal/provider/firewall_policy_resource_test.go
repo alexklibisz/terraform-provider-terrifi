@@ -3560,8 +3560,8 @@ func TestFirewallPolicyEndpointResponseNetwork(t *testing.T) {
 
 // TestAccFirewallPolicy_networkIDs covers network-based matching end to end:
 // the API stores network targets in "network_ids" (with their own
-// "match_opposite_networks" flag), so a refresh after create, an import, and
-// switching between network and IP matching must all plan clean.
+// "match_opposite_networks" flag). Refresh, import, clearing inversion, and
+// transitions between network, IP and ANY matching must preserve both endpoints.
 func TestAccFirewallPolicy_networkIDs(t *testing.T) {
 	sfx := randomSuffix()
 	// Consecutive VLANs: three independent randomVLAN() calls could collide.
@@ -3570,7 +3570,7 @@ func TestAccFirewallPolicy_networkIDs(t *testing.T) {
 	base := testAccFirewallPolicyNetworksConfig(sfx, vlanA, vlanB, vlanC)
 	policyName := fmt.Sprintf("tfacc-pol-net-%s", sfx)
 
-	policy := func(source string) string {
+	policy := func(source, destination string) string {
 		return base + fmt.Sprintf(`
 resource "terrifi_firewall_policy" "test" {
   name   = %q
@@ -3582,12 +3582,17 @@ resource "terrifi_firewall_policy" "test" {
   }
 
   destination {
-    zone_id     = terrifi_firewall_zone.zone2.id
-    network_ids = [terrifi_network.c.id]
+    zone_id = terrifi_firewall_zone.zone2.id
+%s
   }
 }
-`, policyName, source)
+`, policyName, source, destination)
 	}
+	sourceNetwork := `    network_ids = [terrifi_network.b.id]`
+	destinationNetwork := `    network_ids = [terrifi_network.c.id]`
+	invertedSource := `    network_ids = [terrifi_network.a.id, terrifi_network.b.id]
+    match_opposite_ips = true`
+	invertedDestination := destinationNetwork + "\n    match_opposite_ips = true"
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
@@ -3595,7 +3600,7 @@ resource "terrifi_firewall_policy" "test" {
 		Steps: []resource.TestStep{
 			// Network on both ends; the post-apply refresh must not drift.
 			{
-				Config: policy(`    network_ids = [terrifi_network.a.id]`),
+				Config: policy(`    network_ids = [terrifi_network.a.id]`, destinationNetwork),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#", "1"),
 					resource.TestCheckResourceAttrPair("terrifi_firewall_policy.test", "source.network_ids.0", "terrifi_network.a", "id"),
@@ -3613,16 +3618,37 @@ resource "terrifi_firewall_policy" "test" {
 			},
 			// Two networks, inverted (match_opposite_networks in the API).
 			{
-				Config: policy(`    network_ids        = [terrifi_network.a.id, terrifi_network.b.id]
-    match_opposite_ips = true`),
+				Config: policy(invertedSource, destinationNetwork),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#", "2"),
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips", "true"),
 				),
 			},
+			// Import must retain inversion as well as both network IDs.
+			{
+				ResourceName:            "terrifi_firewall_policy.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"index"},
+			},
+			// Clear inversion without changing the target or the network IDs.
+			{
+				Config: policy(`    network_ids = [terrifi_network.a.id, terrifi_network.b.id]`, destinationNetwork),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#", "2"),
+					resource.TestCheckTypeSetElemAttrPair("terrifi_firewall_policy.test", "source.network_ids.*", "terrifi_network.a", "id"),
+					resource.TestCheckTypeSetElemAttrPair("terrifi_firewall_policy.test", "source.network_ids.*", "terrifi_network.b", "id"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips"),
+				),
+			},
+			// Restore inversion before switching to IP to exercise stale flags.
+			{
+				Config: policy(invertedSource, destinationNetwork),
+				Check:  resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips", "true"),
+			},
 			// Network -> IP.
 			{
-				Config: policy(fmt.Sprintf(`    ips = ["10.%d.%d.5"]`, vlanA/256, vlanA%256)),
+				Config: policy(fmt.Sprintf(`    ips = ["10.%d.%d.5"]`, vlanA/256, vlanA%256), destinationNetwork),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.ips.#", "1"),
 					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#"),
@@ -3632,11 +3658,76 @@ resource "terrifi_firewall_policy" "test" {
 			},
 			// IP -> network.
 			{
-				Config: policy(`    network_ids = [terrifi_network.b.id]`),
+				Config: policy(sourceNetwork, destinationNetwork),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#", "1"),
 					resource.TestCheckResourceAttrPair("terrifi_firewall_policy.test", "source.network_ids.0", "terrifi_network.b", "id"),
 					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.ips.#"),
+				),
+			},
+			// Destination inversion has its own API field, just like source.
+			{
+				Config: policy(sourceNetwork, invertedDestination),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ips", "true"),
+					resource.TestCheckTypeSetElemAttrPair("terrifi_firewall_policy.test", "destination.network_ids.*", "terrifi_network.c", "id"),
+				),
+			},
+			{
+				ResourceName:            "terrifi_firewall_policy.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"index"},
+			},
+			// Clear destination inversion while retaining the same network.
+			{
+				Config: policy(sourceNetwork, destinationNetwork),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ips"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.network_ids.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair("terrifi_firewall_policy.test", "destination.network_ids.*", "terrifi_network.c", "id"),
+				),
+			},
+			// Exercise destination NETWORK -> IP -> NETWORK too.
+			{
+				Config: policy(sourceNetwork, fmt.Sprintf(`    ips = ["10.%d.%d.5"]`, vlanC/256, vlanC%256)),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckTypeSetElemAttr("terrifi_firewall_policy.test", "destination.ips.*", fmt.Sprintf("10.%d.%d.5", vlanC/256, vlanC%256)),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.network_ids.#"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ips"),
+				),
+			},
+			{
+				Config: policy(sourceNetwork, invertedDestination),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.network_ids.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair("terrifi_firewall_policy.test", "destination.network_ids.*", "terrifi_network.c", "id"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.ips.#"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ips", "true"),
+				),
+			},
+			// Remove both filters, including an inverted destination filter.
+			{
+				Config: policy("", ""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.network_ids.#"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.ips.#"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.ips.#"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ips"),
+				),
+			},
+			// ANY -> NETWORK must restore only the requested filters.
+			{
+				Config: policy(sourceNetwork, destinationNetwork),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "source.network_ids.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair("terrifi_firewall_policy.test", "source.network_ids.*", "terrifi_network.b", "id"),
+					resource.TestCheckResourceAttr("terrifi_firewall_policy.test", "destination.network_ids.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair("terrifi_firewall_policy.test", "destination.network_ids.*", "terrifi_network.c", "id"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "source.match_opposite_ips"),
+					resource.TestCheckNoResourceAttr("terrifi_firewall_policy.test", "destination.match_opposite_ips"),
 				),
 			},
 		},
