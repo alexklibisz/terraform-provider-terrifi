@@ -3666,6 +3666,7 @@ resource "terrifi_firewall_zone" "zone1" {
 resource "terrifi_firewall_zone" "zone2" {
   name        = "tfacc-pol-net-z2-%s"
   network_ids = [terrifi_network.c.id]
+  depends_on  = [terrifi_firewall_zone.zone1]
 }
 `, sfx, sfx)
 }
