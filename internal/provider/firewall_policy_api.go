@@ -171,10 +171,15 @@ func (c *Client) ListFirewallPolicies(ctx context.Context, site string) ([]*unif
 // fails to unmarshal this. When the SDK fixes the port field type (or adds a
 // custom unmarshaler), this can be replaced with c.ApiClient.GetFirewallPolicy().
 func (c *Client) GetFirewallPolicy(ctx context.Context, site string, id string) (*firewallPolicyFull, error) {
+	return c.getFirewallPolicy(ctx, site, id, true)
+}
+
+// getFirewallPolicy can bypass cached reads when verifying a controller write.
+func (c *Client) getFirewallPolicy(ctx context.Context, site string, id string, useCached bool) (*firewallPolicyFull, error) {
 	var rawPolicies []firewallPolicyResponse
-	err := c.doV2Request(ctx, http.MethodGet,
+	err := c.doRequest(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall-policies", c.BaseURL, c.APIPath, site),
-		struct{}{}, &rawPolicies)
+		struct{}{}, &rawPolicies, useCached)
 	if err != nil {
 		return nil, err
 	}
