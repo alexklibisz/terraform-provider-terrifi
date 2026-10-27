@@ -6,8 +6,8 @@ package provider
 //
 // Update is a read-modify-write on the raw controller object: the fields the
 // provider sets are overlaid, and every other key the controller returned
-// (qos_profile, priority queues, multicast router networks, ...) is sent back
-// untouched. The controller
+// (link speed, STP, storm control, qos_profile, ...) is sent back untouched.
+// Create starts from portProfileUnmanagedDefaults instead. The controller
 // merges PUTs (keys left out keep their stored value), but sending the full
 // object keeps the update correct even if that changes.
 
@@ -58,10 +58,36 @@ func normalizePortProfile(d *unifi.PortProfile) unifi.PortProfile {
 	if p.ExcludedNetworkIDs == nil {
 		p.ExcludedNetworkIDs = []string{}
 	}
-	if p.PortSecurityMACAddress == nil {
-		p.PortSecurityMACAddress = []string{}
-	}
 	return p
+}
+
+// portProfileUnmanagedDefaults returns the UI defaults (UniFi OS 5.1 /
+// Network 10.x) of settings the provider doesn't manage. Create sends them so
+// that a profile created by Terraform matches one created in the UI: the
+// provider forces the Advanced mode to manual, which makes these settings
+// apply, so they must not be left to whatever the controller stores for a
+// missing key.
+func portProfileUnmanagedDefaults() map[string]json.RawMessage {
+	return map[string]json.RawMessage{
+		"autoneg":                         json.RawMessage(`true`),
+		"full_duplex":                     json.RawMessage(`false`),
+		"voice_networkconf_id":            json.RawMessage(`""`),
+		"egress_rate_limit_kbps_enabled":  json.RawMessage(`false`),
+		"flow_control_enabled":            json.RawMessage(`true`),
+		"precision_time_protocol_enabled": json.RawMessage(`true`),
+		"stp_port_mode":                   json.RawMessage(`true`),
+		"stp_uplink":                      json.RawMessage(`false`),
+		"stp_bpdu_guard_enabled":          json.RawMessage(`false`),
+		"port_keepalive_enabled":          json.RawMessage(`false`),
+		"eee_enabled":                     json.RawMessage(`false`),
+		"link_debounce_auto":              json.RawMessage(`true`),
+		"port_security_enabled":           json.RawMessage(`false`),
+		"port_security_mac_address":       json.RawMessage(`[]`),
+		"dot1x_ctrl":                      json.RawMessage(`"force_authorized"`),
+		"stormctrl_bcast_enabled":         json.RawMessage(`false`),
+		"stormctrl_mcast_enabled":         json.RawMessage(`false`),
+		"stormctrl_ucast_enabled":         json.RawMessage(`false`),
+	}
 }
 
 // ListPortProfiles returns every port profile on the site.
@@ -104,9 +130,13 @@ func (c *Client) getPortProfile(ctx context.Context, site, id string, useCached 
 	return nil, &unifi.NotFoundError{}
 }
 
-// CreatePortProfile posts a new port profile.
+// CreatePortProfile posts a new port profile, with the UI defaults for every
+// setting the provider doesn't manage.
 func (c *Client) CreatePortProfile(ctx context.Context, site string, d *unifi.PortProfile) (*unifi.PortProfile, error) {
-	payload := normalizePortProfile(d)
+	payload, err := mergePortProfile(portProfileUnmanagedDefaults(), d)
+	if err != nil {
+		return nil, err
+	}
 	var resp portProfileEnvelope
 	if err := c.doPortProfileRequest(ctx, http.MethodPost, c.portProfileURL(site, ""), payload, &resp); err != nil {
 		return nil, err

@@ -87,10 +87,5 @@ func TestPortProfilePublicModeTranslations(t *testing.T) {
 		assert.Equal(t, tc.wire, TaggedVLANModeToAPI(tc.public))
 		assert.Equal(t, tc.public, TaggedVLANModeFromAPI(tc.wire))
 	}
-	for _, tc := range []struct{ public, wire string }{{"percentage", "level"}, {"packets_per_second", "rate"}} {
-		assert.Equal(t, tc.wire, StormControlTypeToAPI(tc.public))
-		assert.Equal(t, tc.public, StormControlTypeFromAPI(tc.wire))
-	}
 	assert.Equal(t, "allow_all", TaggedVLANModeFromAPI(""))
-	assert.Equal(t, "percentage", StormControlTypeFromAPI(""))
 }

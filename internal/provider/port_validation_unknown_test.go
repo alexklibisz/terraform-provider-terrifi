@@ -50,85 +50,61 @@ func TestPortProfileValidatePartialUnknownSets(t *testing.T) {
 		return types.SetValueMust(types.StringType, []attr.Value{types.StringValue(id), types.StringUnknown()})
 	}
 	for _, tc := range []struct {
-		name             string
-		tagged, excluded types.Set
-		native, voice    string
-		invalid          bool
+		name    string
+		tagged  types.Set
+		invalid bool
 	}{
-		{name: "voice explicitly present", tagged: partial(testNetB), voice: testNetB},
-		{name: "voice may become present", tagged: partial(testNetC), voice: testNetB},
-		{name: "voice definitely absent", tagged: stringSet(testNetC), voice: testNetB, invalid: true},
-		{name: "native explicitly tagged", tagged: partial(testNetA), native: testNetA, invalid: true},
-		{name: "native may become tagged", tagged: partial(testNetB), native: testNetA},
-		{name: "voice explicitly excluded", excluded: partial(testNetB), voice: testNetB, invalid: true},
-		{name: "voice may become excluded", excluded: partial(testNetC), voice: testNetB},
-		{name: "native explicitly excluded", excluded: partial(testNetA), native: testNetA, invalid: true},
+		{name: "native explicitly tagged", tagged: partial(testNetA), invalid: true},
+		{name: "native may become tagged", tagged: partial(testNetB)},
+		{name: "every element unknown", tagged: types.SetValueMust(types.StringType, []attr.Value{types.StringUnknown()})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := defaultPortProfileModel("partial")
 			m.TaggedVLANMgmt = types.StringValue("custom")
-			if !tc.tagged.IsNull() {
-				m.TaggedNetworkIDs = tc.tagged
-			}
-			if !tc.excluded.IsNull() {
-				m.ExcludedNetworkIDs = tc.excluded
-			}
-			if tc.native != "" {
-				m.NativeNetworkID = types.StringValue(tc.native)
-			}
-			if tc.voice != "" {
-				m.VoiceNetworkID = types.StringValue(tc.voice)
-			}
-			diags := validatePortProfileModel(t.Context(), &m)
+			m.NativeNetworkID = types.StringValue(testNetA)
+			m.TaggedNetworkIDs = tc.tagged
+			diags := validatePortProfileModel(&m)
 			require.Equal(t, tc.invalid, diags.HasError(), "%v", diags)
 		})
 	}
 }
 
-func TestPortProfileValidateConfigStormControl(t *testing.T) {
+// ValidateConfig decodes the raw config, so unknown values (references to
+// resources not yet created) must reach the model without conversion errors.
+func TestPortProfileValidateConfigUnknownValues(t *testing.T) {
 	r := &portProfileResource{}
 	var schemaResp resource.SchemaResponse
 	r.Schema(t.Context(), resource.SchemaRequest{}, &schemaResp)
-	objectType := types.ObjectType{AttrTypes: map[string]attr.Type{
-		"type": types.StringType, "broadcast": types.Int64Type,
-		"multicast": types.Int64Type, "unknown_unicast": types.Int64Type,
-	}}
-	storm := func(kind types.String, broadcast types.Int64) types.Object {
-		return types.ObjectValueMust(objectType.AttrTypes, map[string]attr.Value{
-			"type": kind, "broadcast": broadcast,
-			"multicast": types.Int64Null(), "unknown_unicast": types.Int64Null(),
-		})
-	}
 	for _, tc := range []struct {
-		name         string
-		storm        types.Object
-		invalidSpeed bool
-		invalid      bool
+		name    string
+		mutate  func(m *portProfileResourceModel)
+		invalid bool
 	}{
-		{name: "whole object unknown", storm: types.ObjectUnknown(objectType.AttrTypes)},
-		{name: "null object", storm: types.ObjectNull(objectType.AttrTypes)},
-		{name: "unknown threshold", storm: storm(types.StringValue("percentage"), types.Int64Unknown())},
-		{name: "unknown type", storm: storm(types.StringUnknown(), types.Int64Value(200))},
-		{name: "valid known object", storm: storm(types.StringValue("percentage"), types.Int64Value(10))},
-		{name: "invalid known threshold", storm: storm(types.StringValue("percentage"), types.Int64Value(200)), invalid: true},
-		{name: "empty known object", storm: storm(types.StringNull(), types.Int64Null()), invalid: true},
-		{name: "unknown object does not hide invalid speed", storm: types.ObjectUnknown(objectType.AttrTypes), invalidSpeed: true, invalid: true},
+		{name: "unknown native network", mutate: func(m *portProfileResourceModel) {
+			m.TaggedVLANMgmt = types.StringValue("custom")
+			m.NativeNetworkID = types.StringUnknown()
+			m.TaggedNetworkIDs = stringSet(testNetB)
+		}},
+		{name: "unknown tagged set", mutate: func(m *portProfileResourceModel) {
+			m.TaggedVLANMgmt = types.StringValue("custom")
+			m.TaggedNetworkIDs = types.SetUnknown(types.StringType)
+		}},
+		{name: "unknown mode", mutate: func(m *portProfileResourceModel) {
+			m.TaggedVLANMgmt = types.StringUnknown()
+			m.TaggedNetworkIDs = stringSet(testNetB)
+		}},
+		{name: "known invalid combination", mutate: func(m *portProfileResourceModel) {
+			m.TaggedNetworkIDs = stringSet(testNetB)
+		}, invalid: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			model := defaultPortProfileModel("storm")
-			if tc.invalidSpeed {
-				model.Speed = types.Int64Value(100)
-			}
+			model := defaultPortProfileModel("unknown")
+			tc.mutate(&model)
 			state := tfsdk.State{Schema: schemaResp.Schema}
 			require.False(t, state.Set(t.Context(), &model).HasError())
-			require.False(t, state.SetAttribute(t.Context(), path.Root("storm_control"), tc.storm).HasError())
-			config := tfsdk.Config{Schema: schemaResp.Schema, Raw: state.Raw}
 			var resp resource.ValidateConfigResponse
-			r.ValidateConfig(t.Context(), resource.ValidateConfigRequest{Config: config}, &resp)
+			r.ValidateConfig(t.Context(), resource.ValidateConfigRequest{Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: state.Raw}}, &resp)
 			require.Equal(t, tc.invalid, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
-			var unchanged types.Object
-			require.False(t, config.GetAttribute(t.Context(), path.Root("storm_control"), &unchanged).HasError())
-			require.True(t, tc.storm.Equal(unchanged), "validation must not change the config")
 		})
 	}
 }
