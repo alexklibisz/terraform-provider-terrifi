@@ -96,6 +96,16 @@ ports = {
 
 ## Additional Notes
 
+### Management network
+
+Port VLAN settings control traffic carried by the port.
+They do not configure the device's own management network.
+For example, a switch can use the default LAN for management while a port assigns connected devices to an IoT VLAN.
+Setting that port's `native_network_id` to the IoT network does not move the switch's management interface into the IoT VLAN.
+
+The management network must have a working path to the UniFi controller for the device to receive configuration changes.
+When changing uplink VLAN settings, preserve the native or tagged network used by that management connection.
+
 ### How ports are written
 
 - **With `port_profile_id`**, the profile controls every setting of the port. Per-port settings made in the UI are cleared, as the UI does when you pick a profile. That includes PoE: set `poe_mode` on the profile.
