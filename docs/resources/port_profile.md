@@ -134,4 +134,8 @@ Settings in the UI's **Advanced** section, including port isolation and LLDP-MED
 
 ### Test coverage
 
-Unit and acceptance tests verify settings conversion, controller-side persistence, and the Terraform resource lifecycle. The HIL harness currently lacks a sufficiently capable switch to test profile enforcement, so these tests do not verify physical behavior such as VLAN filtering, PoE, or port isolation.
+Unit and acceptance tests verify settings conversion, controller-side persistence, and the Terraform resource lifecycle, including updates, imports, and preservation of unmanaged fields.
+
+The hardware-in-the-loop (HIL) switch is a USW Flex Mini, which does not support custom port profiles. Profile-assignment lifecycle and drift tests are skipped on that device. HIL tests cover profile CRUD on the controller and inline VLAN configuration through `terrifi_device_ports`, but inline VLAN tests do not verify custom profile enforcement.
+
+Physical behavior of assigned profiles, including VLAN filtering, PoE, port isolation, and LLDP-MED, has not been verified on a profile-capable switch. A passing HIL run confirms controller-side behavior for profiles, not enforcement of those settings by switch hardware.
