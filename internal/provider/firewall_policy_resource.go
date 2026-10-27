@@ -164,7 +164,7 @@ func (r *firewallPolicyResource) Schema(
 			Optional:            true,
 		},
 		"match_opposite_ips": schema.BoolAttribute{
-			MarkdownDescription: "Inverts IP matching. When `true` and action is `ALLOW`, all IPs except the specified ones are allowed. When `true` and action is `BLOCK`, all IPs except the specified ones are blocked.",
+			MarkdownDescription: "Inverts the match on `ips` or `network_ids`. When `true` and action is `ALLOW`, everything except the specified IPs or networks is allowed. When `true` and action is `BLOCK`, everything except the specified IPs or networks is blocked.",
 			Optional:            true,
 		},
 	}
@@ -371,6 +371,19 @@ func (r *firewallPolicyResource) Create(
 		resp.Diagnostics.AddError("Error Creating Firewall Policy", err.Error())
 		return
 	}
+	policy.ID = created.ID
+	// Retain the created ID if asynchronous verification fails or is cancelled.
+	createdState := plan
+	r.apiToModel(created, &createdState, site)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &createdState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	created, err = r.settleFreshNetworkPolicy(ctx, site, policy, schedReq, created)
+	if err != nil {
+		resp.Diagnostics.AddError("Error Verifying Firewall Policy", err.Error())
+		return
+	}
 
 	r.apiToModel(created, &plan, site)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -428,6 +441,11 @@ func (r *firewallPolicyResource) Update(
 	updated, err := r.client.UpdateFirewallPolicy(ctx, site, policy, schedReq)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Firewall Policy", err.Error())
+		return
+	}
+	updated, err = r.settleFreshNetworkPolicy(ctx, site, policy, schedReq, updated)
+	if err != nil {
+		resp.Diagnostics.AddError("Error Verifying Firewall Policy", err.Error())
 		return
 	}
 
