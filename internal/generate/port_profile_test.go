@@ -2,6 +2,7 @@ package generate
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,34 +19,15 @@ var testLAN = []string{"net-default", "net-a", "net-b", "net-c"}
 // at its default (UniFi OS 5.1 / Network 10.x).
 func uiDefaults(id, name string) unifi.PortProfile {
 	return unifi.PortProfile{
-		ID:                         id,
-		Name:                       name,
-		SettingPreference:          "auto",
-		Forward:                    "all",
-		NativeNetworkID:            ptr("net-default"),
-		TaggedVLANMgmt:             "auto",
-		VoiceNetworkID:             ptr(""),
-		PoeMode:                    ptr("auto"),
-		Autoneg:                    ptr(true),
-		EgressRateLimitKbpsEnabled: ptr(false),
-		FlowControlEnabled:         ptr(true),
-		PTPEnabled:                 ptr(true),
-		Isolation:                  ptr(false),
-		StpPortMode:                ptr(true),
-		StpUplink:                  ptr(false),
-		StpBpduGuardEnabled:        ptr(false),
-		PortKeepaliveEnabled:       ptr(false),
-		EEEEnabled:                 ptr(false),
-		LldpmedEnabled:             ptr(true),
-		LinkDebounceAuto:           ptr(true),
-		LinkDebounce:               ptr(int64(300)),
-		PortSecurityEnabled:        ptr(false),
-		PortSecurityMACAddress:     []string{},
-		Dot1XCtrl:                  "force_authorized",
-		StormctrlBcastEnabled:      ptr(false),
-		StormctrlBcastRate:         ptr(int64(100)),
-		StormctrlMcastEnabled:      ptr(false),
-		StormctrlUcastEnabled:      ptr(false),
+		ID:                id,
+		Name:              name,
+		SettingPreference: "auto",
+		Forward:           "all",
+		NativeNetworkID:   ptr("net-default"),
+		TaggedVLANMgmt:    "auto",
+		PoeMode:           ptr("auto"),
+		Isolation:         ptr(false),
+		LldpmedEnabled:    ptr(true),
 	}
 }
 
@@ -77,7 +59,7 @@ func TestPortProfileBlocks_Trunk(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"name":               `"Trunk - Example"`,
 		"native_network_id":  `"net-a"`,
-		"tagged_vlan_mgmt":   `"custom"`,
+		"tagged_vlan_mode":   `"custom"`,
 		"tagged_network_ids": `["net-c"]`,
 		"poe_mode":           `"off"`,
 	}, attrs)
@@ -86,93 +68,44 @@ func TestPortProfileBlocks_Trunk(t *testing.T) {
 func TestPortProfileBlocks_NonDefaults(t *testing.T) {
 	p := uiDefaults("prof3", "Everything")
 	p.NativeNetworkID = ptr("")
-	p.VoiceNetworkID = ptr("net-b")
-	p.Autoneg = ptr(false)
-	p.Speed = ptr(int64(100))
-	p.FullDuplex = ptr(true)
-	p.EgressRateLimitKbpsEnabled = ptr(true)
-	p.EgressRateLimitKbps = ptr(int64(5000))
-	p.FlowControlEnabled = ptr(false)
-	p.PTPEnabled = ptr(false)
+	p.TaggedVLANMgmt = "block_all"
+	p.PoeMode = ptr("off")
 	p.Isolation = ptr(true)
-	p.StpPortMode = ptr(false)
-	p.StpUplink = ptr(true)
-	p.StpBpduGuardEnabled = ptr(true)
-	p.PortKeepaliveEnabled = ptr(true)
-	p.EEEEnabled = ptr(true)
-	p.LinkDebounceAuto = ptr(false)
-	p.LinkDebounce = ptr(int64(1200))
-	p.PortSecurityEnabled = ptr(true)
-	p.PortSecurityMACAddress = []string{"00:00:5e:00:53:01"}
-	p.Dot1XCtrl = "multi_host"
-	p.StormctrlType = "rate"
-	p.StormctrlBcastEnabled = ptr(true)
-	p.StormctrlBcastRate = ptr(int64(12345))
-	p.StormctrlUcastEnabled = ptr(true)
-	p.StormctrlUcastRate = ptr(int64(2000))
-
-	attrs := attrMapFromBlock(PortProfileBlocks([]unifi.PortProfile{p}, testLAN)[0])
-	assert.Equal(t, map[string]string{
-		"name":                        `"Everything"`,
-		"voice_network_id":            `"net-b"`,
-		"autoneg":                     "false",
-		"speed":                       "100",
-		"full_duplex":                 "true",
-		"egress_rate_limit_kbps":      "5000",
-		"flow_control_enabled":        "false",
-		"ptp_enabled":                 "false",
-		"isolation":                   "true",
-		"stp_enabled":                 "false",
-		"stp_uplink":                  "true",
-		"bpdu_guard_enabled":          "true",
-		"loop_protection_enabled":     "true",
-		"eee_enabled":                 "true",
-		"link_debounce_ms":            "1200",
-		"port_security_enabled":       "true",
-		"port_security_mac_addresses": `["00:00:5e:00:53:01"]`,
-		"dot1x_ctrl":                  `"multi_host"`,
-		"storm_control":               `{ type = "rate", broadcast = 12345, unicast = 2000 }`,
-	}, attrs)
-}
-
-// Values the controller keeps but ignores must not be emitted: the resource
-// reads them as unset, so emitting them would produce an immediate diff.
-func TestPortProfileBlocks_IgnoredStaleValues(t *testing.T) {
-	p := uiDefaults("prof4", "Stale")
-	p.NativeNetworkID = ptr("")
-	p.Speed = ptr(int64(100)) // autoneg is on
-	p.FullDuplex = ptr(true)  // autoneg is on
 	p.LldpmedEnabled = ptr(false)
-	p.VoiceNetworkID = ptr("net-b") // LLDP-MED is off
-	p.EgressRateLimitKbps = ptr(int64(5000))
-	p.LinkDebounce = ptr(int64(1200)) // debounce is auto
-	p.StormctrlType = "level"
-	p.StormctrlBcastLevel = ptr(int64(37)) // broadcast storm control is off
 
 	attrs := attrMapFromBlock(PortProfileBlocks([]unifi.PortProfile{p}, testLAN)[0])
 	assert.Equal(t, map[string]string{
-		"name":            `"Stale"`,
-		"lldpmed_enabled": "false",
+		"name":                   `"Everything"`,
+		"tagged_vlan_mode":       `"block_all"`,
+		"poe_mode":               `"off"`,
+		"port_isolation_enabled": "true",
+		"lldpmed_enabled":        "false",
 	}, attrs)
 }
 
-func TestPortProfileBlocks_LinkDebounceOff(t *testing.T) {
-	p := uiDefaults("prof5", "Debounce Off")
-	p.LinkDebounceAuto = ptr(false)
-	p.LinkDebounce = ptr(int64(0))
-	assert.Equal(t, "0", attrMapFromBlock(PortProfileBlocks([]unifi.PortProfile{p}, testLAN)[0])["link_debounce_ms"])
+// Settings the resource doesn't manage must not be emitted, whatever their
+// value: the generated config would not be valid.
+func TestPortProfileBlocks_UnmanagedSettingsOmitted(t *testing.T) {
+	var p unifi.PortProfile
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"_id": "prof4", "name": "Unmanaged", "native_networkconf_id": "",
+		"autoneg": false, "speed": 100, "full_duplex": true, "voice_networkconf_id": "net-b",
+		"stp_port_mode": false, "dot1x_ctrl": "multi_host", "port_security_enabled": true,
+		"link_debounce_auto": false, "link_debounce": 1200,
+		"stormctrl_bcast_enabled": true, "stormctrl_bcast_level": 20
+	}`), &p))
+	attrs := attrMapFromBlock(PortProfileBlocks([]unifi.PortProfile{p}, testLAN)[0])
+	assert.Equal(t, map[string]string{"name": `"Unmanaged"`}, attrs)
 }
 
 func TestPortProfileBlocks_RendersValidHCL(t *testing.T) {
-	p := uiDefaults("prof6", "Storm")
-	p.StormctrlType = "level"
-	p.StormctrlBcastEnabled = ptr(true)
-	p.StormctrlBcastLevel = ptr(int64(20))
+	p := uiDefaults("prof6", "Isolated")
+	p.Isolation = ptr(true)
 
 	var buf bytes.Buffer
 	require.NoError(t, WriteBlocks(&buf, PortProfileBlocks([]unifi.PortProfile{p}, testLAN)))
 	out := buf.String()
-	assert.Contains(t, out, `to = terrifi_port_profile.storm`)
+	assert.Contains(t, out, `to = terrifi_port_profile.isolated`)
 	assert.Contains(t, out, `native_network_id = "net-default" # TODO: reference the corresponding terrifi_network resource`)
-	assert.Contains(t, out, `storm_control = { broadcast = 20 }`)
+	assert.Contains(t, out, `port_isolation_enabled = true`)
 }

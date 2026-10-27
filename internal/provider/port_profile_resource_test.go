@@ -6,16 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -90,32 +89,15 @@ const uiDefaultPortProfileJSON = `{
 // a config that only sets name: every defaulted attribute is filled in.
 func defaultPortProfileModel(name string) portProfileResourceModel {
 	return portProfileResourceModel{
-		ID:                       types.StringUnknown(),
-		Site:                     types.StringUnknown(),
-		Name:                     types.StringValue(name),
-		NativeNetworkID:          types.StringNull(),
-		TaggedVLANMgmt:           types.StringValue("auto"),
-		TaggedNetworkIDs:         types.SetNull(types.StringType),
-		ExcludedNetworkIDs:       types.SetNull(types.StringType),
-		VoiceNetworkID:           types.StringNull(),
-		PoeMode:                  types.StringValue("auto"),
-		Autoneg:                  types.BoolValue(true),
-		Speed:                    types.Int64Null(),
-		FullDuplex:               types.BoolValue(false),
-		EgressRateLimitKbps:      types.Int64Null(),
-		FlowControlEnabled:       types.BoolValue(true),
-		PTPEnabled:               types.BoolValue(true),
-		Isolation:                types.BoolValue(false),
-		StpEnabled:               types.BoolValue(true),
-		StpUplink:                types.BoolValue(false),
-		BpduGuardEnabled:         types.BoolValue(false),
-		LoopProtectionEnabled:    types.BoolValue(false),
-		EEEEnabled:               types.BoolValue(false),
-		LldpmedEnabled:           types.BoolValue(true),
-		LinkDebounceMs:           types.Int64Null(),
-		PortSecurityEnabled:      types.BoolValue(false),
-		PortSecurityMACAddresses: types.SetValueMust(types.StringType, []attr.Value{}),
-		Dot1XCtrl:                types.StringValue("force_authorized"),
+		ID:               types.StringUnknown(),
+		Site:             types.StringUnknown(),
+		Name:             types.StringValue(name),
+		NativeNetworkID:  types.StringNull(),
+		TaggedVLANMgmt:   types.StringValue("allow_all"),
+		TaggedNetworkIDs: types.SetNull(types.StringType),
+		PoeMode:          types.StringValue("auto"),
+		Isolation:        types.BoolValue(false),
+		LldpmedEnabled:   types.BoolValue(true),
 	}
 }
 
@@ -168,122 +150,45 @@ func TestPortProfileAPIToModel_MissingFieldsFallBackToDefaults(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// Values the controller keeps but ignores must read as unset, or they'd show
-// up as perpetual diffs (all observed in the UI: the controller leaves speed
-// and duplex behind when autoneg is re-enabled, and so on).
-func TestPortProfileAPIToModel_StaleValuesIgnored(t *testing.T) {
-	read := func(p *unifi.PortProfile) portProfileResourceModel {
-		var m portProfileResourceModel
-		(&portProfileResource{}).apiToModel(p, &m, "default", nil)
-		return m
+// Settings without an attribute must not affect the model, whatever their
+// value, so changing them in the UI never shows up as drift.
+func TestPortProfileAPIToModel_UnmanagedSettingsIgnored(t *testing.T) {
+	var p unifi.PortProfile
+	require.NoError(t, json.Unmarshal([]byte(uiDefaultPortProfileJSON), &p))
+	var changed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(uiDefaultPortProfileJSON), &changed))
+	for k, v := range map[string]any{
+		"autoneg": false, "speed": 100, "full_duplex": true, "voice_networkconf_id": testNetB,
+		"stp_port_mode": false, "stp_uplink": true, "dot1x_ctrl": "multi_host",
+		"port_security_enabled": true, "port_security_mac_address": []string{"00:00:5e:00:53:01"},
+		"link_debounce_auto": false, "egress_rate_limit_kbps_enabled": true, "egress_rate_limit_kbps": 64,
+		"stormctrl_bcast_enabled": true, "stormctrl_bcast_level": 20,
+	} {
+		changed[k] = v
 	}
+	b, err := json.Marshal(changed)
+	require.NoError(t, err)
+	var q unifi.PortProfile
+	require.NoError(t, json.Unmarshal(b, &q))
 
-	t.Run("speed and duplex ignored while autoneg is on", func(t *testing.T) {
-		m := read(&unifi.PortProfile{Autoneg: ptrTo(true), Speed: ptrTo(int64(100)), FullDuplex: ptrTo(true)})
-		assert.True(t, m.Speed.IsNull())
-		assert.False(t, m.FullDuplex.ValueBool())
-	})
-
-	t.Run("speed and duplex read while autoneg is off", func(t *testing.T) {
-		m := read(&unifi.PortProfile{Autoneg: ptrTo(false), Speed: ptrTo(int64(100)), FullDuplex: ptrTo(true)})
-		assert.Equal(t, int64(100), m.Speed.ValueInt64())
-		assert.True(t, m.FullDuplex.ValueBool())
-	})
-
-	t.Run("voice network ignored while LLDP-MED is off", func(t *testing.T) {
-		m := read(&unifi.PortProfile{LldpmedEnabled: ptrTo(false), VoiceNetworkID: ptrTo(testNetA)})
-		assert.True(t, m.VoiceNetworkID.IsNull())
-		assert.False(t, m.LldpmedEnabled.ValueBool())
-	})
-
-	t.Run("egress kbps ignored while disabled", func(t *testing.T) {
-		m := read(&unifi.PortProfile{EgressRateLimitKbpsEnabled: ptrTo(false), EgressRateLimitKbps: ptrTo(int64(1000))})
-		assert.True(t, m.EgressRateLimitKbps.IsNull())
-	})
-
-	t.Run("link debounce value ignored while auto", func(t *testing.T) {
-		m := read(&unifi.PortProfile{LinkDebounceAuto: ptrTo(true), LinkDebounce: ptrTo(int64(1200))})
-		assert.True(t, m.LinkDebounceMs.IsNull())
-	})
-
-	t.Run("storm control thresholds ignored while every class is disabled", func(t *testing.T) {
-		m := read(&unifi.PortProfile{
-			StormctrlType:         "rate",
-			StormctrlBcastEnabled: ptrTo(false),
-			StormctrlBcastRate:    ptrTo(int64(12345)),
-			StormctrlBcastLevel:   ptrTo(int64(37)),
-		})
-		assert.Nil(t, m.StormControl)
-	})
-
-	t.Run("storm control reads the field matching its type", func(t *testing.T) {
-		m := read(&unifi.PortProfile{
-			StormctrlType:         "rate",
-			StormctrlBcastEnabled: ptrTo(true),
-			StormctrlBcastLevel:   ptrTo(int64(37)),
-			StormctrlBcastRate:    ptrTo(int64(12345)),
-		})
-		require.NotNil(t, m.StormControl)
-		assert.Equal(t, "rate", m.StormControl.Type.ValueString())
-		assert.Equal(t, int64(12345), m.StormControl.Broadcast.ValueInt64())
-		assert.True(t, m.StormControl.Multicast.IsNull())
-	})
-}
-
-func TestPortProfileAPIToModel_LinkDebounce(t *testing.T) {
-	cases := map[string]struct {
-		auto *bool
-		ms   *int64
-		want types.Int64
-	}{
-		"auto (UI default)":   {ptrTo(true), ptrTo(int64(300)), types.Int64Null()},
-		"missing keys = auto": {nil, nil, types.Int64Null()},
-		"off":                 {ptrTo(false), ptrTo(int64(0)), types.Int64Value(0)},
-		"off without value":   {ptrTo(false), nil, types.Int64Value(0)},
-		"custom":              {ptrTo(false), ptrTo(int64(1200)), types.Int64Value(1200)},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			var m portProfileResourceModel
-			(&portProfileResource{}).apiToModel(&unifi.PortProfile{LinkDebounceAuto: tc.auto, LinkDebounce: tc.ms}, &m, "default", nil)
-			assert.Equal(t, tc.want, m.LinkDebounceMs)
-		})
-	}
+	var want, got portProfileResourceModel
+	(&portProfileResource{}).apiToModel(&p, &want, "default", nil)
+	(&portProfileResource{}).apiToModel(&q, &got, "default", nil)
+	assert.Equal(t, want, got)
 }
 
 func TestPortProfileAPIToModel_TaggedNetworks(t *testing.T) {
-	// Stored like the UI stores "native A, tagged C": every other LAN
-	// network (Default, B) is excluded.
-	p := &unifi.PortProfile{
-		TaggedVLANMgmt:     "custom",
-		NativeNetworkID:    ptrTo(testNetA),
-		ExcludedNetworkIDs: []string{testDefaultNetID, testNetB},
-	}
-	read := func(prior portProfileResourceModel) portProfileResourceModel {
-		(&portProfileResource{}).apiToModel(p, &prior, "default", testLANNetworks)
-		return prior
-	}
-
-	t.Run("tagged list in state", func(t *testing.T) {
-		prior := defaultPortProfileModel("x")
-		prior.TaggedNetworkIDs = stringSet(testNetC)
-		m := read(prior)
+	t.Run("deny-list reads as the tagged allow-list", func(t *testing.T) {
+		// Stored like the UI stores "native A, tagged C": every other LAN
+		// network (Default, B) is excluded.
+		p := &unifi.PortProfile{
+			TaggedVLANMgmt:     "custom",
+			NativeNetworkID:    ptrTo(testNetA),
+			ExcludedNetworkIDs: []string{testDefaultNetID, testNetB},
+		}
+		m := defaultPortProfileModel("x")
+		(&portProfileResource{}).apiToModel(p, &m, "default", testLANNetworks)
 		assert.Equal(t, stringSet(testNetC), m.TaggedNetworkIDs)
-		assert.True(t, m.ExcludedNetworkIDs.IsNull())
-	})
-
-	t.Run("excluded list in state", func(t *testing.T) {
-		prior := defaultPortProfileModel("x")
-		prior.ExcludedNetworkIDs = stringSet(testDefaultNetID, testNetB)
-		m := read(prior)
-		assert.Equal(t, stringSet(testDefaultNetID, testNetB), m.ExcludedNetworkIDs)
-		assert.True(t, m.TaggedNetworkIDs.IsNull())
-	})
-
-	t.Run("import (neither in state) uses the tagged list", func(t *testing.T) {
-		m := read(defaultPortProfileModel("x"))
-		assert.Equal(t, stringSet(testNetC), m.TaggedNetworkIDs)
-		assert.True(t, m.ExcludedNetworkIDs.IsNull())
 	})
 
 	t.Run("a network missing from the deny-list shows as tagged", func(t *testing.T) {
@@ -299,13 +204,11 @@ func TestPortProfileAPIToModel_TaggedNetworks(t *testing.T) {
 		assert.Equal(t, stringSet(testNetB, testNetC), prior.TaggedNetworkIDs)
 	})
 
-	t.Run("not custom clears both", func(t *testing.T) {
-		prior := defaultPortProfileModel("x")
-		prior.TaggedNetworkIDs = stringSet(testNetC)
-		var m = prior
+	t.Run("not custom clears the tagged list", func(t *testing.T) {
+		m := defaultPortProfileModel("x")
+		m.TaggedNetworkIDs = stringSet(testNetC)
 		(&portProfileResource{}).apiToModel(&unifi.PortProfile{TaggedVLANMgmt: "block_all", ExcludedNetworkIDs: []string{testNetB}}, &m, "default", nil)
 		assert.True(t, m.TaggedNetworkIDs.IsNull())
-		assert.True(t, m.ExcludedNetworkIDs.IsNull())
 	})
 }
 
@@ -314,33 +217,15 @@ func TestPortProfileModelToAPI_Defaults(t *testing.T) {
 	wire := toWire(t, mustModelToAPI(t, &m, nil))
 
 	assert.Equal(t, map[string]any{
-		"name":                            "Defaults",
-		"setting_preference":              "manual",
-		"forward":                         "customize",
-		"native_networkconf_id":           "",
-		"tagged_vlan_mgmt":                "auto",
-		"excluded_networkconf_ids":        []any{},
-		"voice_networkconf_id":            "",
-		"poe_mode":                        "auto",
-		"autoneg":                         true,
-		"full_duplex":                     false,
-		"egress_rate_limit_kbps_enabled":  false,
-		"flow_control_enabled":            true,
-		"precision_time_protocol_enabled": true,
-		"isolation":                       false,
-		"stp_port_mode":                   true,
-		"stp_uplink":                      false,
-		"stp_bpdu_guard_enabled":          false,
-		"port_keepalive_enabled":          false,
-		"eee_enabled":                     false,
-		"lldpmed_enabled":                 true,
-		"link_debounce_auto":              true,
-		"port_security_enabled":           false,
-		"port_security_mac_address":       []any{},
-		"dot1x_ctrl":                      "force_authorized",
-		"stormctrl_bcast_enabled":         false,
-		"stormctrl_mcast_enabled":         false,
-		"stormctrl_ucast_enabled":         false,
+		"name":                     "Defaults",
+		"setting_preference":       "manual",
+		"forward":                  "customize",
+		"native_networkconf_id":    "",
+		"tagged_vlan_mgmt":         "auto",
+		"excluded_networkconf_ids": []any{},
+		"poe_mode":                 "auto",
+		"isolation":                false,
+		"lldpmed_enabled":          true,
 	}, wire, "exact payload for a name-only config")
 }
 
@@ -349,30 +234,9 @@ func TestPortProfileModelToAPI_AllSettings(t *testing.T) {
 	m.NativeNetworkID = types.StringValue(testNetA)
 	m.TaggedVLANMgmt = types.StringValue("custom")
 	m.TaggedNetworkIDs = stringSet(testNetC)
-	m.VoiceNetworkID = types.StringValue(testNetC)
 	m.PoeMode = types.StringValue("off")
-	m.Autoneg = types.BoolValue(false)
-	m.Speed = types.Int64Value(1000)
-	m.FullDuplex = types.BoolValue(true)
-	m.EgressRateLimitKbps = types.Int64Value(5000)
-	m.FlowControlEnabled = types.BoolValue(false)
-	m.PTPEnabled = types.BoolValue(false)
 	m.Isolation = types.BoolValue(true)
-	m.StpEnabled = types.BoolValue(false)
-	m.StpUplink = types.BoolValue(true)
-	m.BpduGuardEnabled = types.BoolValue(true)
-	m.LoopProtectionEnabled = types.BoolValue(true)
-	m.EEEEnabled = types.BoolValue(true)
-	m.LinkDebounceMs = types.Int64Value(1200)
-	m.PortSecurityEnabled = types.BoolValue(true)
-	m.PortSecurityMACAddresses = stringSet("00:00:5e:00:53:01")
-	m.Dot1XCtrl = types.StringValue("multi_host")
-	m.StormControl = &portProfileStormControlModel{
-		Type:      types.StringValue("rate"),
-		Broadcast: types.Int64Value(100),
-		Multicast: types.Int64Null(),
-		Unicast:   types.Int64Value(300),
-	}
+	m.LldpmedEnabled = types.BoolValue(false)
 
 	wire := toWire(t, mustModelToAPI(t, &m, testLANNetworks))
 
@@ -381,43 +245,12 @@ func TestPortProfileModelToAPI_AllSettings(t *testing.T) {
 	assert.Equal(t, "custom", wire["tagged_vlan_mgmt"])
 	assert.ElementsMatch(t, []any{testDefaultNetID, testNetB}, wire["excluded_networkconf_ids"],
 		"deny-list = LAN − tagged − native")
-	assert.Equal(t, testNetC, wire["voice_networkconf_id"])
 	assert.Equal(t, "off", wire["poe_mode"])
-	assert.Equal(t, false, wire["autoneg"])
-	assert.Equal(t, float64(1000), wire["speed"])
-	assert.Equal(t, true, wire["full_duplex"])
-	assert.Equal(t, true, wire["egress_rate_limit_kbps_enabled"])
-	assert.Equal(t, float64(5000), wire["egress_rate_limit_kbps"])
-	assert.Equal(t, false, wire["flow_control_enabled"])
-	assert.Equal(t, false, wire["precision_time_protocol_enabled"])
 	assert.Equal(t, true, wire["isolation"])
-	assert.Equal(t, false, wire["stp_port_mode"])
-	assert.Equal(t, true, wire["stp_uplink"])
-	assert.Equal(t, true, wire["stp_bpdu_guard_enabled"])
-	assert.Equal(t, true, wire["port_keepalive_enabled"])
-	assert.Equal(t, true, wire["eee_enabled"])
-	assert.Equal(t, false, wire["link_debounce_auto"])
-	assert.Equal(t, float64(1200), wire["link_debounce"])
-	assert.Equal(t, true, wire["port_security_enabled"])
-	assert.Equal(t, []any{"00:00:5e:00:53:01"}, wire["port_security_mac_address"])
-	assert.Equal(t, "multi_host", wire["dot1x_ctrl"])
-	assert.Equal(t, "rate", wire["stormctrl_type"])
-	assert.Equal(t, true, wire["stormctrl_bcast_enabled"])
-	assert.Equal(t, float64(100), wire["stormctrl_bcast_rate"])
-	assert.Equal(t, false, wire["stormctrl_mcast_enabled"])
-	assert.Equal(t, true, wire["stormctrl_ucast_enabled"])
-	assert.Equal(t, float64(300), wire["stormctrl_ucast_rate"])
-	assert.NotContains(t, wire, "stormctrl_bcast_level")
+	assert.Equal(t, false, wire["lldpmed_enabled"])
 }
 
 func TestPortProfileModelToAPI_TaggedNetworks(t *testing.T) {
-	t.Run("excluded list is sent literally", func(t *testing.T) {
-		m := defaultPortProfileModel("x")
-		m.TaggedVLANMgmt = types.StringValue("custom")
-		m.ExcludedNetworkIDs = stringSet(testNetB)
-		assert.Equal(t, []any{testNetB}, toWire(t, mustModelToAPI(t, &m, nil))["excluded_networkconf_ids"])
-	})
-
 	t.Run("tagged list with no native network", func(t *testing.T) {
 		m := defaultPortProfileModel("x")
 		m.TaggedVLANMgmt = types.StringValue("custom")
@@ -463,58 +296,25 @@ func TestPortProfileRoundTrip(t *testing.T) {
 			m.TaggedVLANMgmt = types.StringValue("custom")
 			m.TaggedNetworkIDs = stringSet(testNetB, testNetC)
 		},
-		"trunk, excluded list": func(m *portProfileResourceModel) {
+		"trunk, every other network tagged": func(m *portProfileResourceModel) {
 			m.NativeNetworkID = types.StringValue(testNetA)
 			m.TaggedVLANMgmt = types.StringValue("custom")
-			m.ExcludedNetworkIDs = stringSet(testDefaultNetID)
+			m.TaggedNetworkIDs = stringSet(testDefaultNetID, testNetB, testNetC)
 		},
 		"access port": func(m *portProfileResourceModel) {
 			m.NativeNetworkID = types.StringValue(testNetA)
 			m.TaggedVLANMgmt = types.StringValue("block_all")
 		},
-		"voice network": func(m *portProfileResourceModel) {
-			m.VoiceNetworkID = types.StringValue(testNetB)
-		},
-		"poe off": func(m *portProfileResourceModel) { m.PoeMode = types.StringValue("off") },
-		"fixed speed half duplex": func(m *portProfileResourceModel) {
-			m.Autoneg = types.BoolValue(false)
-			m.Speed = types.Int64Value(100)
-		},
-		"fixed speed full duplex": func(m *portProfileResourceModel) {
-			m.Autoneg = types.BoolValue(false)
-			m.Speed = types.Int64Value(1000)
-			m.FullDuplex = types.BoolValue(true)
-		},
-		"advanced flags flipped": func(m *portProfileResourceModel) {
-			m.FlowControlEnabled = types.BoolValue(false)
-			m.PTPEnabled = types.BoolValue(false)
+		"poe off":        func(m *portProfileResourceModel) { m.PoeMode = types.StringValue("off") },
+		"port isolation": func(m *portProfileResourceModel) { m.Isolation = types.BoolValue(true) },
+		"lldp-med off":   func(m *portProfileResourceModel) { m.LldpmedEnabled = types.BoolValue(false) },
+		"everything set": func(m *portProfileResourceModel) {
+			m.NativeNetworkID = types.StringValue(testNetB)
+			m.TaggedVLANMgmt = types.StringValue("custom")
+			m.TaggedNetworkIDs = stringSet(testNetC)
+			m.PoeMode = types.StringValue("off")
 			m.Isolation = types.BoolValue(true)
-			m.StpEnabled = types.BoolValue(false)
-			m.StpUplink = types.BoolValue(true)
-			m.BpduGuardEnabled = types.BoolValue(true)
-			m.LoopProtectionEnabled = types.BoolValue(true)
-			m.EEEEnabled = types.BoolValue(true)
 			m.LldpmedEnabled = types.BoolValue(false)
-		},
-		"egress limit":         func(m *portProfileResourceModel) { m.EgressRateLimitKbps = types.Int64Value(64) },
-		"link debounce off":    func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(0) },
-		"link debounce custom": func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(5000) },
-		"dot1x multi-auth":     func(m *portProfileResourceModel) { m.Dot1XCtrl = types.StringValue("multi_host") },
-		"mac filter": func(m *portProfileResourceModel) {
-			m.PortSecurityEnabled = types.BoolValue(true)
-			m.PortSecurityMACAddresses = stringSet("00:00:5e:00:53:01", "00:00:5e:00:53:02")
-		},
-		"storm control level, one class": func(m *portProfileResourceModel) {
-			m.StormControl = &portProfileStormControlModel{
-				Type: types.StringValue("level"), Broadcast: types.Int64Value(37),
-				Multicast: types.Int64Null(), Unicast: types.Int64Null(),
-			}
-		},
-		"storm control rate, all classes": func(m *portProfileResourceModel) {
-			m.StormControl = &portProfileStormControlModel{
-				Type: types.StringValue("rate"), Broadcast: types.Int64Value(12345),
-				Multicast: types.Int64Value(14880000), Unicast: types.Int64Value(0),
-			}
 		},
 	}
 
@@ -534,7 +334,7 @@ func TestPortProfileRoundTrip(t *testing.T) {
 			var decoded unifi.PortProfile
 			require.NoError(t, json.Unmarshal(b, &decoded))
 
-			got := want // apiToModel reads the tagged/excluded choice from prior state
+			var got portProfileResourceModel
 			r.apiToModel(&decoded, &got, "default", testLANNetworks)
 			assert.Equal(t, want, got)
 		})
@@ -544,6 +344,12 @@ func TestPortProfileRoundTrip(t *testing.T) {
 func TestMergePortProfile(t *testing.T) {
 	var existing map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(uiDefaultPortProfileJSON), &existing))
+	// Settings changed in the UI that the provider doesn't manage.
+	existing["autoneg"] = json.RawMessage(`false`)
+	existing["speed"] = json.RawMessage(`100`)
+	existing["stp_port_mode"] = json.RawMessage(`false`)
+	existing["voice_networkconf_id"] = json.RawMessage(`"` + testNetB + `"`)
+	existing["stormctrl_bcast_enabled"] = json.RawMessage(`true`)
 
 	m := defaultPortProfileModel("new name")
 	p := mustModelToAPI(t, &m, nil)
@@ -566,11 +372,39 @@ func TestMergePortProfile(t *testing.T) {
 	assert.Equal(t, float64(300), got["dot1x_idle_timeout"])
 	assert.Equal(t, false, got["lldpmed_notify_enabled"])
 	assert.Equal(t, "disabled", got["stp_edge_state"])
+	assert.Equal(t, false, got["autoneg"])
+	assert.Equal(t, float64(100), got["speed"])
+	assert.Equal(t, false, got["stp_port_mode"])
+	assert.Equal(t, testNetB, got["voice_networkconf_id"])
+	assert.Equal(t, true, got["stormctrl_bcast_enabled"])
 
 	// Managed settings replaced: advanced mode forced to manual.
 	assert.Equal(t, "new name", got["name"])
 	assert.Equal(t, "manual", got["setting_preference"])
 	assert.Equal(t, "", got["native_networkconf_id"])
+}
+
+// Create starts from the UI defaults of the unmanaged settings, so a profile
+// created by Terraform matches one created in the UI (whose key set
+// uiDefaultPortProfileJSON records).
+func TestPortProfileUnmanagedDefaultsMatchUI(t *testing.T) {
+	var ui map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(uiDefaultPortProfileJSON), &ui))
+	for k, v := range portProfileUnmanagedDefaults() {
+		if k == "full_duplex" {
+			continue // absent from the UI object; false is the controller default
+		}
+		require.Contains(t, ui, k)
+		assert.JSONEq(t, string(ui[k]), string(v), k)
+	}
+
+	m := defaultPortProfileModel("x")
+	payload, err := mergePortProfile(portProfileUnmanagedDefaults(), mustModelToAPI(t, &m, nil))
+	require.NoError(t, err)
+	for k := range portProfileUnmanagedDefaults() {
+		assert.Contains(t, payload, k)
+	}
+	assert.JSONEq(t, `"manual"`, string(payload["setting_preference"]), "managed fields overlay the defaults")
 }
 
 func TestPortProfileApplyPlanToState(t *testing.T) {
@@ -579,12 +413,9 @@ func TestPortProfileApplyPlanToState(t *testing.T) {
 	state := defaultPortProfileModel("before")
 	state.ID = types.StringValue("000000000000000000000100")
 	state.Site = types.StringValue("default")
-	state.EgressRateLimitKbps = types.Int64Value(1000)
-	state.LinkDebounceMs = types.Int64Value(1200)
-	state.StormControl = &portProfileStormControlModel{
-		Type: types.StringValue("level"), Broadcast: types.Int64Value(10),
-		Multicast: types.Int64Null(), Unicast: types.Int64Null(),
-	}
+	state.NativeNetworkID = types.StringValue(testNetA)
+	state.TaggedVLANMgmt = types.StringValue("custom")
+	state.TaggedNetworkIDs = stringSet(testNetB)
 
 	plan := defaultPortProfileModel("after")
 	plan.Site = types.StringValue("default")
@@ -593,18 +424,14 @@ func TestPortProfileApplyPlanToState(t *testing.T) {
 
 	assert.Equal(t, "000000000000000000000100", state.ID.ValueString(), "ID comes from state")
 	assert.Equal(t, "after", state.Name.ValueString())
-	assert.True(t, state.EgressRateLimitKbps.IsNull(), "null in plan clears egress limit")
-	assert.True(t, state.LinkDebounceMs.IsNull(), "null in plan returns link debounce to auto")
-	assert.Nil(t, state.StormControl, "null in plan clears storm control")
+	assert.True(t, state.NativeNetworkID.IsNull(), "null in plan clears the native network")
+	assert.True(t, state.TaggedNetworkIDs.IsNull(), "null in plan clears the tagged list")
 }
 
 func TestValidatePortProfileModel(t *testing.T) {
 	custom := func(m *portProfileResourceModel) {
 		m.TaggedVLANMgmt = types.StringValue("custom")
 		m.NativeNetworkID = types.StringValue(testNetA)
-	}
-	storm := func(scType types.String, b, mc, u types.Int64) *portProfileStormControlModel {
-		return &portProfileStormControlModel{Type: scType, Broadcast: b, Multicast: mc, Unicast: u}
 	}
 
 	cases := []struct {
@@ -613,195 +440,65 @@ func TestValidatePortProfileModel(t *testing.T) {
 		wantErr string
 	}{
 		{name: "defaults", mutate: func(m *portProfileResourceModel) {}},
-
-		// Link speed.
-		{
-			name: "speed with autoneg off",
-			mutate: func(m *portProfileResourceModel) {
-				m.Autoneg = types.BoolValue(false)
-				m.Speed = types.Int64Value(1000)
-				m.FullDuplex = types.BoolValue(true)
-			},
-		},
-		{
-			name:    "speed with autoneg on",
-			mutate:  func(m *portProfileResourceModel) { m.Speed = types.Int64Value(1000) },
-			wantErr: "`speed` can only be set when `autoneg` is `false`",
-		},
-		{
-			name: "speed with autoneg null (defaults to on)",
-			mutate: func(m *portProfileResourceModel) {
-				m.Autoneg = types.BoolNull()
-				m.Speed = types.Int64Value(1000)
-			},
-			wantErr: "`speed` can only be set when `autoneg` is `false`",
-		},
-		{
-			name:    "autoneg off without speed",
-			mutate:  func(m *portProfileResourceModel) { m.Autoneg = types.BoolValue(false) },
-			wantErr: "`speed` is required when `autoneg` is `false`",
-		},
-		{
-			name:    "full duplex with autoneg on",
-			mutate:  func(m *portProfileResourceModel) { m.FullDuplex = types.BoolValue(true) },
-			wantErr: "`full_duplex` can only be `true` when `autoneg` is `false`",
-		},
-		{
-			name: "speed unknown is not validated yet",
-			mutate: func(m *portProfileResourceModel) {
-				m.Autoneg = types.BoolValue(false)
-				m.Speed = types.Int64Unknown()
-			},
-		},
-
-		// Tagged networks.
+		{name: "default mode left null", mutate: func(m *portProfileResourceModel) { m.TaggedVLANMgmt = types.StringNull() }},
 		{
 			name:   "custom with tagged list",
 			mutate: func(m *portProfileResourceModel) { custom(m); m.TaggedNetworkIDs = stringSet(testNetB) },
 		},
 		{
-			name:   "custom with excluded list",
-			mutate: func(m *portProfileResourceModel) { custom(m); m.ExcludedNetworkIDs = stringSet(testNetB) },
-		},
-		{
-			name:    "custom with neither",
+			name:    "custom without tagged list",
 			mutate:  custom,
-			wantErr: "set exactly one of `tagged_network_ids` or `excluded_network_ids`",
+			wantErr: "`tagged_network_ids` is required when `tagged_vlan_mode` is `custom`",
 		},
 		{
 			name:    "custom with empty tagged list",
 			mutate:  func(m *portProfileResourceModel) { custom(m); m.TaggedNetworkIDs = stringSet() },
-			wantErr: "`tagged_network_ids` can't be empty: use `tagged_vlan_mgmt = \"block_all\"`",
+			wantErr: "`tagged_network_ids` can't be empty: use `tagged_vlan_mode = \"block_all\"`",
 		},
 		{
-			name: "custom with both",
-			mutate: func(m *portProfileResourceModel) {
-				custom(m)
-				m.TaggedNetworkIDs = stringSet(testNetB)
-				m.ExcludedNetworkIDs = stringSet(testNetC)
-			},
-			wantErr: "set exactly one of",
-		},
-		{
-			name:    "tagged list without custom",
+			name:    "tagged list with allow_all",
 			mutate:  func(m *portProfileResourceModel) { m.TaggedNetworkIDs = stringSet(testNetB) },
-			wantErr: "can only be set when `tagged_vlan_mgmt` is `custom`",
+			wantErr: "can only be set when `tagged_vlan_mode` is `custom`",
 		},
 		{
-			name:    "excluded list without custom",
-			mutate:  func(m *portProfileResourceModel) { m.ExcludedNetworkIDs = stringSet(testNetB) },
-			wantErr: "can only be set when `tagged_vlan_mgmt` is `custom`",
+			name: "tagged list with default mode left null",
+			mutate: func(m *portProfileResourceModel) {
+				m.TaggedVLANMgmt = types.StringNull()
+				m.TaggedNetworkIDs = stringSet(testNetB)
+			},
+			wantErr: "can only be set when `tagged_vlan_mode` is `custom`",
+		},
+		{
+			name: "tagged list with block_all",
+			mutate: func(m *portProfileResourceModel) {
+				m.TaggedVLANMgmt = types.StringValue("block_all")
+				m.TaggedNetworkIDs = stringSet(testNetB)
+			},
+			wantErr: "can only be set when `tagged_vlan_mode` is `custom`",
 		},
 		{
 			name:    "native also tagged",
-			mutate:  func(m *portProfileResourceModel) { custom(m); m.TaggedNetworkIDs = stringSet(testNetA) },
+			mutate:  func(m *portProfileResourceModel) { custom(m); m.TaggedNetworkIDs = stringSet(testNetA, testNetB) },
 			wantErr: "The native network can't also be tagged",
-		},
-		{
-			name:    "native excluded",
-			mutate:  func(m *portProfileResourceModel) { custom(m); m.ExcludedNetworkIDs = stringSet(testNetA) },
-			wantErr: "The native network can't be excluded",
 		},
 		{
 			name:   "tagged list unknown is not validated yet",
 			mutate: func(m *portProfileResourceModel) { custom(m); m.TaggedNetworkIDs = types.SetUnknown(types.StringType) },
 		},
-
-		// Voice VLAN.
 		{
-			name:   "voice with allow all",
-			mutate: func(m *portProfileResourceModel) { m.VoiceNetworkID = types.StringValue(testNetB) },
-		},
-		{
-			name: "voice in tagged list",
+			name: "mode unknown is not validated yet",
 			mutate: func(m *portProfileResourceModel) {
-				custom(m)
+				m.TaggedVLANMgmt = types.StringUnknown()
 				m.TaggedNetworkIDs = stringSet(testNetB)
-				m.VoiceNetworkID = types.StringValue(testNetB)
 			},
 		},
 		{
-			name: "voice not in tagged list",
+			name: "native unknown skips the overlap check only",
 			mutate: func(m *portProfileResourceModel) {
 				custom(m)
-				m.TaggedNetworkIDs = stringSet(testNetB)
-				m.VoiceNetworkID = types.StringValue(testNetC)
+				m.NativeNetworkID = types.StringUnknown()
+				m.TaggedNetworkIDs = stringSet(testNetA)
 			},
-			wantErr: "The voice network must be one of `tagged_network_ids`",
-		},
-		{
-			name: "voice in excluded list",
-			mutate: func(m *portProfileResourceModel) {
-				custom(m)
-				m.ExcludedNetworkIDs = stringSet(testNetB)
-				m.VoiceNetworkID = types.StringValue(testNetB)
-			},
-			wantErr: "The voice network can't be in `excluded_network_ids`",
-		},
-		{
-			name: "voice with block all",
-			mutate: func(m *portProfileResourceModel) {
-				m.TaggedVLANMgmt = types.StringValue("block_all")
-				m.VoiceNetworkID = types.StringValue(testNetB)
-			},
-			wantErr: "can't be set when `tagged_vlan_mgmt` is `block_all`",
-		},
-		{
-			name: "voice without LLDP-MED",
-			mutate: func(m *portProfileResourceModel) {
-				m.LldpmedEnabled = types.BoolValue(false)
-				m.VoiceNetworkID = types.StringValue(testNetB)
-			},
-			wantErr: "A voice network requires `lldpmed_enabled`",
-		},
-
-		// Link debounce.
-		{name: "debounce off", mutate: func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(0) }},
-		{name: "debounce min", mutate: func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(100) }},
-		{name: "debounce max", mutate: func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(5000) }},
-		{
-			name:    "debounce not a multiple of 100",
-			mutate:  func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(1234) },
-			wantErr: "must be 0 (off) or 100–5000 in steps of 100, got 1234",
-		},
-		{
-			name:    "debounce too high",
-			mutate:  func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(5100) },
-			wantErr: "got 5100",
-		},
-		{
-			name:    "debounce between off and min",
-			mutate:  func(m *portProfileResourceModel) { m.LinkDebounceMs = types.Int64Value(50) },
-			wantErr: "got 50",
-		},
-
-		// Storm control.
-		{
-			name: "storm control with no classes",
-			mutate: func(m *portProfileResourceModel) {
-				m.StormControl = storm(types.StringNull(), types.Int64Null(), types.Int64Null(), types.Int64Null())
-			},
-			wantErr: "must set at least one of",
-		},
-		{
-			name: "storm control level above 100",
-			mutate: func(m *portProfileResourceModel) {
-				m.StormControl = storm(types.StringNull(), types.Int64Value(101), types.Int64Null(), types.Int64Null())
-			},
-			wantErr: "`broadcast` must be between 0 and 100",
-		},
-		{
-			name: "storm control rate above 100 is fine",
-			mutate: func(m *portProfileResourceModel) {
-				m.StormControl = storm(types.StringValue("rate"), types.Int64Value(12345), types.Int64Null(), types.Int64Null())
-			},
-		},
-		{
-			name: "storm control rate above max",
-			mutate: func(m *portProfileResourceModel) {
-				m.StormControl = storm(types.StringValue("rate"), types.Int64Null(), types.Int64Value(14880001), types.Int64Null())
-			},
-			wantErr: "`multicast` must be between 0 and 14880000",
 		},
 	}
 
@@ -810,7 +507,7 @@ func TestValidatePortProfileModel(t *testing.T) {
 			m := defaultPortProfileModel("validate")
 			// Config values: defaulted attributes are null unless set.
 			tc.mutate(&m)
-			diags := validatePortProfileModel(t.Context(), &m)
+			diags := validatePortProfileModel(&m)
 			if tc.wantErr == "" {
 				assert.False(t, diags.HasError(), "unexpected error: %v", diags)
 				return
@@ -823,6 +520,22 @@ func TestValidatePortProfileModel(t *testing.T) {
 			assert.Contains(t, strings.Join(details, "\n"), tc.wantErr)
 		})
 	}
+}
+
+// Removed attributes must be rejected by the schema rather than silently
+// ignored, so a config written for the earlier interface fails loudly.
+func TestPortProfileSchemaRemovedAttributes(t *testing.T) {
+	var resp fwresource.SchemaResponse
+	(&portProfileResource{}).Schema(t.Context(), fwresource.SchemaRequest{}, &resp)
+	for _, name := range []string{
+		"excluded_network_ids", "voice_network_id", "auto_negotiation_enabled", "speed_mbps", "full_duplex",
+		"egress_rate_limit_kbps", "flow_control_enabled", "ptp_enabled", "stp_enabled", "stp_uplink",
+		"bpdu_guard_enabled", "loop_protection_enabled", "eee_enabled", "link_debounce_ms",
+		"port_security_enabled", "port_security_mac_addresses", "dot1x_control", "storm_control",
+	} {
+		assert.NotContains(t, resp.Schema.Attributes, name)
+	}
+	assert.Len(t, resp.Schema.Attributes, 9)
 }
 
 // The framework only validates schemas when serving them, which unit tests
@@ -1129,19 +842,19 @@ func TestSettleFreshTaggedNetworks_NoFreshNetworkNoRequests(t *testing.T) {
 	assert.Equal(t, []string{"POST"}, requestMethods(fake))
 }
 
-func TestSettleFreshTaggedNetworks_SkippedOutsideTaggedList(t *testing.T) {
+func TestSettleFreshTaggedNetworks_SkippedOutsideCustom(t *testing.T) {
 	fresh := freshNetworkID(time.Now())
 	for _, tc := range []struct {
 		name  string
 		setup func(m *portProfileResourceModel)
 	}{
 		{"allow all", func(m *portProfileResourceModel) {
-			m.TaggedVLANMgmt = types.StringValue("auto")
+			m.TaggedVLANMgmt = types.StringValue("allow_all")
 			m.TaggedNetworkIDs = types.SetNull(types.StringType)
 		}},
-		{"excluded list", func(m *portProfileResourceModel) {
+		{"block all", func(m *portProfileResourceModel) {
+			m.TaggedVLANMgmt = types.StringValue("block_all")
 			m.TaggedNetworkIDs = types.SetNull(types.StringType)
-			m.ExcludedNetworkIDs = stringSet(testNetB)
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1160,14 +873,27 @@ func TestSettleFreshTaggedNetworks_SkippedOutsideTaggedList(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Acceptance tests
 //
-// These create, update and delete tfacc-* port profiles, and (in the tests
-// marked below) tfacc-* networks. No profile is ever assigned to a device
-// port, so they don't change how any physical port behaves. Creating a
-// network makes the controller add it to existing custom profiles'
-// exclude lists.
+// Coverage: controller-side persistence and Terraform lifecycle only, on both
+// Docker and hardware targets. These tests create, update, import and delete
+// tfacc-* profiles and networks, but never assign a profile to a physical port.
+// A passing test proves the controller stores and returns the settings, not
+// that a switch enforces VLAN filtering, PoE, port isolation or LLDP-MED.
+//
+// Creating a network makes the controller add it to existing custom profiles'
+// exclude lists, which is also checked here.
+//
+// TODO: Add enforcement tests with a profile-capable switch and connected test
+// endpoints. The HIL Flex Mini cannot exercise custom-profile assignments.
 // ---------------------------------------------------------------------------
 
 const testAccPortProfileAddr = "terrifi_port_profile.test"
+
+// preCheckPortProfile makes the scope visible in verbose acceptance-test logs.
+func preCheckPortProfile(t *testing.T) {
+	t.Helper()
+	preCheck(t)
+	t.Log("Coverage: controller profile persistence and Terraform lifecycle; no physical port assignments or switch enforcement checks")
+}
 
 // testAccPortProfileNetworks returns HCL for n throwaway corporate networks,
 // terrifi_network.pp0 .. pp<n-1>, one block each. VLANs are random, so a test
@@ -1306,29 +1032,11 @@ func testAccPortProfileIDs(s *terraform.State) (site, id string, err error) {
 func portProfileDefaultsChecks() resource.TestCheckFunc {
 	return resource.ComposeAggregateTestCheckFunc(
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "native_network_id"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mgmt", "auto"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "allow_all"),
 		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "tagged_network_ids"),
-		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
-		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "voice_network_id"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "auto"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "true"),
-		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "speed"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
-		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "egress_rate_limit_kbps"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "flow_control_enabled", "true"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "ptp_enabled", "true"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "isolation", "false"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_enabled", "true"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_uplink", "false"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "bpdu_guard_enabled", "false"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "loop_protection_enabled", "false"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "eee_enabled", "false"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_isolation_enabled", "false"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "lldpmed_enabled", "true"),
-		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "link_debounce_ms"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_security_enabled", "false"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_security_mac_addresses.#", "0"),
-		resource.TestCheckResourceAttr(testAccPortProfileAddr, "dot1x_ctrl", "force_authorized"),
-		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control"),
 	)
 }
 
@@ -1344,7 +1052,7 @@ resource "terrifi_port_profile" "test" {
 func TestAccPortProfile_basic(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-basic-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1379,323 +1087,168 @@ func TestAccPortProfile_basic(t *testing.T) {
 // TestAccPortProfile_allSettingsThenDefaults sets every non-VLAN attribute to
 // a non-default value, then removes them all. Removing proves that clearing
 // an attribute in config clears it on the controller, given that the
-// controller merges PUTs. Settings the Docker controller doesn't store are
-// covered by TestAccPortProfile_newerSettings.
+// controller merges PUTs.
 func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-all-%s", randomSuffix())
+	allSet := testAccPortProfileConfig(name, `
+  poe_mode               = "off"
+  port_isolation_enabled = true
+  lldpmed_enabled        = false
+`)
+	allSetChecks := resource.ComposeAggregateTestCheckFunc(
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "off"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_isolation_enabled", "true"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "lldpmed_enabled", "false"),
+	)
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
-			{
-				Config: testAccPortProfileConfig(name, `
-  poe_mode                    = "off"
-  autoneg                     = false
-  speed                       = 100
-  full_duplex                 = true
-  egress_rate_limit_kbps      = 10000
-  isolation                   = true
-  stp_enabled                 = false
-  stp_uplink                  = true
-  bpdu_guard_enabled          = true
-  loop_protection_enabled     = true
-  lldpmed_enabled             = false
-  port_security_enabled       = true
-  port_security_mac_addresses = ["00:00:5e:00:53:01", "00:00:5e:00:53:02"]
-  dot1x_ctrl                  = "multi_host"
-  storm_control = {
-    type      = "level"
-    broadcast = 20
-    multicast = 30
-    unicast   = 40
-  }
-`),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "off"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "false"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "100"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "true"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "egress_rate_limit_kbps", "10000"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "isolation", "true"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_enabled", "false"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_uplink", "true"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "bpdu_guard_enabled", "true"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "loop_protection_enabled", "true"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "lldpmed_enabled", "false"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_security_enabled", "true"),
-					resource.TestCheckTypeSetElemAttr(testAccPortProfileAddr, "port_security_mac_addresses.*", "00:00:5e:00:53:01"),
-					resource.TestCheckTypeSetElemAttr(testAccPortProfileAddr, "port_security_mac_addresses.*", "00:00:5e:00:53:02"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "dot1x_ctrl", "multi_host"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "level"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.broadcast", "20"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.multicast", "30"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.unicast", "40"),
-				),
-			},
+			{Config: allSet, Check: allSetChecks},
 			{
 				ResourceName:      testAccPortProfileAddr,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// Remove everything: all attributes revert to defaults or unset.
+			// Remove everything: all attributes revert to defaults.
 			{
 				Config: testAccPortProfileConfig(name, ""),
 				Check:  portProfileDefaultsChecks(),
 			},
-			// And set some again from defaults, to catch create-vs-update differences.
+			// And set them again from defaults, to catch create-vs-update differences.
+			{Config: allSet, Check: allSetChecks},
+			// One at a time back to its default.
 			{
 				Config: testAccPortProfileConfig(name, `
   poe_mode               = "off"
-  egress_rate_limit_kbps = 64
-  storm_control          = { unicast = 100 }
+  port_isolation_enabled = true
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "off"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "egress_rate_limit_kbps", "64"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "level"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.broadcast"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.unicast", "100"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_isolation_enabled", "true"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "lldpmed_enabled", "true"),
+				),
+			},
+			{
+				Config: testAccPortProfileConfig(name, `  poe_mode = "off"`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "off"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_isolation_enabled", "false"),
 				),
 			},
 		},
 	})
 }
 
-// TestAccPortProfile_linkSettings toggles between auto-negotiation and fixed
-// speed/duplex. The controller leaves speed and duplex behind when autoneg is
-// re-enabled; that must not surface as a diff.
-func TestAccPortProfile_linkSettings(t *testing.T) {
-	name := fmt.Sprintf("tfacc-pp-link-%s", randomSuffix())
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             testAccCheckPortProfileDestroyed,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccPortProfileConfig(name, `
-  autoneg = false
-  speed   = 100
-`),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "false"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "100"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
-				),
-			},
-			{
-				Config: testAccPortProfileConfig(name, `
-  autoneg     = false
-  speed       = 1000
-  full_duplex = true
-`),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "1000"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "true"),
-				),
-			},
-			{
-				Config: testAccPortProfileConfig(name, ""),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "autoneg", "true"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "speed"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
-				),
-			},
-			// Fixed again, to a value different from the stale one, half duplex.
-			{
-				Config: testAccPortProfileConfig(name, `
-  autoneg = false
-  speed   = 10
-`),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "speed", "10"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "full_duplex", "false"),
-				),
-			},
-		},
-	})
-}
-
-// TestAccPortProfile_newerSettings covers settings the Docker test controller
-// (Network Application 10.3.58) doesn't store: it drops eee_enabled,
-// flow_control_enabled, precision_time_protocol_enabled and link debounce on
-// write. UniFi OS 5.1 / Network 10.x stores them, so this runs on hardware only.
-func TestAccPortProfile_newerSettings(t *testing.T) {
-	if os.Getenv("TERRIFI_ACC_TARGET") != "hardware" {
-		t.Skip("the Docker controller doesn't store these settings (TERRIFI_ACC_TARGET=hardware)")
-	}
-	name := fmt.Sprintf("tfacc-pp-newer-%s", randomSuffix())
-	step := func(body string, checks ...resource.TestCheckFunc) resource.TestStep {
-		return resource.TestStep{Config: testAccPortProfileConfig(name, body), Check: resource.ComposeAggregateTestCheckFunc(checks...)}
-	}
-	attr := func(k, v string) resource.TestCheckFunc {
-		return resource.TestCheckResourceAttr(testAccPortProfileAddr, k, v)
-	}
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             testAccCheckPortProfileDestroyed,
-		Steps: []resource.TestStep{
-			step(`
-  link_debounce_ms     = 0
-  eee_enabled          = true
-  flow_control_enabled = false
-  ptp_enabled          = false
-`, attr("link_debounce_ms", "0"), attr("eee_enabled", "true"), attr("flow_control_enabled", "false"), attr("ptp_enabled", "false")),
-			{ResourceName: testAccPortProfileAddr, ImportState: true, ImportStateVerify: true},
-			step(`  link_debounce_ms = 1200`, attr("link_debounce_ms", "1200"),
-				attr("eee_enabled", "false"), attr("flow_control_enabled", "true"), attr("ptp_enabled", "true")),
-			step("", resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "link_debounce_ms")),
-			step(`  link_debounce_ms = 5000`, attr("link_debounce_ms", "5000")),
-			step(`  link_debounce_ms = 0`, attr("link_debounce_ms", "0")),
-		},
-	})
-}
-
-func TestAccPortProfile_stormControl(t *testing.T) {
-	name := fmt.Sprintf("tfacc-pp-storm-%s", randomSuffix())
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		CheckDestroy:             testAccCheckPortProfileDestroyed,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccPortProfileConfig(name, `
-  storm_control = { broadcast = 37 }
-`),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "level"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.broadcast", "37"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.multicast"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.unicast"),
-				),
-			},
-			// Switch to rate: the old level value must not leak into the rate.
-			{
-				Config: testAccPortProfileConfig(name, `
-  storm_control = {
-    type      = "rate"
-    broadcast = 12345
-    multicast = 6000
-  }
-`),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.type", "rate"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.broadcast", "12345"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.multicast", "6000"),
-				),
-			},
-			// Disable one class.
-			{
-				Config: testAccPortProfileConfig(name, `
-  storm_control = {
-    type      = "rate"
-    multicast = 6000
-  }
-`),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control.broadcast"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control.multicast", "6000"),
-				),
-			},
-			{
-				ResourceName:      testAccPortProfileAddr,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-			// Remove the block entirely.
-			{
-				Config: testAccPortProfileConfig(name, ""),
-				Check:  resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control"),
-			},
-		},
-	})
-}
-
-// TestAccPortProfile_unmanagedFieldsPreserved changes fields the resource
-// doesn't manage behind Terraform's back, including setting Advanced back to
-// "auto" (as a UI-created profile would be), then updates the profile. The
-// unmanaged fields must survive and Advanced must be forced back to "manual".
+// TestAccPortProfile_unmanagedFieldsPreserved checks that create sends the UI
+// defaults of settings the resource doesn't manage, then changes such
+// settings behind Terraform's back and updates the profile: they must survive
+// without a diff. It then sets Advanced back to "auto" (as a UI-created
+// profile would be), which the controller answers by resetting the advanced
+// settings, and expects the next update to force "manual" again while
+// keeping other unmanaged fields.
 func TestAccPortProfile_unmanagedFieldsPreserved(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-unmanaged-%s", randomSuffix())
+	advanced := map[string]any{
+		"stp_port_mode":           false,
+		"stormctrl_type":          "level",
+		"stormctrl_bcast_enabled": true,
+		"stormctrl_bcast_level":   20,
+	}
+	auto := map[string]any{
+		"setting_preference": "auto",
+		"dot1x_idle_timeout": 123,
+	}
+	raw := func(s *terraform.State) (site, id string, fields map[string]any, err error) {
+		if site, id, err = testAccPortProfileIDs(s); err != nil {
+			return
+		}
+		fields, err = testAccRawPortProfile(site, id)
+		return
+	}
+	// put changes fields out of band and checks that they stuck: only those
+	// can prove preservation.
+	put := func(s *terraform.State, fields map[string]any) error {
+		site, id, err := testAccPortProfileIDs(s)
+		if err != nil {
+			return err
+		}
+		if err := testAccPutRawPortProfile(site, id, maps.Clone(fields)); err != nil {
+			return err
+		}
+		return expectRaw(s, raw, fields, "out-of-band PUT didn't stick")
+	}
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccPortProfileConfig(name, ""),
 				Check: func(s *terraform.State) error {
-					site, id, err := testAccPortProfileIDs(s)
-					if err != nil {
+					if err := expectRaw(s, raw, map[string]any{
+						"setting_preference": "manual", "autoneg": true, "stp_port_mode": true,
+						"dot1x_ctrl": "force_authorized", "port_security_enabled": false,
+						"stormctrl_bcast_enabled": false,
+					}, "want the UI default after create"); err != nil {
 						return err
 					}
-					raw, err := testAccRawPortProfile(site, id)
-					if err != nil {
-						return err
-					}
-					if raw["setting_preference"] != "manual" {
-						return fmt.Errorf("setting_preference = %v after create, want manual", raw["setting_preference"])
-					}
-					if err := testAccPutRawPortProfile(site, id, map[string]any{
-						"setting_preference":     "auto",
-						"dot1x_idle_timeout":     123,
-						"lldpmed_notify_enabled": true,
-					}); err != nil {
-						return err
-					}
-					// Only fields that actually stuck can prove preservation.
-					raw, err = testAccRawPortProfile(site, id)
-					if err != nil {
-						return err
-					}
-					t.Logf("after out-of-band PUT: setting_preference=%v dot1x_idle_timeout=%v lldpmed_notify_enabled=%v",
-						raw["setting_preference"], raw["dot1x_idle_timeout"], raw["lldpmed_notify_enabled"])
-					if raw["setting_preference"] != "auto" || raw["dot1x_idle_timeout"] != float64(123) {
-						return fmt.Errorf("out-of-band PUT didn't stick: setting_preference=%v dot1x_idle_timeout=%v",
-							raw["setting_preference"], raw["dot1x_idle_timeout"])
-					}
-					return nil
+					return put(s, advanced)
 				},
 			},
 			{
 				Config: testAccPortProfileConfig(name+"-renamed", ""),
 				Check: func(s *terraform.State) error {
-					site, id, err := testAccPortProfileIDs(s)
-					if err != nil {
+					if err := expectRaw(s, raw, advanced, "unmanaged setting not preserved"); err != nil {
 						return err
 					}
-					raw, err := testAccRawPortProfile(site, id)
-					if err != nil {
-						return err
-					}
-					if raw["setting_preference"] != "manual" {
-						return fmt.Errorf("setting_preference = %v after update, want manual", raw["setting_preference"])
-					}
-					t.Logf("after terraform update: setting_preference=%v dot1x_idle_timeout=%v lldpmed_notify_enabled=%v",
-						raw["setting_preference"], raw["dot1x_idle_timeout"], raw["lldpmed_notify_enabled"])
-					if raw["dot1x_idle_timeout"] != float64(123) {
-						return fmt.Errorf("unmanaged field not preserved: dot1x_idle_timeout=%v", raw["dot1x_idle_timeout"])
-					}
-					return nil
+					return put(s, auto)
 				},
+			},
+			{
+				Config: testAccPortProfileConfig(name, ""),
+				Check: func(s *terraform.State) error {
+					return expectRaw(s, raw, map[string]any{
+						"setting_preference": "manual", "dot1x_idle_timeout": 123,
+					}, "after update")
+				},
+			},
+			{
+				ResourceName:      testAccPortProfileAddr,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})
 }
 
+// expectRaw compares stored fields with want, formatting both so that JSON
+// numbers match Go ints.
+func expectRaw(s *terraform.State, read func(*terraform.State) (string, string, map[string]any, error), want map[string]any, msg string) error {
+	_, _, got, err := read(s)
+	if err != nil {
+		return err
+	}
+	for k, v := range want {
+		if fmt.Sprint(got[k]) != fmt.Sprint(v) {
+			return fmt.Errorf("%s: %s = %v, want %v", msg, k, got[k], v)
+		}
+	}
+	return nil
+}
+
 func TestAccPortProfile_importSiteID(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-impsid-%s", randomSuffix())
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccPortProfileConfig(name, `
   poe_mode  = "off"
-  isolation = true
+  port_isolation_enabled = true
 `),
 			},
 			{
@@ -1717,7 +1270,7 @@ func TestAccPortProfile_disappears(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-gone-%s", randomSuffix())
 	var id, site string
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckPortProfileDestroyed,
 		Steps: []resource.TestStep{
@@ -1750,8 +1303,7 @@ func TestAccPortProfile_disappears(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestAccPortProfile_vlanTrunk walks a profile through the VLAN
-// configurations used for hypervisor trunks, switch uplinks and access ports,
-// using both the tagged allow-list and the literal excluded list.
+// configurations used for hypervisor trunks, switch uplinks and access ports.
 func TestAccPortProfile_vlanTrunk(t *testing.T) {
 	suffix := randomSuffix()
 	name := fmt.Sprintf("tfacc-pp-trunk-%s", suffix)
@@ -1764,7 +1316,7 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             resource.ComposeAggregateTestCheckFunc(testAccCheckPortProfileDestroyed, testAccCheckNoStaleExcludedIDs),
 		Steps: []resource.TestStep{
@@ -1772,83 +1324,75 @@ func TestAccPortProfile_vlanTrunk(t *testing.T) {
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp0.id
-  tagged_vlan_mgmt   = "custom"
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [terrifi_network.pp1.id]
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "native_network_id", "terrifi_network.pp0", "id"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mgmt", "custom"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "custom"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "1"),
 					resource.TestCheckTypeSetElemAttrPair(testAccPortProfileAddr, "tagged_network_ids.*", "terrifi_network.pp1", "id"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
 				),
 			},
-			// Tag pp2 too, with pp2 as the voice VLAN.
+			// Tag pp2 too.
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp0.id
-  tagged_vlan_mgmt   = "custom"
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [terrifi_network.pp1.id, terrifi_network.pp2.id]
-  voice_network_id   = terrifi_network.pp2.id
 `),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "2"),
-					resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "voice_network_id", "terrifi_network.pp2", "id"),
-				),
+				Check: resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "2"),
 			},
 			{
 				ResourceName:      testAccPortProfileAddr,
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
-			// Swap the native network and the tagged one; voice VLAN removed.
+			// Swap the native network and the tagged one.
 			{
 				Config: cfg(`
   native_network_id  = terrifi_network.pp2.id
-  tagged_vlan_mgmt   = "custom"
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [terrifi_network.pp0.id]
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "native_network_id", "terrifi_network.pp2", "id"),
 					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "1"),
 					resource.TestCheckTypeSetElemAttrPair(testAccPortProfileAddr, "tagged_network_ids.*", "terrifi_network.pp0", "id"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "voice_network_id"),
 				),
 			},
-			// The literal deny-list form.
+			// Custom with no native network.
 			{
 				Config: cfg(`
-  native_network_id    = terrifi_network.pp2.id
-  tagged_vlan_mgmt     = "custom"
-  excluded_network_ids = [terrifi_network.pp0.id]
+  tagged_vlan_mode   = "custom"
+  tagged_network_ids = [terrifi_network.pp0.id, terrifi_network.pp1.id]
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "tagged_network_ids"),
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "excluded_network_ids.#", "1"),
-					resource.TestCheckTypeSetElemAttrPair(testAccPortProfileAddr, "excluded_network_ids.*", "terrifi_network.pp0", "id"),
+					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "native_network_id"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_network_ids.#", "2"),
 				),
 			},
 			// Access port: native only, block all tagged.
 			{
 				Config: cfg(`
   native_network_id = terrifi_network.pp1.id
-  tagged_vlan_mgmt  = "block_all"
+  tagged_vlan_mode  = "block_all"
 `),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mgmt", "block_all"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "block_all"),
 					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "tagged_network_ids"),
-					resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "excluded_network_ids"),
 				),
 			},
-			// Allow all with a voice VLAN.
+			// Allow all with a non-default native network.
 			{
-				Config: cfg(`
-  native_network_id = terrifi_network.pp1.id
-  voice_network_id  = terrifi_network.pp0.id
+				Config: cfg(`  native_network_id = terrifi_network.pp1.id
 `),
-				Check: resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "voice_network_id", "terrifi_network.pp0", "id"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair(testAccPortProfileAddr, "native_network_id", "terrifi_network.pp1", "id"),
+					resource.TestCheckResourceAttr(testAccPortProfileAddr, "tagged_vlan_mode", "allow_all"),
+				),
 			},
-			// Back to defaults: native and voice network cleared.
+			// Back to defaults: native network cleared.
 			{
 				Config: cfg(""),
 				Check:  portProfileDefaultsChecks(),
@@ -1874,7 +1418,7 @@ func TestAccPortProfile_newNetworks(t *testing.T) {
 	profile := func(tagged string) string {
 		return testAccPortProfileConfig(name, `
   native_network_id  = terrifi_network.pp0.id
-  tagged_vlan_mgmt   = "custom"
+  tagged_vlan_mode   = "custom"
   tagged_network_ids = [`+tagged+`]
 `)
 	}
@@ -1913,7 +1457,7 @@ func TestAccPortProfile_newNetworks(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { preCheck(t) },
+		PreCheck:                 func() { preCheckPortProfile(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             resource.ComposeAggregateTestCheckFunc(testAccCheckPortProfileDestroyed, testAccCheckNoStaleExcludedIDs),
 		Steps: []resource.TestStep{

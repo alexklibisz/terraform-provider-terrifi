@@ -47,3 +47,23 @@ repository secrets using the same values as the local environment:
 | `TERRIFI_HIL_STATE_ENDPOINT` | `AWS_ENDPOINT_URL_S3` |
 | `TERRIFI_HIL_STATE_ACCESS_KEY_ID` | `AWS_ACCESS_KEY_ID` |
 | `TERRIFI_HIL_STATE_SECRET_ACCESS_KEY` | `AWS_SECRET_ACCESS_KEY` |
+
+### Switch port tests
+
+Ports 4 and 5 on the baseline Flex Mini (`68:d7:9a:3a:79:ec`) are reserved
+for destructive port lifecycle tests and physically marked with RJ45 plugs.
+The hardware tests use this fixed allocation directly; no CI port-selection
+variables are needed. Tests restore the original override entries afterwards. Custom-profile assignment
+tests skip on the original Flex Mini, while inline VLAN lifecycle tests run.
+
+### Staged switch port configuration
+
+The commented configuration in `switch_ports.tf` defines port 2 as an access port
+on Default and port 3 as an access port on the Switch lab network (VLAN 20, `192.168.20.0/24`, DHCP
+`192.168.20.10`–`192.168.20.99`). Both block tagged traffic. Port 1 remains the
+uplink, and ports 4 and 5 remain reserved for acceptance tests.
+
+The configuration is staged because the pinned v0.9.3 provider does not support
+`terrifi_device_ports`. Once a release includes that resource, update the provider
+pin and lock file, uncomment the configuration, and plan/apply the baseline.
+Until then, the configuration leaves the ports unchanged.

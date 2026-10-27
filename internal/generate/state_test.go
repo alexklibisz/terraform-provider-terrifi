@@ -50,3 +50,11 @@ func TestReadStateIndexFailsClosed(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, index)
 }
+
+func TestExcludeStateProtectsDevicePortsByMAC(t *testing.T) {
+	index, err := ReadStateIndex(strings.NewReader(`{"format_version":"1.0","values":{"root_module":{"resources":[{"mode":"managed","type":"terrifi_device_ports","values":{"id":"controller-id","device_mac":"AA:BB:CC:DD:EE:FF","site":"default"}}]}}}`))
+	require.NoError(t, err)
+	blocks := []ResourceBlock{{ResourceType: "terrifi_device_ports", ImportID: "aa:bb:cc:dd:ee:ff", Attributes: []Attr{{Key: "device_mac", Value: HCLString("aa:bb:cc:dd:ee:ff")}}}}
+	require.Empty(t, index.ExcludeManaged(blocks, "default"))
+	require.Len(t, index.ExcludeManaged(blocks, "other"), 1)
+}
