@@ -3593,6 +3593,31 @@ resource "terrifi_firewall_policy" "test" {
 		PreCheck:                 func() { preCheck(t); requireHardware(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
+			// Establish the fixture before creating a policy that references it.
+			{
+				Config: base,
+				Check: func(s *terraform.State) error {
+					ctx := context.Background()
+					cfg := ClientConfigFromEnv()
+					client, err := NewClient(ctx, cfg)
+					if err != nil {
+						return err
+					}
+					for key, zone := range map[string]string{"a": "zone1", "b": "zone1", "c": "zone2"} {
+						networkID := s.RootModule().Resources["terrifi_network."+key].Primary.ID
+						network, err := client.GetNetwork(ctx, cfg.Site, networkID)
+						if err != nil {
+							return err
+						}
+						actualZone := ""
+						if network.FirewallZoneID != nil {
+							actualZone = *network.FirewallZoneID
+						}
+						t.Logf("fixture network %s zone=%s expected=%s", key, actualZone, s.RootModule().Resources["terrifi_firewall_zone."+zone].Primary.ID)
+					}
+					return nil
+				},
+			},
 			// Network on both ends; the post-apply refresh must not drift.
 			{
 				Config: policy(`    network_ids = [terrifi_network.a.id]`),
@@ -3666,7 +3691,6 @@ resource "terrifi_firewall_zone" "zone1" {
 resource "terrifi_firewall_zone" "zone2" {
   name        = "tfacc-pol-net-z2-%s"
   network_ids = [terrifi_network.c.id]
-  depends_on  = [terrifi_firewall_zone.zone1]
 }
 `, sfx, sfx)
 }
