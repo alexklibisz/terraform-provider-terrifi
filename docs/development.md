@@ -138,10 +138,10 @@ The installer uses an unpacked mirror to preserve uppercase prerelease suffixes 
 
 ## Releasing
 
-1. Go to the [Tag workflow](../../actions/workflows/tag.yml) in GitHub Actions.
-2. Click "Run workflow", enter the version tag (e.g., `v0.1.0`), and run it.
-3. The tag workflow creates and pushes the tag, which triggers the [Release workflow](../../actions/workflows/release.yml).
-4. The release workflow builds binaries for linux/darwin (amd64/arm64) and publishes them as a GitHub Release.
+1. Go to the [Release workflow](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/release.yml) in GitHub Actions.
+2. Click "Run workflow", select the branch or ref to release (normally `main`), and enter the version tag (e.g., `v0.11.0`).
+3. Run the workflow. It creates and pushes the tag at the selected ref, then builds provider and CLI binaries for Linux and macOS (amd64/arm64).
+4. Confirm the workflow succeeds and the GitHub Release contains the archives, checksums, detached checksum signature, and registry manifest. The signed release can then be indexed by the Terraform/OpenTofu registries.
 
 ## On-demand CodeRabbit PR reviews
 
