@@ -4,7 +4,7 @@
 
 ## Overview
 
-Terrifi uses hardware-in-the-loop (HIL) testing to exercise the provider against a controller connected to real UniFi hardware. The current suites check controller/API state and Terraform lifecycle behavior; they do not independently verify physical effects such as packet filtering, Wi-Fi association, or PoE power delivery. Resource and data-source pages list their [validation coverage](../docs/guides/validation-coverage.md) using ✅ for covered behavior and ❌ for behavior that has not been verified.
+Terrifi uses hardware-in-the-loop (HIL) testing to exercise the provider against a real controller connected to UniFi hardware. Resource and data-source pages list their [validation coverage](../docs/guides/validation-coverage.md) separately for Docker and real controllers: ✅ covered, ❌ not covered, and ⚠️ conditional. Applying settings and checking controller readback is sufficient for coverage on either target.
 
 The continuous integration suite has a series of acceptance tests (aka integration tests) which run against two targets:
 

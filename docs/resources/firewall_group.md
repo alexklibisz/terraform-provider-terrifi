@@ -84,22 +84,22 @@ resource "terrifi_firewall_policy" "allow_web" {
 
 ## Validation coverage
 
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Controller/API | Hardware behavior |
+| Setting | Usage | Docker controller | Real controller |
 | --- | --- | :---: | :---: |
-| `name` | Rename a group | ✅ | — |
-| `type` | Create a `port-group` | ✅ | ❌ |
-| `type` | Create an `address-group` | ✅ | ❌ |
-| `type` | Create an `ipv6-address-group` | ✅ | ❌ |
-| `members` | Assign port numbers | ✅ | ❌ |
-| `members` | Assign a port range | ✅ | ❌ |
-| `members` | Assign IPv4 addresses | ✅ | ❌ |
-| `members` | Assign IPv6 addresses | ✅ | ❌ |
-| `members` | Replace the member set | ✅ | ❌ |
-| `members` | Remove one member | ✅ | ❌ |
+| `name` | Rename a group | ✅ | ✅ |
+| `type` | Create a `port-group` | ✅ | ✅ |
+| `type` | Create an `address-group` | ✅ | ✅ |
+| `type` | Create an `ipv6-address-group` | ✅ | ✅ |
+| `members` | Assign port numbers | ✅ | ✅ |
+| `members` | Assign a port range | ✅ | ✅ |
+| `members` | Assign IPv4 addresses | ✅ | ✅ |
+| `members` | Assign IPv6 addresses | ✅ | ✅ |
+| `members` | Replace the member set | ✅ | ✅ |
+| `members` | Remove one member | ✅ | ✅ |
 
-Tests verify group lifecycle, imports, and member updates. They do not send traffic through a gateway to verify rules that reference these groups.
+Group lifecycle and membership acceptance tests run against both controller targets.
 
 Evidence: [firewall_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_group_resource_test.go).
 

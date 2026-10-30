@@ -63,21 +63,21 @@ Optional:
 
 ## Validation coverage
 
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Controller/API | Hardware behavior |
+| Setting | Usage | Docker controller | Real controller |
 | --- | --- | :---: | :---: |
-| `ports.<port>.name` | Set a port name | ✅ | ❌ |
+| `ports.<port>.name` | Set a port name | ✅ | ✅ |
 | `ports.<port>.name` | Remove the configured name | ✅ | ❌ |
-| `ports.<port>.native_network_id` | Assign an inline native network | ✅ | ❌ |
-| `ports.<port>.native_network_id` | Change the inline native network | ✅ | ❌ |
-| `ports.<port>.tagged_vlan_mode` | Set inline mode to `block_all` | ✅ | ❌ |
-| `ports.<port>.tagged_vlan_mode` | Set inline mode to `allow_all` | ✅ | ❌ |
+| `ports.<port>.native_network_id` | Assign an inline native network | ✅ | ✅ |
+| `ports.<port>.native_network_id` | Change the inline native network | ✅ | ✅ |
+| `ports.<port>.tagged_vlan_mode` | Set inline mode to `block_all` | ✅ | ✅ |
+| `ports.<port>.tagged_vlan_mode` | Set inline mode to `allow_all` | ✅ | ✅ |
 | `ports.<port>.port_profile_id` | Assign a custom profile | ✅ | ❌ |
 | `ports.<port>.port_profile_id` | Replace the assigned profile | ✅ | ❌ |
 | `ports.<port>.port_profile_id` | Repair an out-of-band detachment | ✅ | ❌ |
 
-Inline lifecycle tests check controller port overrides, imports, removal, and drift repair on reserved Flex Mini ports 4 and 5. Custom-profile tests run on suitable simulated devices but skip on the HIL USW Flex Mini, which does not support custom profiles. Neither suite sends traffic through the ports to verify VLAN filtering or profile enforcement.
+Inline VLAN tests run against both targets, using reserved Flex Mini ports 4 and 5 on the real controller. Custom-profile assignment tests skip on the HIL USW Flex Mini because it does not support custom profiles. Removing only a configured name is also checked in that skipped profile lifecycle test; releasing an entire port is covered separately on both targets.
 
 Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [device_ports_inline_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_inline_test.go).
 

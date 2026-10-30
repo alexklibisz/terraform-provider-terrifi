@@ -178,41 +178,41 @@ All fields are optional. See [radio configuration notes](#radio-settings) for ho
 
 ## Validation coverage
 
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Controller/API | Hardware behavior |
+| Setting | Usage | Docker controller | Real controller |
 | --- | --- | :---: | :---: |
-| `name` | Rename an adopted device | ✅ | — |
-| `name` | Remove the configured name | ✅ | — |
-| `led_enabled` | Set to `false` | ✅ | ❌ |
-| `led_enabled` | Set to `true` | ✅ | ❌ |
-| `led_enabled` | Omit to follow the site default | ✅ | ❌ |
+| `name` | Rename an adopted device | ✅ | ✅ |
+| `name` | Remove the configured name | ✅ | ✅ |
+| `led_enabled` | Set to `false` | ✅ | ✅ |
+| `led_enabled` | Set to `true` | ✅ | ✅ |
+| `led_enabled` | Omit to follow the site default | ✅ | ✅ |
 | `led_color` | Set an explicit color | ❌ | ❌ |
 | `led_brightness` | Set an explicit brightness | ❌ | ❌ |
 | `outdoor_mode_override` | Set to `on` | ❌ | ❌ |
-| `locked` | Set to `true` | ✅ | ❌ |
-| `locked` | Set to `false` | ✅ | ❌ |
-| `disabled` | Set to `true` | ✅ | ❌ |
-| `disabled` | Set to `false` | ✅ | ❌ |
-| `snmp_contact` | Set a contact string | ✅ | ❌ |
-| `snmp_contact` | Remove the contact string | ✅ | ❌ |
-| `snmp_location` | Set a location string | ✅ | ❌ |
-| `snmp_location` | Remove the location string | ✅ | ❌ |
+| `locked` | Set to `true` | ✅ | ✅ |
+| `locked` | Set to `false` | ✅ | ✅ |
+| `disabled` | Set to `true` | ✅ | ✅ |
+| `disabled` | Set to `false` | ✅ | ✅ |
+| `snmp_contact` | Set a contact string | ✅ | ✅ |
+| `snmp_contact` | Remove the contact string | ✅ | ✅ |
+| `snmp_location` | Set a location string | ✅ | ✅ |
+| `snmp_location` | Remove the location string | ✅ | ✅ |
 | `volume` | Set an explicit volume | ❌ | ❌ |
-| `config_network.type` | Set to `dhcp` | ✅ | ❌ |
-| `config_network.type` | Set to `static` (opt-in test) | ✅ | ❌ |
-| `config_network.ip` | Assign a static address (opt-in test) | ✅ | ❌ |
-| `config_network.netmask` | Set a static netmask (opt-in test) | ✅ | ❌ |
-| `config_network.gateway` | Set a static gateway (opt-in test) | ✅ | ❌ |
+| `config_network.type` | Set to `dhcp` | ✅ | ✅ |
+| `config_network.type` | Set to `static` (opt-in test) | ❌ | ⚠️ |
+| `config_network.ip` | Assign a static address (opt-in test) | ❌ | ⚠️ |
+| `config_network.netmask` | Set a static netmask (opt-in test) | ❌ | ⚠️ |
+| `config_network.gateway` | Set a static gateway (opt-in test) | ❌ | ⚠️ |
 | `config_network.dns1` | Set a primary DNS server | ❌ | ❌ |
 | `config_network.dns2` | Set a secondary DNS server | ❌ | ❌ |
-| `radio_24.channel` | Set to `auto` | ✅ | ❌ |
-| `radio_24.channel_width` | Set to `40` | ✅ | ❌ |
-| `radio_24.transmit_power_mode` | Set to `medium` | ✅ | ❌ |
-| `radio_24.transmit_power_mode` | Set to `auto` | ✅ | ❌ |
-| `radio_5.channel` | Set to `auto` | ✅ | ❌ |
-| `radio_5.channel_width` | Set to `80` | ✅ | ❌ |
-| `radio_5.transmit_power_mode` | Set to `auto` | ✅ | ❌ |
+| `radio_24.channel` | Set to `auto` | ✅ | ✅ |
+| `radio_24.channel_width` | Set to `40` | ✅ | ✅ |
+| `radio_24.transmit_power_mode` | Set to `medium` | ✅ | ✅ |
+| `radio_24.transmit_power_mode` | Set to `auto` | ✅ | ✅ |
+| `radio_5.channel` | Set to `auto` | ✅ | ✅ |
+| `radio_5.channel_width` | Set to `80` | ✅ | ✅ |
+| `radio_5.transmit_power_mode` | Set to `auto` | ✅ | ✅ |
 | `radio_24.transmit_power` | Set custom transmit power | ❌ | ❌ |
 | `radio_24.min_rssi_enabled` | Enable the minimum RSSI threshold | ❌ | ❌ |
 | `radio_24.min_rssi` | Set the minimum RSSI threshold | ❌ | ❌ |
@@ -226,7 +226,7 @@ All fields are optional. See [radio configuration notes](#radio-settings) for ho
 | `radio_6.min_rssi_enabled` | Enable the minimum RSSI threshold | ❌ | ❌ |
 | `radio_6.min_rssi` | Set the minimum RSSI threshold | ❌ | ❌ |
 
-Acceptance tests require adopted devices and check controller readback. They do not observe LEDs, query SNMP on a device, test client connectivity, measure radio behavior, or independently verify the management address. Static management tests skip unless `TERRIFI_ACC_DEVICE_STATIC_IP`, `TERRIFI_ACC_DEVICE_STATIC_NETMASK`, and `TERRIFI_ACC_DEVICE_STATIC_GATEWAY` are set. Radio tests require a suitable adopted AP; multi-radio tests skip when fewer than two radios are available. Validation and unit tests for other options do not establish controller persistence.
+The suite uses simulated adopted devices on Docker and adopted devices on the real controller. Radio tests require an adopted AP, and multi-radio tests skip if it has fewer than two radios. ⚠️ Static management tests are opt-in: they require `TERRIFI_ACC_DEVICE_STATIC_IP`, `TERRIFI_ACC_DEVICE_STATIC_NETMASK`, and `TERRIFI_ACC_DEVICE_STATIC_GATEWAY`; the standard HIL workflow does not configure these variables.
 
 Evidence: [device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_resource_test.go).
 

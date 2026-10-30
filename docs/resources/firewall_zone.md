@@ -55,19 +55,19 @@ resource "terrifi_firewall_zone" "iot" {
 
 ## Validation coverage
 
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Controller/API | Hardware behavior |
+| Setting | Usage | Docker controller | Real controller |
 | --- | --- | :---: | :---: |
-| `name` | Create a named zone | ✅ | — |
-| `name` | Rename a zone | ✅ | — |
-| `network_ids` | Assign a network to a zone | ✅ | ❌ |
-| `network_ids` | Add a network | ✅ | ❌ |
-| `network_ids` | Remove a network | ✅ | ❌ |
-| `network_ids` | Replace the member set | ✅ | ❌ |
-| `network_ids` | Use an empty set | ✅ | ❌ |
+| `name` | Create a named zone | ❌ | ✅ |
+| `name` | Rename a zone | ❌ | ✅ |
+| `network_ids` | Assign a network to a zone | ❌ | ✅ |
+| `network_ids` | Add a network | ❌ | ✅ |
+| `network_ids` | Remove a network | ❌ | ✅ |
+| `network_ids` | Replace the member set | ❌ | ✅ |
+| `network_ids` | Use an empty set | ❌ | ✅ |
 
-Acceptance tests require the HIL target with an adopted gateway. They check zone and network-membership persistence, including additions, removals, and imports. They do not verify traffic isolation between zones.
+Zone lifecycle and membership acceptance tests require `TERRIFI_ACC_TARGET=hardware` with an adopted gateway and skip on Docker.
 
 Evidence: [firewall_zone_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_zone_resource_test.go).
 

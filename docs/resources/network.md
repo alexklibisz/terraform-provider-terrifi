@@ -65,29 +65,29 @@ resource "terrifi_network" "cameras" {
 
 ## Validation coverage
 
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Controller/API | Hardware behavior |
+| Setting | Usage | Docker controller | Real controller |
 | --- | --- | :---: | :---: |
-| `name` | Create a named network | ✅ | — |
-| `purpose` | Set to `corporate` | ✅ | ❌ |
-| `purpose` | Set to `vlan-only` | ✅ | ❌ |
-| `vlan_id` | Assign a VLAN ID | ✅ | ❌ |
-| `subnet` | Assign an IPv4 subnet | ✅ | ❌ |
-| `network_group` | Set to `LAN` | ✅ | ❌ |
-| `dhcp_enabled` | Set to `true` | ✅ | ❌ |
-| `dhcp_enabled` | Set to `false` | ✅ | ❌ |
-| `dhcp_start` | Set the pool start address | ✅ | ❌ |
-| `dhcp_start` | Change the pool start address | ✅ | ❌ |
-| `dhcp_stop` | Set the pool end address | ✅ | ❌ |
-| `dhcp_stop` | Change the pool end address | ✅ | ❌ |
-| `dhcp_lease` | Change the lease duration | ✅ | ❌ |
-| `dhcp_dns` | Set the DNS server list | ✅ | ❌ |
-| `dhcp_dns` | Replace the DNS server list | ✅ | ❌ |
-| `internet_access_enabled` | Set to `true` | ✅ | ❌ |
+| `name` | Create a named network | ✅ | ✅ |
+| `purpose` | Set to `corporate` | ✅ | ✅ |
+| `purpose` | Set to `vlan-only` | ✅ | ✅ |
+| `vlan_id` | Assign a VLAN ID | ✅ | ✅ |
+| `subnet` | Assign an IPv4 subnet | ✅ | ✅ |
+| `network_group` | Set to `LAN` | ✅ | ✅ |
+| `dhcp_enabled` | Set to `true` | ✅ | ✅ |
+| `dhcp_enabled` | Set to `false` | ✅ | ✅ |
+| `dhcp_start` | Set the pool start address | ✅ | ✅ |
+| `dhcp_start` | Change the pool start address | ✅ | ✅ |
+| `dhcp_stop` | Set the pool end address | ✅ | ✅ |
+| `dhcp_stop` | Change the pool end address | ✅ | ✅ |
+| `dhcp_lease` | Change the lease duration | ✅ | ✅ |
+| `dhcp_dns` | Set the DNS server list | ✅ | ✅ |
+| `dhcp_dns` | Replace the DNS server list | ✅ | ✅ |
+| `internet_access_enabled` | Set to `true` | ✅ | ✅ |
 | `internet_access_enabled` | Set to `false` | ❌ | ❌ |
 
-Tests check controller persistence, updates, and imports. They do not attach clients to verify VLAN isolation, DHCP leases and supplied DNS servers, routing, or internet-access enforcement.
+Network and DHCP configuration acceptance tests run against both controller targets. Setting `internet_access_enabled` to `false` has no dedicated acceptance test.
 
 Evidence: [network_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/network_resource_test.go).
 

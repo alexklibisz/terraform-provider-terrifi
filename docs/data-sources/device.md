@@ -66,17 +66,17 @@ Exactly one of `name` or `mac` must be specified.
 
 ## Validation coverage
 
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Controller/API | Hardware behavior |
+| Setting | Usage | Docker controller | Real controller |
 | --- | --- | :---: | :---: |
-| `name` | Look up an adopted device by name | ✅ | — |
-| `mac` | Look up an adopted device by MAC | ✅ | — |
-| `id` | Read from the controller | ✅ | — |
-| `model` | Read from the controller | ✅ | — |
-| `type` | Read from the controller | ✅ | — |
-| `adopted` | Read from the controller | ✅ | — |
+| `name` | Look up an adopted device by name | ✅ | ✅ |
+| `mac` | Look up an adopted device by MAC | ✅ | ✅ |
+| `id` | Read from the controller | ✅ | ✅ |
+| `model` | Read from the controller | ✅ | ✅ |
+| `type` | Read from the controller | ✅ | ✅ |
+| `adopted` | Read from the controller | ✅ | ✅ |
 
-Tests read adopted-device metadata from the controller and check references to it from a client resource. They skip when no adopted device is available. They do not independently inspect the physical device or verify client AP locking.
+Lookup tests run against both controller targets. They require an adopted device and skip if none is available; lookup by name also requires that device to have a name.
 
 Evidence: [device_data_source_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_data_source_test.go).

@@ -9,7 +9,7 @@ description: |-
 
 Terrifi is a Terraform provider and CLI for managing Ubiquiti UniFi network infrastructure. The provider communicates with the UniFi API to create, read, update, and delete network configuration such as DNS records, networks, WLANs, firewall zones, firewall policies, and client devices. The CLI provides tools for importing existing infrastructure into Terraform, verifying controller connectivity, and browsing the device fingerprint database.
 
-Acceptance tests run against a Docker controller and a controller connected to real UniFi hardware. Each resource and data-source page documents its [validation coverage](guides/validation-coverage.md), separating controller/API checks from verification of physical hardware behavior.
+Acceptance tests run against a Docker controller and a real controller connected to UniFi hardware. Each resource and data-source page documents its [validation coverage](guides/validation-coverage.md) separately for these two targets.
 
 ## Example Usage
 

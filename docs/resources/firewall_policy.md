@@ -211,62 +211,62 @@ At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set
 
 ## Validation coverage
 
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Controller/API | Hardware behavior |
+| Setting | Usage | Docker controller | Real controller |
 | --- | --- | :---: | :---: |
-| `name` | Create a named policy | ✅ | — |
-| `description` | Change the description | ✅ | — |
-| `action` | Set to `BLOCK` | ✅ | ❌ |
-| `action` | Set to `ALLOW` | ✅ | ❌ |
+| `name` | Create a named policy | ❌ | ✅ |
+| `description` | Change the description | ❌ | ✅ |
+| `action` | Set to `BLOCK` | ❌ | ✅ |
+| `action` | Set to `ALLOW` | ❌ | ✅ |
 | `action` | Set to `REJECT` | ❌ | ❌ |
-| `enabled` | Set to `false` | ✅ | ❌ |
-| `enabled` | Set to `true` | ✅ | ❌ |
-| `ip_version` | Omit to use `BOTH` | ✅ | ❌ |
-| `ip_version` | Set to `IPV4` | ✅ | ❌ |
-| `ip_version` | Set to `IPV6` | ✅ | ❌ |
-| `protocol` | Omit to use `all` | ✅ | ❌ |
-| `protocol` | Set to `tcp` | ✅ | ❌ |
-| `protocol` | Set to `udp` | ✅ | ❌ |
-| `protocol` | Set to `icmp` | ✅ | ❌ |
-| `protocol` | Set to `icmpv6` | ✅ | ❌ |
+| `enabled` | Set to `false` | ❌ | ✅ |
+| `enabled` | Set to `true` | ❌ | ✅ |
+| `ip_version` | Omit to use `BOTH` | ❌ | ✅ |
+| `ip_version` | Set to `IPV4` | ❌ | ✅ |
+| `ip_version` | Set to `IPV6` | ❌ | ✅ |
+| `protocol` | Omit to use `all` | ❌ | ✅ |
+| `protocol` | Set to `tcp` | ❌ | ✅ |
+| `protocol` | Set to `udp` | ❌ | ✅ |
+| `protocol` | Set to `icmp` | ❌ | ✅ |
+| `protocol` | Set to `icmpv6` | ❌ | ✅ |
 | `protocol` | Set to `tcp_udp` | ❌ | ❌ |
-| `connection_state_type` | Set to `CUSTOM` | ✅ | ❌ |
-| `connection_state_type` | Remove to restore `ALL` | ✅ | ❌ |
+| `connection_state_type` | Set to `CUSTOM` | ❌ | ✅ |
+| `connection_state_type` | Remove to restore `ALL` | ❌ | ✅ |
 | `connection_state_type` | Set to `RESPOND_ONLY` | ❌ | ❌ |
-| `connection_states` | Match `INVALID` | ✅ | ❌ |
-| `connection_states` | Match a set of connection states | ✅ | ❌ |
+| `connection_states` | Match `INVALID` | ❌ | ✅ |
+| `connection_states` | Match a set of connection states | ❌ | ✅ |
 | `match_ipsec` | Set to `true` | ❌ | ❌ |
-| `logging` | Set to `true` | ✅ | ❌ |
-| `create_allow_respond` | Enable for a non-external destination | ✅ | ❌ |
-| `source.zone_id` | Assign a source zone | ✅ | ❌ |
-| `destination.zone_id` | Assign a destination zone | ✅ | ❌ |
-| `source.ips` | Match an IPv4 subnet | ✅ | ❌ |
-| `source.mac_addresses` | Match a client MAC address | ✅ | ❌ |
-| `source.device_ids` | Match a managed client | ✅ | ❌ |
-| `source.network_ids` | Match source networks | ✅ | ❌ |
-| `destination.network_ids` | Match destination networks | ✅ | ❌ |
-| `destination.port` | Match a specific port | ✅ | ❌ |
-| `destination.port_matching_type` | Set to `SPECIFIC` | ✅ | ❌ |
-| `destination.port_matching_type` | Set to `OBJECT` | ✅ | ❌ |
-| `source.port_group_id` | Match a source port group | ✅ | ❌ |
-| `destination.port_group_id` | Match a destination port group | ✅ | ❌ |
-| `source.match_opposite_ports` | Invert source port-group matching | ✅ | ❌ |
-| `destination.match_opposite_ports` | Invert destination port matching | ✅ | ❌ |
-| `source.match_opposite_ips` | Invert source IP matching | ✅ | ❌ |
-| `destination.match_opposite_ips` | Invert destination network matching | ✅ | ❌ |
-| `schedule.mode` | Set to `ALWAYS` | ✅ | ❌ |
-| `schedule.mode` | Set to `EVERY_WEEK` | ✅ | ❌ |
-| `schedule.mode` | Set to `ONE_TIME_ONLY` | ✅ | ❌ |
-| `schedule.mode` | Set to `CUSTOM` | ✅ | ❌ |
-| `schedule.date` | Set a one-time date | ✅ | ❌ |
-| `schedule.date_start` | Set a custom range start | ✅ | ❌ |
-| `schedule.date_end` | Set a custom range end | ✅ | ❌ |
-| `schedule.repeat_on_days` | Select weekdays | ✅ | ❌ |
-| `schedule.time_range_start` | Set a start time | ✅ | ❌ |
-| `schedule.time_range_end` | Set an end time | ✅ | ❌ |
+| `logging` | Set to `true` | ❌ | ✅ |
+| `create_allow_respond` | Enable for a non-external destination | ❌ | ✅ |
+| `source.zone_id` | Assign a source zone | ❌ | ✅ |
+| `destination.zone_id` | Assign a destination zone | ❌ | ✅ |
+| `source.ips` | Match an IPv4 subnet | ❌ | ✅ |
+| `source.mac_addresses` | Match a client MAC address | ❌ | ✅ |
+| `source.device_ids` | Match a managed client | ❌ | ✅ |
+| `source.network_ids` | Match source networks | ❌ | ✅ |
+| `destination.network_ids` | Match destination networks | ❌ | ✅ |
+| `destination.port` | Match a specific port | ❌ | ✅ |
+| `destination.port_matching_type` | Set to `SPECIFIC` | ❌ | ✅ |
+| `destination.port_matching_type` | Set to `OBJECT` | ❌ | ✅ |
+| `source.port_group_id` | Match a source port group | ❌ | ✅ |
+| `destination.port_group_id` | Match a destination port group | ❌ | ✅ |
+| `source.match_opposite_ports` | Invert source port-group matching | ❌ | ✅ |
+| `destination.match_opposite_ports` | Invert destination port matching | ❌ | ✅ |
+| `source.match_opposite_ips` | Invert source IP matching | ❌ | ✅ |
+| `destination.match_opposite_ips` | Invert destination network matching | ❌ | ✅ |
+| `schedule.mode` | Set to `ALWAYS` | ❌ | ✅ |
+| `schedule.mode` | Set to `EVERY_WEEK` | ❌ | ✅ |
+| `schedule.mode` | Set to `ONE_TIME_ONLY` | ❌ | ✅ |
+| `schedule.mode` | Set to `CUSTOM` | ❌ | ✅ |
+| `schedule.date` | Set a one-time date | ❌ | ✅ |
+| `schedule.date_start` | Set a custom range start | ❌ | ✅ |
+| `schedule.date_end` | Set a custom range end | ❌ | ✅ |
+| `schedule.repeat_on_days` | Select weekdays | ❌ | ✅ |
+| `schedule.time_range_start` | Set a start time | ❌ | ✅ |
+| `schedule.time_range_end` | Set an end time | ❌ | ✅ |
 
-Acceptance tests require the HIL target with an adopted gateway. They check saved policies and Terraform lifecycle behavior, including network matching and generated allow-respond rules. They do not generate traffic to verify filtering, schedule enforcement, return traffic, or syslog delivery. IPsec matching has no dedicated persistence acceptance test.
+Policy acceptance tests require `TERRIFI_ACC_TARGET=hardware` with an adopted gateway and skip on Docker. Rows marked ❌ on both targets have no dedicated acceptance test for that usage.
 
 Evidence: [firewall_policy_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_resource_test.go).
 
