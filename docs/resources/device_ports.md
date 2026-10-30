@@ -73,9 +73,9 @@ Optional:
 | `ports.<port>.native_network_id` | Change the inline native network | ✅ | ✅ |
 | `ports.<port>.tagged_vlan_mode` | Set inline mode to `block_all` | ✅ | ✅ |
 | `ports.<port>.tagged_vlan_mode` | Set inline mode to `allow_all` | ✅ | ✅ |
-| `ports.<port>.port_profile_id` | Assign a custom profile | ✅ | ❌ |
-| `ports.<port>.port_profile_id` | Replace the assigned profile | ✅ | ❌ |
-| `ports.<port>.port_profile_id` | Repair an out-of-band detachment | ✅ | ❌ |
+| `ports.<port>.port_profile_id` | Assign a custom profile | ✅ | ◻️ |
+| `ports.<port>.port_profile_id` | Replace the assigned profile | ✅ | ◻️ |
+| `ports.<port>.port_profile_id` | Repair an out-of-band detachment | ✅ | ◻️ |
 
 Inline VLAN tests run against both targets, using reserved Flex Mini ports 4 and 5 on the Hardware-in-the-loop target. Custom-profile assignment tests skip on the HIL USW Flex Mini because it does not support custom profiles. Removing only a configured name is also checked in that skipped profile lifecycle test; releasing an entire port is covered separately on both targets.
 

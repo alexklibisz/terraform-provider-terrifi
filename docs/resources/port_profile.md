@@ -88,10 +88,13 @@ Other:
 
 ## Validation coverage
 
+**Hardware coverage is limited to saving and reading profile configuration on the controller.** The current HIL switch (USW Flex Mini) does not support custom-profile assignment, so these checks do not validate applying a profile to a physical port or enforcing its settings.
+
 ✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
+| `terrifi_device_ports.ports.<port>.port_profile_id` | Assign this profile to a port | ✅ | ◻️ |
 | `name` | Rename a profile | ✅ | ✅ |
 | `native_network_id` | Assign a native network | ✅ | ✅ |
 | `native_network_id` | Change the native network | ✅ | ✅ |
@@ -108,9 +111,9 @@ Other:
 | `lldpmed_enabled` | Set to `false` | ✅ | ✅ |
 | `lldpmed_enabled` | Remove to restore `true` | ✅ | ✅ |
 
-Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. Assignment coverage is documented separately on `terrifi_device_ports`.
+Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. The assignment row above summarizes the [device-port tests](device_ports.md#validation-coverage); the remaining rows cover profile configuration only. Simulated assignment checks controller readback, not physical enforcement.
 
-Evidence: [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
+Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 
 ## Import
 
