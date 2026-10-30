@@ -142,7 +142,6 @@ resource "terrifi_client_group" "test" {
 }
 
 func TestAccClientGroup_updateName(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	name1 := fmt.Sprintf("tfacc-cligrp-%s", suffix)
 	name2 := fmt.Sprintf("tfacc-cligrp-upd-%s", suffix)
@@ -172,7 +171,6 @@ resource "terrifi_client_group" "test" {
 }
 
 func TestAccClientGroup_import(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	name := fmt.Sprintf("tfacc-cligrp-%s", suffix)
 
@@ -197,7 +195,6 @@ resource "terrifi_client_group" "test" {
 }
 
 func TestAccClientGroup_importSiteID(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	name := fmt.Sprintf("tfacc-cligrp-%s", suffix)
 
