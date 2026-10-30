@@ -8,6 +8,11 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      test_filter:
+        description: Go test name regex (defaults to all acceptance tests)
+        type: string
+        default: '^TestAcc'
   push:
     branches: [main]
     paths:
@@ -104,7 +109,9 @@ jobs:
           done
       - name: Acceptance tests (Docker)
         timeout-minutes: 20
-        run: task test:acc
+        env:
+          TEST_FILTER: ${{ inputs.test_filter || '^TestAcc' }}
+        run: task test:acc -- -run "$TEST_FILTER"
       - name: GoReleaser dry run
         timeout-minutes: 5
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0

@@ -46,6 +46,10 @@ The tables list specific uses and known gaps rather than every possible value or
 
 See the [HIL setup](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/hardware-testing/README.md) for equipment details, and the [Docker CI](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/ci-local.yaml) and [HIL CI](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/ci-hil.yaml) runs for execution results.
 
+## Simulation coverage audit
+
+The simulation sweep covers all documented settings and usages with missing Simulated coverage. Client-group and WLAN lifecycle suites run on both targets. DNS AAAA, CNAME, MX, and TXT tests exercise creation, updates, and import; the network suite toggles internet access in both directions. PTR creation is rejected by the pinned simulated controller and is recorded by a rejection test. Device, radio, port-assignment, and device-lookup tests remain unavailable in the current simulator because it exposes no adopted devices. Zone-based firewall tests require an adopted gateway. These are limitations of the current target, not claims that future simulator versions cannot support the operations.
+
 ## Keeping coverage current
 
 Place the Validation coverage section immediately after the complete Schema section, including nested schemas, and before Import when present. When adding or changing a setting, update its resource's coverage table and evidence links.
