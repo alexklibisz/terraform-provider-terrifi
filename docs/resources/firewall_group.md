@@ -86,9 +86,18 @@ resource "terrifi_firewall_policy" "allow_web" {
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Port, IPv4, and IPv6 groups and membership | ✅ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Rename a group | ✅ | — |
+| `type` | Create a `port-group` | ✅ | ❌ |
+| `type` | Create an `address-group` | ✅ | ❌ |
+| `type` | Create an `ipv6-address-group` | ✅ | ❌ |
+| `members` | Assign port numbers | ✅ | ❌ |
+| `members` | Assign a port range | ✅ | ❌ |
+| `members` | Assign IPv4 addresses | ✅ | ❌ |
+| `members` | Assign IPv6 addresses | ✅ | ❌ |
+| `members` | Replace the member set | ✅ | ❌ |
+| `members` | Remove one member | ✅ | ❌ |
 
 Tests verify group lifecycle, imports, and member updates. They do not send traffic through a gateway to verify rules that reference these groups.
 

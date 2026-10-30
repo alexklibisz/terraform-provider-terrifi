@@ -68,9 +68,14 @@ Exactly one of `name` or `mac` must be specified.
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Lookup by name/MAC and adopted-device metadata | ✅ | — |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Look up an adopted device by name | ✅ | — |
+| `mac` | Look up an adopted device by MAC | ✅ | — |
+| `id` | Read from the controller | ✅ | — |
+| `model` | Read from the controller | ✅ | — |
+| `type` | Read from the controller | ✅ | — |
+| `adopted` | Read from the controller | ✅ | — |
 
 Tests read adopted-device metadata from the controller and check references to it from a client resource. They skip when no adopted device is available. They do not independently inspect the physical device or verify client AP locking.
 

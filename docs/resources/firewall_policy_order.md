@@ -83,9 +83,13 @@ resource "terrifi_firewall_policy_order" "iot_to_trusted" {
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Policy order, reordering, and import | ✅ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `source_zone_id` | Select the source zone | ✅ | ❌ |
+| `destination_zone_id` | Select the destination zone | ✅ | ❌ |
+| `policy_ids` | Set an initial policy order | ✅ | ❌ |
+| `policy_ids` | Reorder existing policies | ✅ | ❌ |
+| `policy_ids` | Import the policy order | ✅ | ❌ |
 
 Acceptance tests require the HIL target and check the order returned by the controller. They do not send traffic through competing policies to verify gateway evaluation order.
 

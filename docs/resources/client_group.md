@@ -57,9 +57,11 @@ resource "terrifi_client_device" "plug_bedroom" {
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Group lifecycle and client membership | ✅ | — |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Create a named group | ✅ | — |
+| `name` | Rename a group | ✅ | — |
+| `name` | Import a named group | ✅ | — |
 
 Groups and membership are controller configuration. Their use by network policies is not exercised by these tests.
 

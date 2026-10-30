@@ -90,11 +90,23 @@ Other:
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Native and tagged VLAN selection | ✅ | ❌ |
-| PoE, port isolation, and LLDP-MED | ✅ | ❌ |
-| Preservation of unmanaged settings | ✅ | — |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Rename a profile | ✅ | — |
+| `native_network_id` | Assign a native network | ✅ | ❌ |
+| `native_network_id` | Change the native network | ✅ | ❌ |
+| `native_network_id` | Remove the native network | ✅ | ❌ |
+| `tagged_vlan_mode` | Set to `custom` | ✅ | ❌ |
+| `tagged_vlan_mode` | Set to `block_all` | ✅ | ❌ |
+| `tagged_vlan_mode` | Omit to restore `allow_all` | ✅ | ❌ |
+| `tagged_network_ids` | Select a tagged network | ✅ | ❌ |
+| `tagged_network_ids` | Add a tagged network | ✅ | ❌ |
+| `poe_mode` | Set to `off` | ✅ | ❌ |
+| `poe_mode` | Remove to restore `auto` | ✅ | ❌ |
+| `port_isolation_enabled` | Set to `true` | ✅ | ❌ |
+| `port_isolation_enabled` | Remove to restore `false` | ✅ | ❌ |
+| `lldpmed_enabled` | Set to `false` | ✅ | ❌ |
+| `lldpmed_enabled` | Remove to restore `true` | ✅ | ❌ |
 
 Acceptance tests verify controller-side lifecycle, imports, defaults, drift, and preservation of unmanaged fields. The HIL switch is a USW Flex Mini, which does not support custom port profiles; profile-assignment tests skip on it. Inline VLAN tests in `terrifi_device_ports` do not establish custom-profile enforcement. VLAN filtering, PoE power delivery, isolation, and LLDP-MED have not been verified on a profile-capable switch.
 

@@ -57,9 +57,15 @@ resource "terrifi_firewall_zone" "iot" {
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Zone lifecycle and network membership | ✅ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Create a named zone | ✅ | — |
+| `name` | Rename a zone | ✅ | — |
+| `network_ids` | Assign a network to a zone | ✅ | ❌ |
+| `network_ids` | Add a network | ✅ | ❌ |
+| `network_ids` | Remove a network | ✅ | ❌ |
+| `network_ids` | Replace the member set | ✅ | ❌ |
+| `network_ids` | Use an empty set | ✅ | ❌ |
 
 Acceptance tests require the HIL target with an adopted gateway. They check zone and network-membership persistence, including additions, removals, and imports. They do not verify traffic isolation between zones.
 

@@ -146,11 +146,26 @@ resource "terrifi_client_device" "blocked" {
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Aliases, notes, groups, and device icons | ✅ | — |
-| Fixed IP, network override, and local DNS settings | ✅ | ❌ |
-| Blocking and AP locking | ✅ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Set a client alias | ✅ | — |
+| `name` | Rename a client | ✅ | — |
+| `note` | Set a note | ✅ | — |
+| `fixed_ip` | Assign a DHCP reservation | ✅ | ❌ |
+| `fixed_ip` | Remove the reservation | ✅ | ❌ |
+| `network_id` | Select the reservation network | ✅ | ❌ |
+| `network_override_id` | Assign a network override | ✅ | ❌ |
+| `local_dns_record` | Set a local hostname | ✅ | ❌ |
+| `local_dns_record` | Remove the hostname | ✅ | ❌ |
+| `client_group_ids` | Assign group membership | ✅ | — |
+| `client_group_ids` | Remove a group membership | ✅ | — |
+| `device_type_id` | Set an icon override | ✅ | — |
+| `device_type_id` | Remove the override | ✅ | — |
+| `fixed_ap_mac` | Lock a client to an AP | ✅ | ❌ |
+| `fixed_ap_mac` | Remove the AP lock | ✅ | ❌ |
+| `blocked` | Set to `true` | ✅ | ❌ |
+| `blocked` | Set to `false` | ✅ | ❌ |
+| `blocked` | Omit to use `false` | ✅ | ❌ |
 
 Tests use generated client MAC addresses and check saved configuration. They do not connect a client to verify DHCP reservations, DNS answers, VLAN placement, blocked traffic, or AP locking.
 

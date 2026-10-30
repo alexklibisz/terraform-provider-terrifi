@@ -106,11 +106,32 @@ resource "terrifi_wlan" "maintenance" {
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| SSID, network, enable state, bands, and hidden SSID | ✅ | ❌ |
-| Passphrase, open/WPA security, and WPA3 settings | ✅ | ❌ |
-| Standard, hotspot, IoT, and IoT optimization settings | ✅ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Create an SSID | ✅ | ❌ |
+| `name` | Rename the SSID | ✅ | ❌ |
+| `network_id` | Assign the WLAN network | ✅ | ❌ |
+| `network_id` | Change the WLAN network | ✅ | ❌ |
+| `enabled` | Set to `false` | ✅ | ❌ |
+| `enabled` | Re-enable with `true` | ✅ | ❌ |
+| `passphrase` | Set a WPA passphrase | ✅ | ❌ |
+| `passphrase` | Change the passphrase | ✅ | ❌ |
+| `wifi_band` | Set to `2g` | ✅ | ❌ |
+| `wifi_band` | Set to `5g` | ✅ | ❌ |
+| `wifi_band` | Set to `both` | ✅ | ❌ |
+| `security` | Set to `open` | ✅ | ❌ |
+| `security` | Change from `open` to `wpapsk` | ✅ | ❌ |
+| `security` | Change from `wpapsk` to `open` | ✅ | ❌ |
+| `hide_ssid` | Set to `true` | ✅ | ❌ |
+| `wpa_mode` | Set to `auto` | ✅ | ❌ |
+| `wpa_mode` | Set to `wpa2` | ✅ | ❌ |
+| `wpa3_support` | Set to `true` | ✅ | ❌ |
+| `wpa3_transition` | Set to `true` | ✅ | ❌ |
+| `application` | Omit to use `standard` | ✅ | ❌ |
+| `application` | Set to `hotspot` | ✅ | ❌ |
+| `application` | Set to `iot` | ✅ | ❌ |
+| `optimize_iot_connectivity` | Enable for an IoT WLAN | ✅ | ❌ |
+| `optimize_iot_connectivity` | Disable for an IoT WLAN | ✅ | ❌ |
 
 Acceptance tests require the HIL target and check controller persistence, updates, and imports. They do not scan for SSIDs, associate wireless clients, verify authentication or VLAN placement, exercise a captive portal, or measure IoT connectivity.
 

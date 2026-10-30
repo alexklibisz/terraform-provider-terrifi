@@ -61,10 +61,27 @@ resource "terrifi_dns_record" "minecraft" {
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| A and SRV records, enable state, TTL, and SRV options | ✅ | ❌ |
-| AAAA, CNAME, MX, TXT, and PTR records | ❌ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Create an A-record hostname | ✅ | ❌ |
+| `value` | Change an A-record address | ✅ | ❌ |
+| `record_type` | Set to `A` | ✅ | ❌ |
+| `record_type` | Set to `SRV` | ✅ | ❌ |
+| `record_type` | Set to `AAAA` | ❌ | ❌ |
+| `record_type` | Set to `CNAME` | ❌ | ❌ |
+| `record_type` | Set to `MX` | ❌ | ❌ |
+| `record_type` | Set to `TXT` | ❌ | ❌ |
+| `record_type` | Set to `PTR` | ❌ | ❌ |
+| `enabled` | Set to `false` | ✅ | ❌ |
+| `enabled` | Re-enable with `true` | ✅ | ❌ |
+| `ttl` | Set an explicit TTL | ✅ | ❌ |
+| `ttl` | Change the TTL | ✅ | ❌ |
+| `port` | Set an SRV port | ✅ | ❌ |
+| `port` | Change the SRV port | ✅ | ❌ |
+| `priority` | Set an SRV priority | ✅ | ❌ |
+| `priority` | Change the SRV priority | ✅ | ❌ |
+| `weight` | Set an SRV weight | ✅ | ❌ |
+| `weight` | Change the SRV weight | ✅ | ❌ |
 
 Acceptance tests exercise A and SRV records through the controller API. They do not query a gateway DNS server to verify answers, TTLs, or disabled-record behavior. Other record types have no dedicated persistence acceptance tests.
 

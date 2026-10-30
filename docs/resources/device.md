@@ -180,14 +180,51 @@ All fields are optional. See [radio configuration notes](#radio-settings) for ho
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Name, LED enable, SNMP metadata, lock, and disable settings | ✅ | ❌ |
-| DHCP management configuration | ✅ | ❌ |
-| Static management configuration (opt-in test) | ✅ | ❌ |
-| 2.4/5 GHz channel, width, and transmit-power mode | ✅ | ❌ |
-| LED color/brightness, outdoor mode, and speaker volume | ❌ | ❌ |
-| 6 GHz radio, custom transmit power, and minimum RSSI | ❌ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `name` | Rename an adopted device | ✅ | — |
+| `name` | Remove the configured name | ✅ | — |
+| `led_enabled` | Set to `false` | ✅ | ❌ |
+| `led_enabled` | Set to `true` | ✅ | ❌ |
+| `led_enabled` | Omit to follow the site default | ✅ | ❌ |
+| `led_color` | Set an explicit color | ❌ | ❌ |
+| `led_brightness` | Set an explicit brightness | ❌ | ❌ |
+| `outdoor_mode_override` | Set to `on` | ❌ | ❌ |
+| `locked` | Set to `true` | ✅ | ❌ |
+| `locked` | Set to `false` | ✅ | ❌ |
+| `disabled` | Set to `true` | ✅ | ❌ |
+| `disabled` | Set to `false` | ✅ | ❌ |
+| `snmp_contact` | Set a contact string | ✅ | ❌ |
+| `snmp_contact` | Remove the contact string | ✅ | ❌ |
+| `snmp_location` | Set a location string | ✅ | ❌ |
+| `snmp_location` | Remove the location string | ✅ | ❌ |
+| `volume` | Set an explicit volume | ❌ | ❌ |
+| `config_network.type` | Set to `dhcp` | ✅ | ❌ |
+| `config_network.type` | Set to `static` (opt-in test) | ✅ | ❌ |
+| `config_network.ip` | Assign a static address (opt-in test) | ✅ | ❌ |
+| `config_network.netmask` | Set a static netmask (opt-in test) | ✅ | ❌ |
+| `config_network.gateway` | Set a static gateway (opt-in test) | ✅ | ❌ |
+| `config_network.dns1` | Set a primary DNS server | ❌ | ❌ |
+| `config_network.dns2` | Set a secondary DNS server | ❌ | ❌ |
+| `radio_24.channel` | Set to `auto` | ✅ | ❌ |
+| `radio_24.channel_width` | Set to `40` | ✅ | ❌ |
+| `radio_24.transmit_power_mode` | Set to `medium` | ✅ | ❌ |
+| `radio_24.transmit_power_mode` | Set to `auto` | ✅ | ❌ |
+| `radio_5.channel` | Set to `auto` | ✅ | ❌ |
+| `radio_5.channel_width` | Set to `80` | ✅ | ❌ |
+| `radio_5.transmit_power_mode` | Set to `auto` | ✅ | ❌ |
+| `radio_24.transmit_power` | Set custom transmit power | ❌ | ❌ |
+| `radio_24.min_rssi_enabled` | Enable the minimum RSSI threshold | ❌ | ❌ |
+| `radio_24.min_rssi` | Set the minimum RSSI threshold | ❌ | ❌ |
+| `radio_5.transmit_power` | Set custom transmit power | ❌ | ❌ |
+| `radio_5.min_rssi_enabled` | Enable the minimum RSSI threshold | ❌ | ❌ |
+| `radio_5.min_rssi` | Set the minimum RSSI threshold | ❌ | ❌ |
+| `radio_6.channel` | Set a channel | ❌ | ❌ |
+| `radio_6.channel_width` | Set a channel width | ❌ | ❌ |
+| `radio_6.transmit_power_mode` | Set a transmit-power mode | ❌ | ❌ |
+| `radio_6.transmit_power` | Set custom transmit power | ❌ | ❌ |
+| `radio_6.min_rssi_enabled` | Enable the minimum RSSI threshold | ❌ | ❌ |
+| `radio_6.min_rssi` | Set the minimum RSSI threshold | ❌ | ❌ |
 
 Acceptance tests require adopted devices and check controller readback. They do not observe LEDs, query SNMP on a device, test client connectivity, measure radio behavior, or independently verify the management address. Static management tests skip unless `TERRIFI_ACC_DEVICE_STATIC_IP`, `TERRIFI_ACC_DEVICE_STATIC_NETMASK`, and `TERRIFI_ACC_DEVICE_STATIC_GATEWAY` are set. Radio tests require a suitable adopted AP; multi-radio tests skip when fewer than two radios are available. Validation and unit tests for other options do not establish controller persistence.
 

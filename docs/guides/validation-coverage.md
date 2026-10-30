@@ -7,7 +7,7 @@ description: |-
 
 # Validation coverage
 
-Each resource and data-source page includes a **Validation coverage** table. The tables describe the scope of the checked-in acceptance tests, not the result of the latest CI run or a guarantee for every UniFi model and firmware version. Follow each page's evidence links to see the assertions and skip conditions.
+Each resource and data-source page includes a **Validation coverage** table. Every row names one setting and one usage of that setting. The tables describe the scope of the checked-in acceptance tests, not the result of the latest CI run or a guarantee for every UniFi model and firmware version. Follow each page's evidence links to see the assertions and skip conditions.
 
 | Symbol | Meaning |
 | :---: | --- |
@@ -19,6 +19,15 @@ Each resource and data-source page includes a **Validation coverage** table. The
 
 **Controller/API** coverage checks configuration saved by the controller and read back through the provider or API. Depending on the linked tests, this includes creation, updates, imports, deletion, defaults, and drift correction. A check applies to the settings and cases listed; it does not imply that every allowed value or combination has been exercised. Unit tests, schema validation, and mock HTTP tests alone do not earn a ✅ in this column.
 
+For example, setting PoE to Off and removing the setting to restore Auto are separate rows:
+
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `poe_mode` | Set to `off` | ✅ | ❌ |
+| `poe_mode` | Remove to restore `auto` | ✅ | ❌ |
+
+The tables list specific uses and known gaps, rather than every possible value or operation. An unlisted usage has no coverage claim. Shared resource identity fields such as `id` and `site` are generally omitted.
+
 **Hardware behavior** coverage checks the effect on an actual device or connected client. Examples include querying gateway DNS, obtaining a DHCP lease, associating with an SSID, checking traffic isolation, and measuring PoE power delivery. Saving a firewall rule on a controller connected to a gateway does not establish that the gateway filters packets as intended.
 
 The hardware-in-the-loop (HIL) target runs acceptance tests against a controller connected to real UniFi devices. Some APIs require adopted hardware even for configuration tests. A passing HIL run therefore establishes only what the tests assert; it does not automatically earn a hardware-behavior ✅.
@@ -29,6 +38,6 @@ See the [HIL setup](https://github.com/alexklibisz/terraform-provider-terrifi/bl
 
 ## Keeping coverage current
 
-Place the Validation coverage section immediately after the complete Schema section, including nested schemas, and before Import when present. When adding or changing a setting, update its resource's coverage table and evidence links. Group settings with the same coverage; split a row when only some settings are tested. Describe skip conditions and gaps beneath the table. Keep status symbols in these sections so attribute descriptions remain easy to scan.
+Place the Validation coverage section immediately after the complete Schema section, including nested schemas, and before Import when present. When adding or changing a setting, update its resource's coverage table and evidence links. Use one attribute path and one concrete usage per row. Repeat the setting for distinct uses such as setting a value, changing it, removing it, or importing it; use full paths for nested attributes. Describe skip conditions and gaps beneath the table. Keep status symbols in these sections so attribute descriptions remain easy to scan.
 
 To mark hardware behavior ✅, link the automated assertion or a recorded manual verification that observes the effect. Record the device model, firmware and controller versions, verification date, and any limitations. For manual verification, label it explicitly so readers can distinguish a one-time observation from ongoing automated coverage. A report of controller persistence alone belongs in the Controller/API column.

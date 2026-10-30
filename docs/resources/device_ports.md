@@ -65,10 +65,17 @@ Optional:
 
 ✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Port names and inline native/tagged VLAN configuration | ✅ | ❌ |
-| Custom-profile assignment and drift repair | ✅ | ❌ |
+| Setting | Usage | Controller/API | Hardware behavior |
+| --- | --- | :---: | :---: |
+| `ports.<port>.name` | Set a port name | ✅ | ❌ |
+| `ports.<port>.name` | Remove the configured name | ✅ | ❌ |
+| `ports.<port>.native_network_id` | Assign an inline native network | ✅ | ❌ |
+| `ports.<port>.native_network_id` | Change the inline native network | ✅ | ❌ |
+| `ports.<port>.tagged_vlan_mode` | Set inline mode to `block_all` | ✅ | ❌ |
+| `ports.<port>.tagged_vlan_mode` | Set inline mode to `allow_all` | ✅ | ❌ |
+| `ports.<port>.port_profile_id` | Assign a custom profile | ✅ | ❌ |
+| `ports.<port>.port_profile_id` | Replace the assigned profile | ✅ | ❌ |
+| `ports.<port>.port_profile_id` | Repair an out-of-band detachment | ✅ | ❌ |
 
 Inline lifecycle tests check controller port overrides, imports, removal, and drift repair on reserved Flex Mini ports 4 and 5. Custom-profile tests run on suitable simulated devices but skip on the HIL USW Flex Mini, which does not support custom profiles. Neither suite sends traffic through the ports to verify VLAN filtering or profile enforcement.
 
