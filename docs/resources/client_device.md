@@ -142,6 +142,35 @@ resource "terrifi_client_device" "blocked" {
 
 - `id` (String) — The ID of the client device.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Set a client alias | ✅ | ✅ |
+| `name` | Rename a client | ✅ | ✅ |
+| `note` | Set a note | ✅ | ✅ |
+| `fixed_ip` | Assign a DHCP reservation | ✅ | ✅ |
+| `fixed_ip` | Remove the reservation | ✅ | ✅ |
+| `network_id` | Select the reservation network | ✅ | ✅ |
+| `network_override_id` | Assign a network override | ✅ | ✅ |
+| `local_dns_record` | Set a local hostname | ✅ | ✅ |
+| `local_dns_record` | Remove the hostname | ✅ | ✅ |
+| `client_group_ids` | Assign group membership | ✅ | ✅ |
+| `client_group_ids` | Remove a group membership | ✅ | ✅ |
+| `device_type_id` | Set an icon override | ✅ | ✅ |
+| `device_type_id` | Remove the override | ✅ | ✅ |
+| `fixed_ap_mac` | Lock a client to an AP | ✅ | ✅ |
+| `fixed_ap_mac` | Remove the AP lock | ✅ | ✅ |
+| `blocked` | Set to `true` | ✅ | ✅ |
+| `blocked` | Set to `false` | ✅ | ✅ |
+| `blocked` | Omit to use `false` | ✅ | ✅ |
+
+The acceptance suite runs against both controller targets and checks saved client settings. Tests use generated client MAC addresses.
+
+Evidence: [client_device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_device_resource_test.go).
+
 ## Import
 
 Client devices can be imported using the device ID:

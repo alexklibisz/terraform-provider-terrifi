@@ -86,6 +86,35 @@ Other:
 
 - `id` (String) — The ID of the port profile.
 
+## Validation coverage
+
+**Hardware coverage is limited to saving and reading profile configuration on the controller.** The current HIL switch (USW Flex Mini) does not support custom-profile assignment, so these checks do not validate applying a profile to a physical port or enforcing its settings.
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `terrifi_device_ports.ports.<port>.port_profile_id` | Assign this profile to a port | ✅ | ◻️ |
+| `name` | Rename a profile | ✅ | ✅ |
+| `native_network_id` | Assign a native network | ✅ | ✅ |
+| `native_network_id` | Change the native network | ✅ | ✅ |
+| `native_network_id` | Remove the native network | ✅ | ✅ |
+| `tagged_vlan_mode` | Set to `custom` | ✅ | ✅ |
+| `tagged_vlan_mode` | Set to `block_all` | ✅ | ✅ |
+| `tagged_vlan_mode` | Omit to restore `allow_all` | ✅ | ✅ |
+| `tagged_network_ids` | Select a tagged network | ✅ | ✅ |
+| `tagged_network_ids` | Add a tagged network | ✅ | ✅ |
+| `poe_mode` | Set to `off` | ✅ | ✅ |
+| `poe_mode` | Remove to restore `auto` | ✅ | ✅ |
+| `port_isolation_enabled` | Set to `true` | ✅ | ✅ |
+| `port_isolation_enabled` | Remove to restore `false` | ✅ | ✅ |
+| `lldpmed_enabled` | Set to `false` | ✅ | ✅ |
+| `lldpmed_enabled` | Remove to restore `true` | ✅ | ✅ |
+
+Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. The assignment row above summarizes the [device-port tests](device_ports.md#validation-coverage); the remaining rows cover profile configuration only. Simulated assignment checks controller readback, not physical enforcement.
+
+Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
+
 ## Import
 
 Port profiles can be imported using the profile ID:
@@ -131,11 +160,3 @@ Profile settings without an attribute are not managed: link speed and duplex, ra
 ### Advanced settings
 
 Settings in the UI's **Advanced** section, including port isolation and LLDP-MED, only apply when the profile's Advanced mode is **Manual**. Terrifi always sets Manual, including when it updates a profile that was created in the UI with Advanced left on Auto.
-
-### Test coverage
-
-Unit and acceptance tests verify settings conversion, controller-side persistence, and the Terraform resource lifecycle, including updates, imports, and preservation of unmanaged fields.
-
-The hardware-in-the-loop (HIL) switch is a USW Flex Mini, which does not support custom port profiles. Profile-assignment lifecycle and drift tests are skipped on that device. HIL tests cover profile CRUD on the controller and inline VLAN configuration through `terrifi_device_ports`, but inline VLAN tests do not verify custom profile enforcement.
-
-Physical behavior of assigned profiles, including VLAN filtering, PoE, port isolation, and LLDP-MED, has not been verified on a profile-capable switch. A passing HIL run confirms controller-side behavior for profiles, not enforcement of those settings by switch hardware.
