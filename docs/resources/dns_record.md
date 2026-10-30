@@ -67,11 +67,11 @@ resource "terrifi_dns_record" "minecraft" {
 | `value` | Change an A-record address | ✅ | ✅ |
 | `record_type` | Set to `A` | ✅ | ✅ |
 | `record_type` | Set to `SRV` | ✅ | ✅ |
-| `record_type` | Set to `AAAA` | ❌ | ❌ |
-| `record_type` | Set to `CNAME` | ❌ | ❌ |
-| `record_type` | Set to `MX` | ❌ | ❌ |
-| `record_type` | Set to `TXT` | ❌ | ❌ |
-| `record_type` | Set to `PTR` | ❌ | ❌ |
+| `record_type` | Set to `AAAA` | ✅ | ✅ |
+| `record_type` | Set to `CNAME` | ✅ | ✅ |
+| `record_type` | Set to `MX` | ✅ | ✅ |
+| `record_type` | Set to `TXT` | ✅ | ✅ |
+| `record_type` | Set to `PTR` | ◻️ | ❌ |
 | `enabled` | Set to `false` | ✅ | ✅ |
 | `enabled` | Re-enable with `true` | ✅ | ✅ |
 | `ttl` | Set an explicit TTL | ✅ | ✅ |

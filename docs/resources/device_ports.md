@@ -65,19 +65,21 @@ Optional:
 
 ✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
+The current Simulated target exposes no adopted devices or usable switch ports, so device configuration, lookup, radio, and profile-assignment tests skip. ◻️ describes this target limitation; it does not mean these operations are unsupported on real hardware.
+
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
-| `ports.<port>.name` | Set a port name | ✅ | ✅ |
-| `ports.<port>.name` | Remove the configured name | ✅ | ❌ |
-| `ports.<port>.native_network_id` | Assign an inline native network | ✅ | ✅ |
-| `ports.<port>.native_network_id` | Change the inline native network | ✅ | ✅ |
-| `ports.<port>.tagged_vlan_mode` | Set inline mode to `block_all` | ✅ | ✅ |
-| `ports.<port>.tagged_vlan_mode` | Set inline mode to `allow_all` | ✅ | ✅ |
-| `ports.<port>.port_profile_id` | Assign a custom profile | ✅ | ◻️ |
-| `ports.<port>.port_profile_id` | Replace the assigned profile | ✅ | ◻️ |
-| `ports.<port>.port_profile_id` | Repair an out-of-band detachment | ✅ | ◻️ |
+| `ports.<port>.name` | Set a port name | ◻️ | ✅ |
+| `ports.<port>.name` | Remove the configured name | ◻️ | ❌ |
+| `ports.<port>.native_network_id` | Assign an inline native network | ◻️ | ✅ |
+| `ports.<port>.native_network_id` | Change the inline native network | ◻️ | ✅ |
+| `ports.<port>.tagged_vlan_mode` | Set inline mode to `block_all` | ◻️ | ✅ |
+| `ports.<port>.tagged_vlan_mode` | Set inline mode to `allow_all` | ◻️ | ✅ |
+| `ports.<port>.port_profile_id` | Assign a custom profile | ◻️ | ◻️ |
+| `ports.<port>.port_profile_id` | Replace the assigned profile | ◻️ | ◻️ |
+| `ports.<port>.port_profile_id` | Repair an out-of-band detachment | ◻️ | ◻️ |
 
-Inline VLAN tests run against both targets, using reserved Flex Mini ports 4 and 5 on the Hardware-in-the-loop target. Custom-profile assignment tests skip on the HIL USW Flex Mini because it does not support custom profiles. Removing only a configured name is also checked in that skipped profile lifecycle test; releasing an entire port is covered separately on both targets.
+Inline VLAN tests use reserved Flex Mini ports 4 and 5 on the Hardware-in-the-loop target and skip on the current Simulated target. Custom-profile assignment tests skip on the HIL USW Flex Mini because it does not support custom profiles. Removing only a configured name is also checked in that skipped profile lifecycle test; releasing an entire port is covered separately on hardware.
 
 Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [device_ports_inline_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_inline_test.go).
 

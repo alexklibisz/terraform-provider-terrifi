@@ -92,9 +92,11 @@ Other:
 
 ✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
+The current Simulated target exposes no adopted devices or usable switch ports, so device configuration, lookup, radio, and profile-assignment tests skip. ◻️ describes this target limitation; it does not mean these operations are unsupported on real hardware.
+
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
-| `terrifi_device_ports.ports.<port>.port_profile_id` | Assign this profile to a port | ✅ | ◻️ |
+| `terrifi_device_ports.ports.<port>.port_profile_id` | Assign this profile to a port | ◻️ | ◻️ |
 | `name` | Rename a profile | ✅ | ✅ |
 | `native_network_id` | Assign a native network | ✅ | ✅ |
 | `native_network_id` | Change the native network | ✅ | ✅ |
@@ -111,7 +113,7 @@ Other:
 | `lldpmed_enabled` | Set to `false` | ✅ | ✅ |
 | `lldpmed_enabled` | Remove to restore `true` | ✅ | ✅ |
 
-Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. The assignment row above summarizes the [device-port tests](device_ports.md#validation-coverage); the remaining rows cover profile configuration only. Simulated assignment checks controller readback, not physical enforcement.
+Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. The assignment row above summarizes the [device-port tests](device_ports.md#validation-coverage); the remaining rows cover profile configuration only. Simulated assignment tests currently skip because there are no usable virtual switch ports.
 
 Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 

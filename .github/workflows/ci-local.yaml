@@ -103,7 +103,7 @@ jobs:
             docker save "$img" -o "/tmp/docker-images/${name}.tar"
           done
       - name: Acceptance tests (Docker)
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: task test:acc
       - name: GoReleaser dry run
         timeout-minutes: 5

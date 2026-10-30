@@ -3,6 +3,7 @@ package provider
 import (
 	"fmt"
 	"math/rand"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -609,13 +610,9 @@ func TestAccDNSRecord_additionalTypes(t *testing.T) {
 		{"CNAME", "target.example.com", "other.example.com"},
 		{"MX", "mail.example.com", "mail2.example.com"},
 		{"TXT", "test-value", "updated-value"},
-		{"PTR", "host.example.com", "other.example.com"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			name := fmt.Sprintf("tfacc-%s.example.com", randomSuffix())
-			if tc.kind == "PTR" {
-				name = fmt.Sprintf("%d.2.0.192.in-addr.arpa", 1+rand.Intn(200))
-			}
 			config := func(value string) string {
 				return fmt.Sprintf(`
 resource "terrifi_dns_record" "test" {
@@ -641,4 +638,22 @@ resource "terrifi_dns_record" "test" {
 			})
 		})
 	}
+}
+
+// The pinned controller advertises this type through SDK/schema enums but
+// rejects a standards-formatted reverse lookup. Keep that limitation visible
+// rather than reporting successful PTR lifecycle coverage.
+func TestAccDNSRecord_PTRRejected(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { preCheck(t) }, ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{Config: fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+ name = %q
+ record_type = "PTR"
+ value = "tfacc-ptr.example.com"
+}
+`, fmt.Sprintf("%d.2.0.192.in-addr.arpa", 1+rand.Intn(200))),
+			ExpectError: regexp.MustCompile(`(?s)Error Creating DNS Record.*\(400\).*static-dns`),
+		}},
+	})
 }

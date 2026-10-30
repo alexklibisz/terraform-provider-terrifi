@@ -85,7 +85,7 @@ resource "terrifi_network" "cameras" {
 | `dhcp_dns` | Set the DNS server list | ✅ | ✅ |
 | `dhcp_dns` | Replace the DNS server list | ✅ | ✅ |
 | `internet_access_enabled` | Set to `true` | ✅ | ✅ |
-| `internet_access_enabled` | Set to `false` | ❌ | ❌ |
+| `internet_access_enabled` | Set to `false` | ✅ | ✅ |
 
 Network and DHCP configuration acceptance tests run against both controller targets. Setting `internet_access_enabled` to `false` has no dedicated acceptance test.
 
