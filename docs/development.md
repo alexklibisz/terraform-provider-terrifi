@@ -86,6 +86,8 @@ $ which terrifi
 
 ## Running tests
 
+Resource and data-source pages use the shared [validation coverage](guides/validation-coverage.md) convention. Update their tables when adding settings or changing test coverage. Track Simulated and Hardware-in-the-loop coverage separately, accounting for target-specific skips and opt-in tests. Applying settings and checking controller readback is sufficient for coverage on either target.
+
 Unit tests (fast, no network needed):
 
 ```sh

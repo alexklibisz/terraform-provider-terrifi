@@ -82,6 +82,27 @@ resource "terrifi_firewall_policy" "allow_web" {
 
 - `id` (String) — The ID of the firewall group.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Rename a group | ✅ | ✅ |
+| `type` | Create a `port-group` | ✅ | ✅ |
+| `type` | Create an `address-group` | ✅ | ✅ |
+| `type` | Create an `ipv6-address-group` | ✅ | ✅ |
+| `members` | Assign port numbers | ✅ | ✅ |
+| `members` | Assign a port range | ✅ | ✅ |
+| `members` | Assign IPv4 addresses | ✅ | ✅ |
+| `members` | Assign IPv6 addresses | ✅ | ✅ |
+| `members` | Replace the member set | ✅ | ✅ |
+| `members` | Remove one member | ✅ | ✅ |
+
+Group lifecycle and membership acceptance tests run against both controller targets.
+
+Evidence: [firewall_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_group_resource_test.go).
+
 ## Import
 
 Firewall groups can be imported using the group ID:
