@@ -602,7 +602,7 @@ resource "terrifi_dns_record" "test" {
 	})
 }
 
-// Exercise each remaining advertised record type through creation, readback,
+// Exercise additional record types through creation, readback,
 // update, and import on both acceptance targets.
 func TestAccDNSRecord_additionalTypes(t *testing.T) {
 	for _, tc := range []struct{ kind, value, updated string }{
@@ -640,8 +640,8 @@ resource "terrifi_dns_record" "test" {
 	}
 }
 
-// The pinned controller advertises this type through SDK/schema enums but
-// rejects a standards-formatted reverse lookup. Keep that limitation visible
+// The provider schema accepts PTR, but both current acceptance controllers
+// reject a standards-formatted reverse lookup. Keep that limitation visible
 // rather than reporting successful PTR lifecycle coverage.
 func TestAccDNSRecord_PTRRejected(t *testing.T) {
 	resource.Test(t, resource.TestCase{

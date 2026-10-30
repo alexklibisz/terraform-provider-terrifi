@@ -48,7 +48,7 @@ See the [HIL setup](https://github.com/alexklibisz/terraform-provider-terrifi/bl
 
 ## Simulation coverage audit
 
-The simulation sweep covers all documented settings and usages with missing Simulated coverage. Client-group and WLAN lifecycle suites run on both targets. DNS AAAA, CNAME, MX, and TXT tests exercise creation, updates, and import; the network suite toggles internet access in both directions. PTR creation is rejected by the pinned simulated controller and is recorded by a rejection test. Device, radio, port-assignment, and device-lookup tests remain unavailable in the current simulator because it exposes no adopted devices. Zone-based firewall tests require an adopted gateway. These are limitations of the current target, not claims that future simulator versions cannot support the operations.
+The simulation sweep covers all documented settings and usages with missing Simulated coverage. Client-group and WLAN lifecycle suites run on both targets. DNS AAAA, CNAME, MX, and TXT tests exercise creation, updates, and import; the network suite toggles internet access in both directions. PTR creation is rejected by both current acceptance controllers and is recorded by a rejection test. Device, radio, port-assignment, and device-lookup tests remain unavailable in the current simulator because it exposes no adopted devices. Zone-based firewall tests require an adopted gateway. These are limitations of the current target, not claims that future simulator versions cannot support the operations.
 
 ## Keeping coverage current
 

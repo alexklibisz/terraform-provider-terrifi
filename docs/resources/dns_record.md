@@ -71,7 +71,7 @@ resource "terrifi_dns_record" "minecraft" {
 | `record_type` | Set to `CNAME` | ✅ | ✅ |
 | `record_type` | Set to `MX` | ✅ | ✅ |
 | `record_type` | Set to `TXT` | ✅ | ✅ |
-| `record_type` | Set to `PTR` | ◻️ | ❌ |
+| `record_type` | Set to `PTR` | ◻️ | ◻️ |
 | `enabled` | Set to `false` | ✅ | ✅ |
 | `enabled` | Re-enable with `true` | ✅ | ✅ |
 | `ttl` | Set an explicit TTL | ✅ | ✅ |
@@ -83,7 +83,7 @@ resource "terrifi_dns_record" "minecraft" {
 | `weight` | Set an SRV weight | ✅ | ✅ |
 | `weight` | Change the SRV weight | ✅ | ✅ |
 
-A, AAAA, CNAME, MX, TXT, and SRV record acceptance tests run against both controller targets. Additional-type tests cover creation, value updates, and import. The pinned Simulated controller rejects a reverse-lookup PTR creation request with HTTP 400; `TestAccDNSRecord_PTRRejected` records that rejection, which does not count as successful PTR lifecycle coverage.
+A, AAAA, CNAME, MX, TXT, and SRV record acceptance tests run against both controller targets. Additional-type tests cover creation, value updates, and import. Both current acceptance controllers reject a reverse-lookup PTR creation request with HTTP 400; `TestAccDNSRecord_PTRRejected` records that rejection, which does not count as successful PTR lifecycle coverage.
 
 Evidence: [dns_record_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/dns_record_resource_test.go).
 
