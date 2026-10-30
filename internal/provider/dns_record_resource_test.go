@@ -600,3 +600,45 @@ resource "terrifi_dns_record" "test" {
 		},
 	})
 }
+
+// Exercise each remaining advertised record type through creation, readback,
+// update, and import on both acceptance targets.
+func TestAccDNSRecord_additionalTypes(t *testing.T) {
+	for _, tc := range []struct{ kind, value, updated string }{
+		{"AAAA", "2001:db8::1", "2001:db8::2"},
+		{"CNAME", "target.example.com", "other.example.com"},
+		{"MX", "mail.example.com", "mail2.example.com"},
+		{"TXT", "test-value", "updated-value"},
+		{"PTR", "host.example.com", "other.example.com"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			name := fmt.Sprintf("tfacc-%s.example.com", randomSuffix())
+			if tc.kind == "PTR" {
+				name = fmt.Sprintf("%d.2.0.192.in-addr.arpa", 1+rand.Intn(200))
+			}
+			config := func(value string) string {
+				return fmt.Sprintf(`
+resource "terrifi_dns_record" "test" {
+ name = %q
+ record_type = %q
+ value = %q
+}
+`, name, tc.kind, value)
+			}
+			check := func(value string) resource.TestCheckFunc {
+				return resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "record_type", tc.kind),
+					resource.TestCheckResourceAttr("terrifi_dns_record.test", "value", value),
+				)
+			}
+			resource.Test(t, resource.TestCase{
+				PreCheck: func() { preCheck(t) }, ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{Config: config(tc.value), Check: check(tc.value)},
+					{Config: config(tc.updated), Check: check(tc.updated)},
+					{ResourceName: "terrifi_dns_record.test", ImportState: true, ImportStateVerify: true},
+				},
+			})
+		})
+	}
+}

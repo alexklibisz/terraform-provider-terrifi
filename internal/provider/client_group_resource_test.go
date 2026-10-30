@@ -117,7 +117,6 @@ func TestClientGroupApplyPlanToState(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestAccClientGroup_basic(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	name := fmt.Sprintf("tfacc-cligrp-%s", suffix)
 
@@ -226,7 +225,6 @@ resource "terrifi_client_group" "test" {
 }
 
 func TestAccClientGroup_withClientDevice(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	groupName := fmt.Sprintf("tfacc-cligrp-%s", suffix)
 	mac := randomMAC()
@@ -260,7 +258,6 @@ resource "terrifi_client_device" "test" {
 }
 
 func TestAccClientGroup_reassignDevice(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	groupName1 := fmt.Sprintf("tfacc-cligrp1-%s", suffix)
 	groupName2 := fmt.Sprintf("tfacc-cligrp2-%s", suffix)
@@ -315,7 +312,6 @@ resource "terrifi_client_device" "test" {
 }
 
 func TestAccClientGroup_idempotentReapply(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	name := fmt.Sprintf("tfacc-cligrp-%s", suffix)
 

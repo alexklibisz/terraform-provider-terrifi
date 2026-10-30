@@ -458,7 +458,6 @@ resource "terrifi_network" "wlan_test" {
 }
 
 func TestAccWLAN_basic(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -495,7 +494,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_disabled(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -524,7 +522,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateEnabled(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -572,7 +569,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateName(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -608,7 +604,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updatePassphrase(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -641,7 +636,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateBand(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -689,7 +683,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_hiddenSSID(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -726,7 +719,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_openSecurity(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -754,7 +746,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_import(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -784,7 +775,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_importSiteID(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -821,7 +811,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_idempotentReapply(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -857,7 +846,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateSecurityOpenToWpapsk(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -897,7 +885,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateSecurityWpapskToOpen(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -933,7 +920,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateNetwork(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan1 := randomVLAN()
 	vlan2 := randomVLAN()
@@ -998,7 +984,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateMultipleProperties(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1046,7 +1031,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_updateWpaMode(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1094,7 +1078,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_applicationDefault(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1119,7 +1102,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_applicationHotspot(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1145,7 +1127,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_applicationIot(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1171,7 +1152,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_applicationTransitions(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1221,7 +1201,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_optimizeIoTConnectivity(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1271,7 +1250,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_applicationIdempotent(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
@@ -1304,7 +1282,6 @@ resource "terrifi_wlan" "test" {
 }
 
 func TestAccWLAN_wpa3(t *testing.T) {
-	requireHardware(t)
 	suffix := randomSuffix()
 	vlan := randomVLAN()
 	netName := fmt.Sprintf("tfacc-wlan-net-%s", suffix)
