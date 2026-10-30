@@ -4,7 +4,7 @@
 # If go.mod needs a newer Go than this, Go downloads that toolchain itself
 # (GOTOOLCHAIN=auto) until the image is bumped and rebuilt.
 FROM golang:1.27.3-bookworm AS go
-FROM ghcr.io/opentofu/opentofu:1.13.1-minimal AS tofu
+FROM ghcr.io/opentofu/opentofu:1.13.2-minimal AS tofu
 
 # Tracks the latest runner build for Ubuntu 24.04. Build with --pull to refresh
 # this moving tag; upstream's :latest tag uses Ubuntu 20.04 instead.
