@@ -55,17 +55,17 @@ resource "terrifi_client_device" "plug_bedroom" {
 
 ## Validation coverage
 
-✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
-| `name` | Create a named group | ❌ | ✅ |
+| `name` | Create a named group | ✅ | ✅ |
 | `name` | Rename a group | ❌ | ✅ |
 | `name` | Import a named group | ❌ | ✅ |
 
-The group acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. Client membership coverage is documented on `terrifi_client_device`.
+The dedicated group acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. The client-device membership tests also create named groups and run on both targets, providing creation coverage through their Terraform lifecycle checks. Rename and import coverage remains hardware-only. Client membership coverage is documented on `terrifi_client_device`.
 
-Evidence: [client_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_group_resource_test.go).
+Evidence: [client_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_group_resource_test.go) and `TestAccClientDevice_clientGroupIDs` / `TestAccClientDevice_clientGroupIDs_idempotent` in [client_device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_device_resource_test.go).
 
 ## Import
 

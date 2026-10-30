@@ -81,17 +81,17 @@ resource "terrifi_firewall_policy_order" "iot_to_trusted" {
 
 ## Validation coverage
 
-✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
-| `source_zone_id` | Select the source zone | ❌ | ✅ |
-| `destination_zone_id` | Select the destination zone | ❌ | ✅ |
-| `policy_ids` | Set an initial policy order | ❌ | ✅ |
-| `policy_ids` | Reorder existing policies | ❌ | ✅ |
-| `policy_ids` | Import the policy order | ❌ | ✅ |
+| `source_zone_id` | Select the source zone | ◻️ | ✅ |
+| `destination_zone_id` | Select the destination zone | ◻️ | ✅ |
+| `policy_ids` | Set an initial policy order | ◻️ | ✅ |
+| `policy_ids` | Reorder existing policies | ◻️ | ✅ |
+| `policy_ids` | Verify the imported policy order | ◻️ | ❌ |
 
-Ordering acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target.
+Ordering acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. ◻️ The zone-based firewall v2 API requires a fully adopted gateway, which the current simulator does not provide. `TestAccFirewallPolicyOrder_import` covers resource import, but explicitly excludes `policy_ids` from import-state verification because import discovers all policies for the zone pair. It does not assert the imported policy order.
 
 Evidence: [firewall_policy_order_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_order_resource_test.go).
 

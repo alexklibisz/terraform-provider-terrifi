@@ -63,7 +63,7 @@ Optional:
 
 ## Validation coverage
 
-✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |

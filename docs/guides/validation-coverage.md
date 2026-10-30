@@ -19,7 +19,8 @@ A ✅ means the acceptance suite covers applying or reading that setting on the 
 | Symbol | Meaning |
 | :---: | --- |
 | ✅ | Covered by acceptance tests on this target, or explicitly labeled manual verification. |
-| ❌ | Not covered on this target: the usage has no acceptance test, or its test skips on this target. This does **not** mean the feature is unsupported or known to fail. |
+| ❌ | Not covered on this target: the usage has no acceptance test, or its test skips on this target. This does **not** mean the feature is unsupported or known to fail. Use ◻️ instead when a documented target limitation prevents testing. |
+| ◻️ | Unavailable in the current target environment because of a documented capability limitation; not merely a missing test. |
 | ⚠️ | Conditional coverage requiring additional opt-in configuration, described beneath the table. |
 
 For example, setting PoE to Off and removing the setting to restore Auto are separate rows. Both are exercised by the profile configuration tests on the Simulated and Hardware-in-the-loop targets:
@@ -47,6 +48,6 @@ See the [HIL setup](https://github.com/alexklibisz/terraform-provider-terrifi/bl
 
 Place the Validation coverage section immediately after the complete Schema section, including nested schemas, and before Import when present. When adding or changing a setting, update its resource's coverage table and evidence links.
 
-Use one attribute path and one concrete usage per row. Repeat the setting for distinct uses such as setting a value, changing it, removing it, or importing it; use full paths for nested attributes. Determine each column independently from the relevant tests and target-specific skips. Describe gaps and conditions beneath the table.
+Use one attribute path and one concrete usage per row. Repeat the setting for distinct uses such as setting a value, changing it, removing it, or importing it; use full paths for nested attributes. Determine each column independently from the relevant tests and target-specific skips. Use ◻️ only with an explanation of the target limitation and supporting evidence; a hardware-only skip alone is insufficient. Describe gaps and conditions beneath the table.
 
 For manual verification, link a recorded result and label it explicitly. Record the target, controller version, device model and firmware where relevant, verification date, and any limitations so readers can distinguish a one-time check from automated coverage.
