@@ -9,6 +9,19 @@ description: |-
 
 Manages a network on the UniFi controller. Supports `corporate` networks with VLAN configuration and DHCP settings, and `vlan-only` networks that carry no IP configuration.
 
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Corporate/VLAN-only networks, VLAN IDs, and subnets | ✅ | ❌ |
+| DHCP pools, lease time, DNS servers, and internet-access setting | ✅ | ❌ |
+
+Tests check controller persistence, updates, and imports. They do not attach clients to verify VLAN isolation, DHCP leases and supplied DNS servers, routing, or internet-access enforcement.
+
+Evidence: [network_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/network_resource_test.go).
+
 ## Example Usage
 
 ### Corporate network with VLAN and DHCP

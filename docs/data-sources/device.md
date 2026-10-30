@@ -9,6 +9,18 @@ description: |-
 
 Looks up a UniFi network device (access point, switch, or gateway) by name or MAC address. Use this data source to reference device attributes in other resources — for example, to pin a client device to a specific access point.
 
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Lookup by name/MAC and adopted-device metadata | ✅ | — |
+
+Tests read adopted-device metadata from the controller and check references to it from a client resource. They skip when no adopted device is available. They do not independently inspect the physical device or verify client AP locking.
+
+Evidence: [device_data_source_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_data_source_test.go).
+
 ## Example Usage
 
 ### Look up by name

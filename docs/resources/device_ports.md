@@ -13,6 +13,19 @@ Only the ports listed in `ports` are managed. Every other port on the device is 
 
 Use **one `terrifi_device_ports` per device**. The controller stores all of a device's ports as a single list, so two resources for the same device overwrite each other. Device-level settings (name, LEDs, SNMP, ...) belong in [`terrifi_device`](device.md).
 
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Port names and inline native/tagged VLAN configuration | ✅ | ❌ |
+| Custom-profile assignment and drift repair | ✅ | ❌ |
+
+Inline lifecycle tests check controller port overrides, imports, removal, and drift repair on reserved Flex Mini ports 4 and 5. Custom-profile tests run on suitable simulated devices but skip on the HIL USW Flex Mini, which does not support custom profiles. Neither suite sends traffic through the ports to verify VLAN filtering or profile enforcement.
+
+Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [device_ports_inline_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_inline_test.go).
+
 ## Example Usage
 
 ```terraform

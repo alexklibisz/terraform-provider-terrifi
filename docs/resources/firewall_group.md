@@ -9,6 +9,18 @@ description: |-
 
 Manages a firewall group on the UniFi controller. Firewall groups are named collections of ports or addresses that can be referenced by firewall policies and rules.
 
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Port, IPv4, and IPv6 groups and membership | ✅ | ❌ |
+
+Tests verify group lifecycle, imports, and member updates. They do not send traffic through a gateway to verify rules that reference these groups.
+
+Evidence: [firewall_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_group_resource_test.go).
+
 ## Example Usage
 
 ### Port group

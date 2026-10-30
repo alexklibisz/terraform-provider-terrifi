@@ -86,6 +86,8 @@ $ which terrifi
 
 ## Running tests
 
+Resource and data-source pages use the shared [validation coverage](guides/validation-coverage.md) convention. Update their tables when adding settings or changing test coverage. A HIL test that checks saved controller configuration establishes Controller/API coverage; Hardware behavior coverage requires observing the effect on a device or connected client.
+
 Unit tests (fast, no network needed):
 
 ```sh

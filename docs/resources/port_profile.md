@@ -13,6 +13,20 @@ A profile only defines settings. Creating or changing one doesn't affect any por
 
 Which settings take effect depends on the device a profile is assigned to. For example, a gateway's built-in switch ports may ignore settings that a managed switch honors.
 
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Native and tagged VLAN selection | ✅ | ❌ |
+| PoE, port isolation, and LLDP-MED | ✅ | ❌ |
+| Preservation of unmanaged settings | ✅ | — |
+
+Acceptance tests verify controller-side lifecycle, imports, defaults, drift, and preservation of unmanaged fields. The HIL switch is a USW Flex Mini, which does not support custom port profiles; profile-assignment tests skip on it. Inline VLAN tests in `terrifi_device_ports` do not establish custom-profile enforcement. VLAN filtering, PoE power delivery, isolation, and LLDP-MED have not been verified on a profile-capable switch.
+
+Evidence: [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
+
 ## Example Usage
 
 ### Trunk port for a hypervisor
@@ -131,11 +145,3 @@ Profile settings without an attribute are not managed: link speed and duplex, ra
 ### Advanced settings
 
 Settings in the UI's **Advanced** section, including port isolation and LLDP-MED, only apply when the profile's Advanced mode is **Manual**. Terrifi always sets Manual, including when it updates a profile that was created in the UI with Advanced left on Auto.
-
-### Test coverage
-
-Unit and acceptance tests verify settings conversion, controller-side persistence, and the Terraform resource lifecycle, including updates, imports, and preservation of unmanaged fields.
-
-The hardware-in-the-loop (HIL) switch is a USW Flex Mini, which does not support custom port profiles. Profile-assignment lifecycle and drift tests are skipped on that device. HIL tests cover profile CRUD on the controller and inline VLAN configuration through `terrifi_device_ports`, but inline VLAN tests do not verify custom profile enforcement.
-
-Physical behavior of assigned profiles, including VLAN filtering, PoE, port isolation, and LLDP-MED, has not been verified on a profile-capable switch. A passing HIL run confirms controller-side behavior for profiles, not enforcement of those settings by switch hardware.

@@ -4,7 +4,7 @@
 
 ## Overview
 
-Terrifi uses hardware testing (aka hardware-in-the-loop testing or HIL testing) to ensure all features work with real UniFi hardware.
+Terrifi uses hardware-in-the-loop (HIL) testing to exercise the provider against a controller connected to real UniFi hardware. The current suites check controller/API state and Terraform lifecycle behavior; they do not independently verify physical effects such as packet filtering, Wi-Fi association, or PoE power delivery. Resource and data-source pages list their [validation coverage](../docs/guides/validation-coverage.md) using ✅ for covered behavior and ❌ for behavior that has not been verified.
 
 The continuous integration suite has a series of acceptance tests (aka integration tests) which run against two targets:
 
@@ -15,8 +15,7 @@ The simulation target exposes some but not all functionality of a real UniFi net
 For example, firewall zones, firewall policies, and WLANs all require real hardware to test.
 
 The HIL mode is a real UniFi OS Server with real UniFi hardware.
-This lets me test almost all the functionality of the connected hardware.
-The only functionality I can't test is some aspects of the initial setup, e.g., resetting and adopting devices.
+It makes hardware-dependent APIs available and supplies adopted devices for configuration tests. Coverage depends on the assertions and skip conditions in each test. Initial setup, including factory reset and device adoption, is not covered.
 
 ## Background
 
@@ -52,6 +51,7 @@ Here's the hardware I'm using:
 3. A generic gigabit 5-port switch. This is analogous to an unmanaged switch in a typical network.
 4. [A UniFi AC Pro access point](https://store.ui.com/us/en/products/uap-ac-pro). I purchased it used on eBay specifically for this project. I use some newer access points in my actual network, but this is good enough for testing.
 5. A Beelink Mini PC running Proxmox. I run two VMs here: one for the self-hosted UniFi OS Server and one for the GitHub Actions runner that runs the HIL test suite.
+6. A UniFi USW Flex Mini switch. Ports 4 and 5 are reserved for inline port-configuration lifecycle tests. This model does not support custom port profiles, so profile-assignment tests skip on it.
 
 And here's a photo:
 

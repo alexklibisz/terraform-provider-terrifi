@@ -11,6 +11,23 @@ Manages settings on an adopted UniFi network device (access point, switch, or ga
 
 To assign port profiles and names to a device's ports, use [`terrifi_device_ports`](device_ports.md).
 
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Name, LED enable, SNMP metadata, lock, and disable settings | ✅ | ❌ |
+| DHCP management configuration | ✅ | ❌ |
+| Static management configuration (opt-in test) | ✅ | ❌ |
+| 2.4/5 GHz channel, width, and transmit-power mode | ✅ | ❌ |
+| LED color/brightness, outdoor mode, and speaker volume | ❌ | ❌ |
+| 6 GHz radio, custom transmit power, and minimum RSSI | ❌ | ❌ |
+
+Acceptance tests require adopted devices and check controller readback. They do not observe LEDs, query SNMP on a device, test client connectivity, measure radio behavior, or independently verify the management address. Static management tests skip unless `TERRIFI_ACC_DEVICE_STATIC_IP`, `TERRIFI_ACC_DEVICE_STATIC_NETMASK`, and `TERRIFI_ACC_DEVICE_STATIC_GATEWAY` are set. Radio tests require a suitable adopted AP; multi-radio tests skip when fewer than two radios are available. Validation and unit tests for other options do not establish controller persistence.
+
+Evidence: [device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_resource_test.go).
+
 ## Example Usage
 
 ### Basic — set device name
