@@ -653,7 +653,7 @@ resource "terrifi_dns_record" "test" {
  value = "tfacc-ptr.example.com"
 }
 `, fmt.Sprintf("%d.2.0.192.in-addr.arpa", 1+rand.Intn(200))),
-			ExpectError: regexp.MustCompile(`(?s)Error Creating DNS Record.*\(400\).*static-dns`),
+			ExpectError: regexp.MustCompile(`(?s)Error Creating DNS Record.*\(400(?: Bad Request)?\).*static-dns`),
 		}},
 	})
 }
