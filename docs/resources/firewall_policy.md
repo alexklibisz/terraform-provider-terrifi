@@ -11,20 +11,6 @@ Manages a firewall policy on the UniFi controller. Firewall policies define traf
 
 ~> **Prerequisite:** Zone-based firewall must be enabled on your controller before using this resource. See `terrifi_firewall_zone` for setup instructions.
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Actions, endpoint matching, protocols, connection states, and schedules | ✅ | ❌ |
-| Enable state, logging setting, and allow-respond creation | ✅ | ❌ |
-| IPsec matching (`match_ipsec`) | ❌ | ❌ |
-
-Acceptance tests require the HIL target with an adopted gateway. They check saved policies and Terraform lifecycle behavior, including network matching and generated allow-respond rules. They do not generate traffic to verify filtering, schedule enforcement, return traffic, or syslog delivery. IPsec matching has no dedicated persistence acceptance test.
-
-Evidence: [firewall_policy_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_resource_test.go).
-
 ## Example Usage
 
 ### Block traffic between zones
@@ -222,6 +208,20 @@ At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set
 - `time_range_start` (String) — Start time (e.g. `08:00`).
 - `time_range_end` (String) — End time (e.g. `17:00`).
 - `repeat_on_days` (Set of String) — Days of the week. Valid values: `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Actions, endpoint matching, protocols, connection states, and schedules | ✅ | ❌ |
+| Enable state, logging setting, and allow-respond creation | ✅ | ❌ |
+| IPsec matching (`match_ipsec`) | ❌ | ❌ |
+
+Acceptance tests require the HIL target with an adopted gateway. They check saved policies and Terraform lifecycle behavior, including network matching and generated allow-respond rules. They do not generate traffic to verify filtering, schedule enforcement, return traffic, or syslog delivery. IPsec matching has no dedicated persistence acceptance test.
+
+Evidence: [firewall_policy_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_resource_test.go).
 
 ## Import
 

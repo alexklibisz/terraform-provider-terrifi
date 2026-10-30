@@ -29,6 +29,6 @@ See the [HIL setup](https://github.com/alexklibisz/terraform-provider-terrifi/bl
 
 ## Keeping coverage current
 
-When adding or changing a setting, update its resource's coverage table and evidence links. Group settings with the same coverage; split a row when only some settings are tested. Describe skip conditions and gaps beneath the table. Keep status symbols in these sections so attribute descriptions remain easy to scan.
+Place the Validation coverage section immediately after the complete Schema section, including nested schemas, and before Import when present. When adding or changing a setting, update its resource's coverage table and evidence links. Group settings with the same coverage; split a row when only some settings are tested. Describe skip conditions and gaps beneath the table. Keep status symbols in these sections so attribute descriptions remain easy to scan.
 
 To mark hardware behavior ✅, link the automated assertion or a recorded manual verification that observes the effect. Record the device model, firmware and controller versions, verification date, and any limitations. For manual verification, label it explicitly so readers can distinguish a one-time observation from ongoing automated coverage. A report of controller persistence alone belongs in the Controller/API column.

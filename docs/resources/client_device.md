@@ -9,20 +9,6 @@ description: |-
 
 Manages a client device on the UniFi controller. Use this resource to set aliases, notes, fixed IPs, VLAN overrides, local DNS records, custom device icons, AP locking, and blocked status for known clients.
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Aliases, notes, groups, and device icons | ✅ | — |
-| Fixed IP, network override, and local DNS settings | ✅ | ❌ |
-| Blocking and AP locking | ✅ | ❌ |
-
-Tests use generated client MAC addresses and check saved configuration. They do not connect a client to verify DHCP reservations, DNS answers, VLAN placement, blocked traffic, or AP locking.
-
-Evidence: [client_device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_device_resource_test.go).
-
 ## Example Usage
 
 ### Basic alias
@@ -155,6 +141,20 @@ resource "terrifi_client_device" "blocked" {
 ### Read-Only
 
 - `id` (String) — The ID of the client device.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Aliases, notes, groups, and device icons | ✅ | — |
+| Fixed IP, network override, and local DNS settings | ✅ | ❌ |
+| Blocking and AP locking | ✅ | ❌ |
+
+Tests use generated client MAC addresses and check saved configuration. They do not connect a client to verify DHCP reservations, DNS answers, VLAN placement, blocked traffic, or AP locking.
+
+Evidence: [client_device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_device_resource_test.go).
 
 ## Import
 

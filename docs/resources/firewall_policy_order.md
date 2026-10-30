@@ -11,18 +11,6 @@ Manages the evaluation order of firewall policies for a specific zone pair on th
 
 Create the policies separately using [`terrifi_firewall_policy`](firewall_policy.md).
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Policy order, reordering, and import | ✅ | ❌ |
-
-Acceptance tests require the HIL target and check the order returned by the controller. They do not send traffic through competing policies to verify gateway evaluation order.
-
-Evidence: [firewall_policy_order_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_order_resource_test.go).
-
 ## Example Usage
 
 ### Order policies between two zones
@@ -90,6 +78,18 @@ resource "terrifi_firewall_policy_order" "iot_to_trusted" {
 ### Read-Only
 
 - `id` (String) — Synthetic ID in the format `source_zone_id:destination_zone_id`.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Policy order, reordering, and import | ✅ | ❌ |
+
+Acceptance tests require the HIL target and check the order returned by the controller. They do not send traffic through competing policies to verify gateway evaluation order.
+
+Evidence: [firewall_policy_order_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_order_resource_test.go).
 
 ## Import
 

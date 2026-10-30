@@ -9,19 +9,6 @@ description: |-
 
 Manages a DNS record on the UniFi controller.
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| A and SRV records, enable state, TTL, and SRV options | ✅ | ❌ |
-| AAAA, CNAME, MX, TXT, and PTR records | ❌ | ❌ |
-
-Acceptance tests exercise A and SRV records through the controller API. They do not query a gateway DNS server to verify answers, TTLs, or disabled-record behavior. Other record types have no dedicated persistence acceptance tests.
-
-Evidence: [dns_record_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/dns_record_resource_test.go).
-
 ## Example Usage
 
 ### A record
@@ -69,6 +56,19 @@ resource "terrifi_dns_record" "minecraft" {
 ### Read-Only
 
 - `id` (String) — The ID of the DNS record.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| A and SRV records, enable state, TTL, and SRV options | ✅ | ❌ |
+| AAAA, CNAME, MX, TXT, and PTR records | ❌ | ❌ |
+
+Acceptance tests exercise A and SRV records through the controller API. They do not query a gateway DNS server to verify answers, TTLs, or disabled-record behavior. Other record types have no dedicated persistence acceptance tests.
+
+Evidence: [dns_record_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/dns_record_resource_test.go).
 
 ## Import
 

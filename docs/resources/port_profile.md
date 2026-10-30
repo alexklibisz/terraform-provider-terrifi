@@ -13,20 +13,6 @@ A profile only defines settings. Creating or changing one doesn't affect any por
 
 Which settings take effect depends on the device a profile is assigned to. For example, a gateway's built-in switch ports may ignore settings that a managed switch honors.
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Native and tagged VLAN selection | ✅ | ❌ |
-| PoE, port isolation, and LLDP-MED | ✅ | ❌ |
-| Preservation of unmanaged settings | ✅ | — |
-
-Acceptance tests verify controller-side lifecycle, imports, defaults, drift, and preservation of unmanaged fields. The HIL switch is a USW Flex Mini, which does not support custom port profiles; profile-assignment tests skip on it. Inline VLAN tests in `terrifi_device_ports` do not establish custom-profile enforcement. VLAN filtering, PoE power delivery, isolation, and LLDP-MED have not been verified on a profile-capable switch.
-
-Evidence: [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
-
 ## Example Usage
 
 ### Trunk port for a hypervisor
@@ -99,6 +85,20 @@ Other:
 ### Read-Only
 
 - `id` (String) — The ID of the port profile.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Native and tagged VLAN selection | ✅ | ❌ |
+| PoE, port isolation, and LLDP-MED | ✅ | ❌ |
+| Preservation of unmanaged settings | ✅ | — |
+
+Acceptance tests verify controller-side lifecycle, imports, defaults, drift, and preservation of unmanaged fields. The HIL switch is a USW Flex Mini, which does not support custom port profiles; profile-assignment tests skip on it. Inline VLAN tests in `terrifi_device_ports` do not establish custom-profile enforcement. VLAN filtering, PoE power delivery, isolation, and LLDP-MED have not been verified on a profile-capable switch.
+
+Evidence: [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 
 ## Import
 

@@ -11,18 +11,6 @@ Manages a firewall zone on the UniFi controller. Firewall zones group networks t
 
 ~> **Prerequisite:** Zone-based firewall must be enabled on your controller before using this resource. In the UniFi UI, navigate to **Settings > Security > Traffic & Firewall Rules** and click **Upgrade to the New Zone-Based Firewall**. This is a one-time operation that creates the default zones and enables the zone API.
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Zone lifecycle and network membership | ✅ | ❌ |
-
-Acceptance tests require the HIL target with an adopted gateway. They check zone and network-membership persistence, including additions, removals, and imports. They do not verify traffic isolation between zones.
-
-Evidence: [firewall_zone_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_zone_resource_test.go).
-
 ## Example Usage
 
 ### Basic zone
@@ -64,6 +52,18 @@ resource "terrifi_firewall_zone" "iot" {
 
 - `id` (String) — The ID of the firewall zone.
 - `zone_key` (String) — The zone key assigned by the controller.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Zone lifecycle and network membership | ✅ | ❌ |
+
+Acceptance tests require the HIL target with an adopted gateway. They check zone and network-membership persistence, including additions, removals, and imports. They do not verify traffic isolation between zones.
+
+Evidence: [firewall_zone_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_zone_resource_test.go).
 
 ## Import
 

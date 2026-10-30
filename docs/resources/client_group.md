@@ -9,18 +9,6 @@ description: |-
 
 Manages a client group on the UniFi controller. Client groups can be referenced when assigning client devices.
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| Group lifecycle and client membership | ✅ | — |
-
-Groups and membership are controller configuration. Their use by network policies is not exercised by these tests.
-
-Evidence: [client_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_group_resource_test.go).
-
 ## Example Usage
 
 ### Basic group
@@ -64,6 +52,18 @@ resource "terrifi_client_device" "plug_bedroom" {
 ### Read-Only
 
 - `id` (String) — The ID of the client group.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| Group lifecycle and client membership | ✅ | — |
+
+Groups and membership are controller configuration. Their use by network policies is not exercised by these tests.
+
+Evidence: [client_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_group_resource_test.go).
 
 ## Import
 

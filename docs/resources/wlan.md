@@ -9,20 +9,6 @@ description: |-
 
 Manages a WLAN (WiFi network) on the UniFi controller. Supports WPA2/WPA3 security, hidden SSIDs, and per-band configuration.
 
-## Validation coverage
-
-✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-| Settings / behavior | Controller/API | Hardware behavior |
-| --- | :---: | :---: |
-| SSID, network, enable state, bands, and hidden SSID | ✅ | ❌ |
-| Passphrase, open/WPA security, and WPA3 settings | ✅ | ❌ |
-| Standard, hotspot, IoT, and IoT optimization settings | ✅ | ❌ |
-
-Acceptance tests require the HIL target and check controller persistence, updates, and imports. They do not scan for SSIDs, associate wireless clients, verify authentication or VLAN placement, exercise a captive portal, or measure IoT connectivity.
-
-Evidence: [wlan_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/wlan_resource_test.go).
-
 ## Example Usage
 
 ### Basic WPA2 WiFi network
@@ -115,6 +101,20 @@ resource "terrifi_wlan" "maintenance" {
 ### Read-Only
 
 - `id` (String) — The ID of the WLAN.
+
+## Validation coverage
+
+✅ Covered · ❌ Not verified · — Not applicable. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Settings / behavior | Controller/API | Hardware behavior |
+| --- | :---: | :---: |
+| SSID, network, enable state, bands, and hidden SSID | ✅ | ❌ |
+| Passphrase, open/WPA security, and WPA3 settings | ✅ | ❌ |
+| Standard, hotspot, IoT, and IoT optimization settings | ✅ | ❌ |
+
+Acceptance tests require the HIL target and check controller persistence, updates, and imports. They do not scan for SSIDs, associate wireless clients, verify authentication or VLAN placement, exercise a captive portal, or measure IoT connectivity.
+
+Evidence: [wlan_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/wlan_resource_test.go).
 
 ## Import
 
