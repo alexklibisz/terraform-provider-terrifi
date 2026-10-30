@@ -83,7 +83,7 @@ resource "terrifi_firewall_policy_order" "iot_to_trusted" {
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `source_zone_id` | Select the source zone | ❌ | ✅ |
 | `destination_zone_id` | Select the destination zone | ❌ | ✅ |
@@ -91,7 +91,7 @@ resource "terrifi_firewall_policy_order" "iot_to_trusted" {
 | `policy_ids` | Reorder existing policies | ❌ | ✅ |
 | `policy_ids` | Import the policy order | ❌ | ✅ |
 
-Ordering acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on Docker.
+Ordering acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target.
 
 Evidence: [firewall_policy_order_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_order_resource_test.go).
 

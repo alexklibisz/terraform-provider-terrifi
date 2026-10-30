@@ -90,7 +90,7 @@ Other:
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Rename a profile | ✅ | ✅ |
 | `native_network_id` | Assign a native network | ✅ | ✅ |
@@ -108,7 +108,7 @@ Other:
 | `lldpmed_enabled` | Set to `false` | ✅ | ✅ |
 | `lldpmed_enabled` | Remove to restore `true` | ✅ | ✅ |
 
-Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the real controller even though its USW Flex Mini cannot accept custom-profile assignments. Assignment coverage is documented separately on `terrifi_device_ports`.
+Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. Assignment coverage is documented separately on `terrifi_device_ports`.
 
 Evidence: [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 

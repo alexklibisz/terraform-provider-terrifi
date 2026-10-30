@@ -68,7 +68,7 @@ Exactly one of `name` or `mac` must be specified.
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Look up an adopted device by name | ✅ | ✅ |
 | `mac` | Look up an adopted device by MAC | ✅ | ✅ |

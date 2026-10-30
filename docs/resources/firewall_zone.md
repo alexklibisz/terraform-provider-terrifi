@@ -57,7 +57,7 @@ resource "terrifi_firewall_zone" "iot" {
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Create a named zone | ❌ | ✅ |
 | `name` | Rename a zone | ❌ | ✅ |
@@ -67,7 +67,7 @@ resource "terrifi_firewall_zone" "iot" {
 | `network_ids` | Replace the member set | ❌ | ✅ |
 | `network_ids` | Use an empty set | ❌ | ✅ |
 
-Zone lifecycle and membership acceptance tests require `TERRIFI_ACC_TARGET=hardware` with an adopted gateway and skip on Docker.
+Zone lifecycle and membership acceptance tests require `TERRIFI_ACC_TARGET=hardware` with an adopted gateway and skip on the Simulated target.
 
 Evidence: [firewall_zone_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_zone_resource_test.go).
 

@@ -213,7 +213,7 @@ At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Create a named policy | ❌ | ✅ |
 | `description` | Change the description | ❌ | ✅ |
@@ -266,7 +266,7 @@ At most one of `ips`, `mac_addresses`, `network_ids`, or `device_ids` may be set
 | `schedule.time_range_start` | Set a start time | ❌ | ✅ |
 | `schedule.time_range_end` | Set an end time | ❌ | ✅ |
 
-Policy acceptance tests require `TERRIFI_ACC_TARGET=hardware` with an adopted gateway and skip on Docker. Rows marked ❌ on both targets have no dedicated acceptance test for that usage.
+Policy acceptance tests require `TERRIFI_ACC_TARGET=hardware` with an adopted gateway and skip on the Simulated target. Rows marked ❌ on both targets have no dedicated acceptance test for that usage.
 
 Evidence: [firewall_policy_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_resource_test.go).
 

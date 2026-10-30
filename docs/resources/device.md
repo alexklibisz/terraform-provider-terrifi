@@ -180,7 +180,7 @@ All fields are optional. See [radio configuration notes](#radio-settings) for ho
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Rename an adopted device | ✅ | ✅ |
 | `name` | Remove the configured name | ✅ | ✅ |
@@ -226,7 +226,7 @@ All fields are optional. See [radio configuration notes](#radio-settings) for ho
 | `radio_6.min_rssi_enabled` | Enable the minimum RSSI threshold | ❌ | ❌ |
 | `radio_6.min_rssi` | Set the minimum RSSI threshold | ❌ | ❌ |
 
-The suite uses simulated adopted devices on Docker and adopted devices on the real controller. Radio tests require an adopted AP, and multi-radio tests skip if it has fewer than two radios. ⚠️ Static management tests are opt-in: they require `TERRIFI_ACC_DEVICE_STATIC_IP`, `TERRIFI_ACC_DEVICE_STATIC_NETMASK`, and `TERRIFI_ACC_DEVICE_STATIC_GATEWAY`; the standard HIL workflow does not configure these variables.
+The suite uses virtual adopted devices on the Simulated target and adopted hardware on the Hardware-in-the-loop target. Radio tests require an adopted AP, and multi-radio tests skip if it has fewer than two radios. ⚠️ Static management tests are opt-in: they require `TERRIFI_ACC_DEVICE_STATIC_IP`, `TERRIFI_ACC_DEVICE_STATIC_NETMASK`, and `TERRIFI_ACC_DEVICE_STATIC_GATEWAY`; the standard HIL workflow does not configure these variables.
 
 Evidence: [device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_resource_test.go).
 

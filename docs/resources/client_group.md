@@ -57,13 +57,13 @@ resource "terrifi_client_device" "plug_bedroom" {
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Create a named group | ❌ | ✅ |
 | `name` | Rename a group | ❌ | ✅ |
 | `name` | Import a named group | ❌ | ✅ |
 
-The group acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on Docker. Client membership coverage is documented on `terrifi_client_device`.
+The group acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. Client membership coverage is documented on `terrifi_client_device`.
 
 Evidence: [client_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_group_resource_test.go).
 

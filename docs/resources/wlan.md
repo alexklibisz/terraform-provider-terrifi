@@ -106,7 +106,7 @@ resource "terrifi_wlan" "maintenance" {
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Create an SSID | ❌ | ✅ |
 | `name` | Rename the SSID | ❌ | ✅ |
@@ -133,7 +133,7 @@ resource "terrifi_wlan" "maintenance" {
 | `optimize_iot_connectivity` | Enable for an IoT WLAN | ❌ | ✅ |
 | `optimize_iot_connectivity` | Disable for an IoT WLAN | ❌ | ✅ |
 
-WLAN acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on Docker.
+WLAN acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target.
 
 Evidence: [wlan_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/wlan_resource_test.go).
 

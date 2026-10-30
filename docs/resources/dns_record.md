@@ -61,7 +61,7 @@ resource "terrifi_dns_record" "minecraft" {
 
 ✅ Covered · ❌ Not covered · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-| Setting | Usage | Docker controller | Real controller |
+| Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Create an A-record hostname | ✅ | ✅ |
 | `value` | Change an A-record address | ✅ | ✅ |
