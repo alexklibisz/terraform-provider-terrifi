@@ -95,7 +95,31 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 5. Add the resource type to `cmd/terrifi/generate_imports.go` (`validResourceTypes` slice and switch statement)
 6. Add docs in `docs/resources/` and examples in `examples/`
 
-## Git Workflow
+## Development
+
+### Documentation
+
+Write documentation for a human who has no knowledge of the agent, its conversation,
+or the implementation process. Describe the API and provider behavior as they exist:
+supported attributes, defaults, constraints, examples, and limitations. Every statement
+must make sense without hidden context from an issue, PR, review, or agent session.
+
+- Do not describe settings as "restored," "newer," "previously removed," or otherwise
+  organize reference documentation around implementation history. Use feature names.
+- Keep agent progress, local environment problems, pending validation, review feedback,
+  and abandoned approaches out of reference documentation. Report them in the PR
+  description or discussion when relevant.
+- Include versions, compatibility constraints, and testing limitations when they help
+  readers understand supported behavior. State the specific behavior or limitation
+  directly, rather than referring to "this change" or what the agent has done so far.
+- Keep validation coverage tables up to date in the same PR as changes to attributes,
+  behavior, or acceptance tests. Add, update, or remove rows for the affected settings
+  and lifecycle operations, and check both Simulated and Hardware-in-the-loop columns
+  against test results. Do not mark coverage based only on an unrun test or a passing
+  suite in which the relevant test skipped.
+- Distinguish controller persistence from device enforcement. Document target-specific
+  skips and limitations, and keep evidence links and test names accurate. A successful
+  controller write does not establish that a physical device enforces the setting.
 
 ### Merging Pull Requests
 
