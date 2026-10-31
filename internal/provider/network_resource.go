@@ -267,10 +267,11 @@ func (r *networkResource) Update(
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
-	network := r.modelToAPI(ctx, &state)
-	network.ID = state.ID.ValueString()
 
-	updated, err := r.client.UpdateNetwork(ctx, site, network)
+	// Only the attributes this resource manages are written; every other field
+	// (IPv6, mDNS, IGMP snooping, DHCP relay, enabled, ...) keeps the value the
+	// controller has, including changes made in the UniFi UI.
+	updated, err := r.client.UpdateNetworkManaged(ctx, site, state.ID.ValueString(), r.managedFields(ctx, &state))
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Network", err.Error())
 		return
@@ -399,6 +400,68 @@ func (r *networkResource) applyPlanToState(plan, state *networkResourceModel) {
 	if !plan.InternetAccessEnabled.IsNull() && !plan.InternetAccessEnabled.IsUnknown() {
 		state.InternetAccessEnabled = plan.InternetAccessEnabled
 	}
+}
+
+// managedFields returns the controller fields this resource manages, keyed by
+// their JSON name, for a read-modify-write update. Unset (null or unknown)
+// attributes are left out, so the stored value is kept. A known dhcp_dns list
+// sets all four slots, with "" for the unused ones so dropped servers are
+// cleared.
+func (r *networkResource) managedFields(ctx context.Context, m *networkResourceModel) map[string]any {
+	set := func(v attr.Value) bool { return !v.IsNull() && !v.IsUnknown() }
+	f := map[string]any{"purpose": m.Purpose.ValueString()}
+
+	if set(m.Name) {
+		f["name"] = m.Name.ValueString()
+	}
+	if set(m.VLANId) {
+		vlan := m.VLANId.ValueInt64()
+		f["vlan"] = vlan
+		f["vlan_enabled"] = vlan > 0
+	}
+	if set(m.NetworkGroup) {
+		f["networkgroup"] = m.NetworkGroup.ValueString()
+	}
+
+	// Subnet and DHCP only apply to corporate networks, as in modelToAPI.
+	if m.Purpose.ValueString() != "corporate" {
+		return f
+	}
+	// In "auto" mode the controller recomputes settings such as the DHCP range
+	// and would override the ones written here, so managed corporate networks
+	// stay in "manual" mode (as Create does, see
+	// applySDKSettingPreferenceWorkaround).
+	f["setting_preference"] = "manual"
+	if set(m.Subnet) {
+		f["ip_subnet"] = m.Subnet.ValueString()
+	}
+	if set(m.DHCPEnabled) {
+		f["dhcpd_enabled"] = m.DHCPEnabled.ValueBool()
+	}
+	if set(m.DHCPStart) {
+		f["dhcpd_start"] = m.DHCPStart.ValueString()
+	}
+	if set(m.DHCPStop) {
+		f["dhcpd_stop"] = m.DHCPStop.ValueString()
+	}
+	if set(m.DHCPLease) {
+		f["dhcpd_leasetime"] = m.DHCPLease.ValueInt64()
+	}
+	if set(m.DHCPDns) {
+		var servers []types.String
+		m.DHCPDns.ElementsAs(ctx, &servers, false)
+		for i := 0; i < 4; i++ {
+			v := ""
+			if i < len(servers) {
+				v = servers[i].ValueString()
+			}
+			f[fmt.Sprintf("dhcpd_dns_%d", i+1)] = v
+		}
+	}
+	if set(m.InternetAccessEnabled) {
+		f["internet_access_enabled"] = m.InternetAccessEnabled.ValueBool()
+	}
+	return f
 }
 
 func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceModel) *unifi.Network {

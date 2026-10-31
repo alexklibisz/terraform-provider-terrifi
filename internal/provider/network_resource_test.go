@@ -2,7 +2,10 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -558,6 +561,262 @@ resource "terrifi_network" "test" {
 			},
 		},
 	})
+}
+
+// TestAccNetwork_updatePreservesUnmanagedFields changes settings the resource
+// doesn't manage directly on the controller, the way a user would in the UniFi
+// UI, then changes managed attributes through Terraform. The update must keep
+// the unmanaged settings (it used to send the SDK's defaults for them:
+// mdns_enabled/igmp_snooping false, ipv6_interface_type "none", ...) and must
+// clear DNS servers dropped from dhcp_dns.
+func TestAccNetwork_updatePreservesUnmanagedFields(t *testing.T) {
+	name := fmt.Sprintf("tfacc-net-keep-%s", randomSuffix())
+	vlan := randomVLAN()
+	a, b := vlan/256, vlan%256
+
+	config := func(name, dhcpStop string, dns ...string) string {
+		quoted := make([]string, len(dns))
+		for i, d := range dns {
+			quoted[i] = fmt.Sprintf("%q", d)
+		}
+		return fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name         = %q
+  purpose      = "corporate"
+  vlan_id      = %d
+  subnet       = "10.%d.%d.1/24"
+  dhcp_enabled = true
+  dhcp_start   = "10.%d.%d.6"
+  dhcp_stop    = "10.%d.%d.%s"
+  dhcp_dns     = [%s]
+}
+`, name, vlan, a, b, a, b, a, b, dhcpStop, strings.Join(quoted, ", "))
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config(name, "254", "1.1.1.1", "8.8.8.8", "9.9.9.9"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccNetworkSetUnmanaged("terrifi_network.test"),
+					testAccNetworkCheckUnmanaged("terrifi_network.test"),
+				),
+			},
+			// Managed changes: name, DHCP range, DNS servers replaced.
+			{
+				Config: config(name+"-renamed", "200", "9.9.9.9", "1.0.0.1", "8.8.4.4"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "name", name+"-renamed"),
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_stop", fmt.Sprintf("10.%d.%d.200", a, b)),
+					testAccNetworkCheckUnmanaged("terrifi_network.test"),
+					testAccNetworkCheckDNS("terrifi_network.test", "9.9.9.9", "1.0.0.1", "8.8.4.4", ""),
+				),
+			},
+			// A shorter list clears the dropped servers.
+			{
+				Config: config(name+"-renamed", "200", "9.9.9.9"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "1"),
+					testAccNetworkCheckUnmanaged("terrifi_network.test"),
+					testAccNetworkCheckDNS("terrifi_network.test", "9.9.9.9", "", "", ""),
+				),
+			},
+		},
+	})
+}
+
+// testAccRawNetwork reads the stored network as raw JSON, including fields the
+// SDK doesn't decode.
+func testAccRawNetwork(s *terraform.State, addr string) (*Client, string, string, map[string]any, error) {
+	rs, ok := s.RootModule().Resources[addr]
+	if !ok {
+		return nil, "", "", nil, fmt.Errorf("resource %s not found in state", addr)
+	}
+	client := testAccGetClientNoT()
+	site := client.SiteOrDefault(types.StringNull())
+	var resp struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := client.doV2Request(context.Background(), http.MethodGet, client.networkURL(site, rs.Primary.ID), nil, &resp); err != nil {
+		return nil, "", "", nil, err
+	}
+	if len(resp.Data) != 1 {
+		return nil, "", "", nil, fmt.Errorf("network %s not found", rs.Primary.ID)
+	}
+	return client, site, rs.Primary.ID, resp.Data[0], nil
+}
+
+// unmanagedNetworkSettings are set outside Terraform and must survive updates.
+// They are a mix of fields the SDK marshals with defaults (mdns_enabled,
+// igmp_snooping, domain_name) and fields it doesn't marshal at all
+// (upnp_lan_enabled, ipv6_ra_preferred_lifetime). (setting_preference "auto"
+// is left out: in auto mode the controller itself recomputes igmp_snooping and
+// domain_name.)
+var unmanagedNetworkSettings = map[string]any{
+	"mdns_enabled":               true,
+	"igmp_snooping":              true,
+	"domain_name":                "tfacc.example",
+	"upnp_lan_enabled":           true,
+	"ipv6_ra_preferred_lifetime": float64(7200),
+}
+
+func testAccNetworkSetUnmanaged(addr string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		client, site, id, _, err := testAccRawNetwork(s, addr)
+		if err != nil {
+			return err
+		}
+		// The controller merges a PUT into the stored network.
+		var resp struct {
+			Meta struct {
+				RC  string `json:"rc"`
+				Msg string `json:"msg"`
+			} `json:"meta"`
+		}
+		if err := client.doV2Request(context.Background(), http.MethodPut, client.networkURL(site, id), unmanagedNetworkSettings, &resp); err != nil {
+			return err
+		}
+		if resp.Meta.RC != "ok" {
+			return fmt.Errorf("setting unmanaged fields: rc=%s msg=%s", resp.Meta.RC, resp.Meta.Msg)
+		}
+		return nil
+	}
+}
+
+func testAccNetworkCheckUnmanaged(addr string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		_, _, _, n, err := testAccRawNetwork(s, addr)
+		if err != nil {
+			return err
+		}
+		for k, want := range unmanagedNetworkSettings {
+			if n[k] != want {
+				return fmt.Errorf("%s = %v, want %v (reset by the update)", k, n[k], want)
+			}
+		}
+		return nil
+	}
+}
+
+func testAccNetworkCheckDNS(addr string, want ...string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		_, _, _, n, err := testAccRawNetwork(s, addr)
+		if err != nil {
+			return err
+		}
+		for i, w := range want {
+			k := fmt.Sprintf("dhcpd_dns_%d", i+1)
+			got, _ := n[k].(string) // absent counts as ""
+			if got != w {
+				return fmt.Errorf("%s = %q, want %q", k, got, w)
+			}
+		}
+		return nil
+	}
+}
+
+func TestNetworkManagedFields(t *testing.T) {
+	ctx := context.Background()
+	r := &networkResource{}
+
+	t.Run("corporate: managed keys only, all DNS slots explicit", func(t *testing.T) {
+		dns, _ := types.ListValueFrom(ctx, types.StringType, []string{"192.168.10.2"})
+		f := r.managedFields(ctx, &networkResourceModel{
+			Purpose:               types.StringValue("corporate"),
+			Name:                  types.StringValue("servers"),
+			VLANId:                types.Int64Value(999),
+			Subnet:                types.StringValue("192.168.10.1/24"),
+			DHCPEnabled:           types.BoolValue(true),
+			DHCPStart:             types.StringValue("192.168.10.6"),
+			DHCPStop:              types.StringValue("192.168.10.254"),
+			DHCPLease:             types.Int64Value(86400),
+			DHCPDns:               dns,
+			InternetAccessEnabled: types.BoolValue(true),
+			NetworkGroup:          types.StringNull(),
+		})
+		assert.Equal(t, map[string]any{
+			"purpose":                 "corporate",
+			"name":                    "servers",
+			"vlan":                    int64(999),
+			"vlan_enabled":            true,
+			"ip_subnet":               "192.168.10.1/24",
+			"dhcpd_enabled":           true,
+			"dhcpd_start":             "192.168.10.6",
+			"dhcpd_stop":              "192.168.10.254",
+			"dhcpd_leasetime":         int64(86400),
+			"dhcpd_dns_1":             "192.168.10.2",
+			"dhcpd_dns_2":             "",
+			"dhcpd_dns_3":             "",
+			"dhcpd_dns_4":             "",
+			"internet_access_enabled": true,
+			"setting_preference":      "manual",
+		}, f)
+		assert.NotContains(t, f, "enabled", "enabled is not managed")
+	})
+
+	t.Run("unset and unknown attributes are left out", func(t *testing.T) {
+		f := r.managedFields(ctx, &networkResourceModel{
+			Purpose:   types.StringValue("corporate"),
+			Name:      types.StringValue("n"),
+			DHCPStart: types.StringUnknown(),
+			DHCPDns:   types.ListNull(types.StringType),
+		})
+		assert.Equal(t, map[string]any{"purpose": "corporate", "name": "n", "setting_preference": "manual"}, f)
+	})
+
+	t.Run("vlan-only: no IP or DHCP fields", func(t *testing.T) {
+		f := r.managedFields(ctx, &networkResourceModel{
+			Purpose: types.StringValue("vlan-only"),
+			Name:    types.StringValue("v"),
+			VLANId:  types.Int64Value(30),
+			Subnet:  types.StringValue("10.0.0.1/24"),
+		})
+		assert.Equal(t, map[string]any{"purpose": "vlan-only", "name": "v", "vlan": int64(30), "vlan_enabled": true}, f)
+	})
+}
+
+// TestMergeNetwork merges managed fields into a stored network shaped like a
+// UDR's prefix-delegated LAN: unmanaged fields come back byte for byte.
+func TestMergeNetwork(t *testing.T) {
+	stored := `{
+		"_id": "net-1", "name": "IOT-CONTROLLER", "purpose": "corporate", "enabled": false,
+		"ipv6_interface_type": "pd", "ipv6_pd_interface": "wan", "ipv6_ra_enabled": true,
+		"ipv6_ra_preferred_lifetime": "14400", "mdns_enabled": true, "igmp_snooping": true,
+		"setting_preference": "auto", "dhcp_relay_servers": ["10.0.0.5"],
+		"dhcpd_dns_1": "1.1.1.1", "dhcpd_dns_2": "8.8.8.8", "dhcpd_dns_3": "9.9.9.9"
+	}`
+	var existing map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(stored), &existing))
+
+	merged, err := mergeNetwork(existing, map[string]any{
+		"purpose": "corporate", "name": "servers", "vlan": int64(999), "vlan_enabled": true,
+		"dhcpd_dns_1": "192.168.10.2", "dhcpd_dns_2": "", "dhcpd_dns_3": "", "dhcpd_dns_4": "",
+	})
+	require.NoError(t, err)
+	b, err := json.Marshal(merged)
+	require.NoError(t, err)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(b, &body))
+
+	// Managed: overwritten, dropped DNS servers sent as "".
+	assert.Equal(t, "servers", body["name"])
+	assert.Equal(t, float64(999), body["vlan"])
+	assert.Equal(t, "192.168.10.2", body["dhcpd_dns_1"])
+	assert.Equal(t, "", body["dhcpd_dns_2"])
+	assert.Equal(t, "", body["dhcpd_dns_3"])
+	// Unmanaged: untouched, including types (string-encoded number) and lists.
+	assert.Equal(t, "pd", body["ipv6_interface_type"])
+	assert.Equal(t, "wan", body["ipv6_pd_interface"])
+	assert.Equal(t, true, body["ipv6_ra_enabled"])
+	assert.Equal(t, "14400", body["ipv6_ra_preferred_lifetime"])
+	assert.Equal(t, true, body["mdns_enabled"])
+	assert.Equal(t, true, body["igmp_snooping"])
+	assert.Equal(t, "auto", body["setting_preference"])
+	assert.Equal(t, false, body["enabled"])
+	assert.Equal(t, []any{"10.0.0.5"}, body["dhcp_relay_servers"])
+	assert.Equal(t, "net-1", body["_id"])
 }
 
 func TestAccNetwork_internetAccessToggle(t *testing.T) {
