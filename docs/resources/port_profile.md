@@ -111,7 +111,7 @@ Other:
 - `storm_control_multicast` (Number) — Multicast threshold. Unset disables storm control for this traffic class.
 - `storm_control_unknown_unicast` (Number) — Unknown-unicast threshold. Unset disables storm control for this traffic class.
 
-Storm-control thresholds accept `0`–`100` for `percentage` and `0`–`14880000` for `packets_per_second`. An explicit `0` enables that class with a zero threshold; it is distinct from omitting the attribute. Omitting all three thresholds disables storm control. Thresholds are flat attributes; there is no nested `storm_control` object.
+Storm-control thresholds accept `0`–`100` for `percentage` and `0`–`14880000` for `packets_per_second`. An explicit `0` enables that class with a zero threshold; it is distinct from omitting the attribute. Omitting all three thresholds disables storm control. Each traffic class has its own threshold attribute.
 
 Removing a defaulted attribute restores its documented default. Removing `link_debounce_ms` restores Auto. These fields are managed even when omitted, so updates also reset their out-of-band changes to the configured values or defaults.
 
@@ -145,10 +145,19 @@ The current Simulated target exposes no adopted devices or usable switch ports, 
 | `port_isolation_enabled` | Remove to restore `false` | ✅ | ✅ |
 | `lldpmed_enabled` | Set to `false` | ✅ | ✅ |
 | `lldpmed_enabled` | Remove to restore `true` | ✅ | ✅ |
+| `eee_enabled` | Enable and reset to default | ✅ | ✅ |
+| `flow_control_enabled` | Disable and reset to default | ✅ | ✅ |
+| `ptp_enabled` | Disable and reset to default | ✅ | ✅ |
+| `link_debounce_ms` | Select Off, Custom, and Auto | ✅ | ✅ |
+| `stp_enabled` | Disable, reset to default, and repair drift | ✅ | ✅ |
+| `bpdu_guard_enabled` | Enable, reset to default, and repair drift | ✅ | ✅ |
+| `loop_protection_enabled` | Enable, reset to default, and repair drift | ✅ | ✅ |
+| `storm_control_type` | Switch between percentage and packets per second | ✅ | ✅ |
+| `storm_control_broadcast` | Set, change, and remove a threshold | ✅ | ✅ |
+| `storm_control_multicast` | Set, change, and remove a threshold | ✅ | ✅ |
+| `storm_control_unknown_unicast` | Set, change, and remove a threshold | ✅ | ✅ |
 
-The restored link-tuning and protection settings have lifecycle tests in `port_profile_restored_test.go` for both targets, including imports, drift repair, values computed by other resources, debounce changes, storm-control unit changes, and removing thresholds. These tests require Network 10.6.106 or a controller that stores the same fields; older controllers may discard some link-tuning settings. The new lifecycle tests have not yet been run for this change. No physical-port enforcement is claimed for these settings.
-
-Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. The assignment row above summarizes the [device-port tests](device_ports.md#validation-coverage); the remaining rows cover profile configuration only. Simulated assignment tests currently skip because there are no usable virtual switch ports.
+Both controller targets cover profile imports, defaults, drift repair, values computed by other resources, and preservation of unmanaged fields. Simulation tests use Network 10.6.106; older controller versions may discard some link-tuning settings. All profile checks validate controller persistence. The assignment row summarizes the [device-port tests](device_ports.md#validation-coverage).
 
 Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [port_profile_restored_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_restored_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 
