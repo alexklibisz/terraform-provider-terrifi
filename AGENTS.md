@@ -26,6 +26,20 @@ The `-- -run <pattern>` syntax passes `-run` through to `go test` via `{{.CLI_AR
 
 ## Architecture
 
+### Setting Ownership
+
+For resources managed by Terraform, assume every controller setting exposed as a configurable Terraform attribute is exclusively managed through Terraform.
+This applies even when an optional attribute is omitted from the configuration.
+Implementations, tests, and code reviews should not assume someone concurrently edits these settings in the UniFi UI or through another API client between Terraform refresh and apply.
+Preserving such concurrent edits is not a requirement and does not by itself justify a fix or additional update logic.
+
+Controller settings the provider does not expose may be managed outside Terraform and must be preserved during resource updates.
+Full-object API writes and SDK serialization defaults must not reset these settings.
+
+Interpret omitted, null, and unknown values according to the attribute's schema and Terraform Plugin Framework semantics.
+Omitting an optional/computed attribute does not by itself relinquish ownership or request a reset; it may retain its prior state or use a controller-computed value.
+This ownership model does not remove the need for correct refresh and drift handling, imports, or consistency between configuration, plan, and resulting state.
+
 ### Provider Structure
 
 All provider code lives in `internal/provider/`. Each resource follows the Terraform Plugin Framework pattern:
@@ -96,20 +110,6 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 6. Add docs in `docs/resources/` and examples in `examples/`
 
 ## Development
-
-### Setting Ownership
-
-For resources managed by Terraform, assume every controller setting exposed as a configurable Terraform attribute is exclusively managed through Terraform.
-This applies even when an optional attribute is omitted from the configuration.
-Implementations, tests, and code reviews should not assume someone concurrently edits these settings in the UniFi UI or through another API client between Terraform refresh and apply.
-Preserving such concurrent edits is not a requirement and does not by itself justify a fix or additional update logic.
-
-Controller settings the provider does not expose may be managed outside Terraform and must be preserved during resource updates.
-Full-object API writes and SDK serialization defaults must not reset these settings.
-
-Interpret omitted, null, and unknown values according to the attribute's schema and Terraform Plugin Framework semantics.
-Omitting an optional/computed attribute does not by itself relinquish ownership or request a reset; it may retain its prior state or use a controller-computed value.
-This ownership model does not remove the need for correct refresh and drift handling, imports, or consistency between configuration, plan, and resulting state.
 
 ### Documentation
 
