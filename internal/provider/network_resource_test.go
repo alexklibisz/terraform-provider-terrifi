@@ -944,14 +944,43 @@ resource "terrifi_network" "test" {
 					return nil
 				}),
 			},
+			// Persisted imports reuse the workspace, so forget the existing
+			// state entry without deleting the controller network first.
 			{
+				Config: `
+removed {
+  from = terrifi_network.test
+  lifecycle {
+    destroy = false
+  }
+}
+`,
+				Check: func(s *terraform.State) error {
+					if _, exists := s.RootModule().Resources["terrifi_network.test"]; exists {
+						return fmt.Errorf("network is still managed before import")
+					}
+					return nil
+				},
+			},
+			{
+				Config:             config,
 				ResourceName:       "terrifi_network.test",
 				ImportState:        true,
 				ImportStatePersist: true,
-				ImportStateVerify:  true,
-				// Import has no prior empty-list state and may read null.
-				// Verify the configured [] after applying the imported state.
-				ImportStateVerifyIgnore: []string{"dhcp_dns"},
+				ImportStateIdFunc: func(_ *terraform.State) (string, error) {
+					return originalID, nil
+				},
+				ImportStateCheck: func(states []*terraform.InstanceState) error {
+					if len(states) != 1 || states[0].ID != originalID {
+						return fmt.Errorf("import did not restore the original network %q: %v", originalID, states)
+					}
+					// Import has no prior empty-list state and may read null.
+					// The following apply must reconcile it with configured [].
+					if count := states[0].Attributes["dhcp_dns.#"]; count != "" && count != "0" {
+						return fmt.Errorf("imported network has unexpected DNS servers: count = %q", count)
+					}
+					return nil
+				},
 			},
 			{
 				Config: config,
