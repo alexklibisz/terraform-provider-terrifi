@@ -914,3 +914,56 @@ resource "terrifi_network" "test" {
 		},
 	})
 }
+
+// TestAccNetwork_importEmptyDNS persists the imported state so the subsequent
+// apply reconciles the imported DNS value with an explicitly configured [].
+func TestAccNetwork_importEmptyDNS(t *testing.T) {
+	vlan := randomVLAN()
+	config := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name     = %q
+  purpose  = "corporate"
+  vlan_id  = %d
+  subnet   = "10.%d.%d.1/24"
+  dhcp_dns = []
+}
+`, "tfacc-import-empty-dns-"+randomSuffix(), vlan, vlan/256, vlan%256)
+	var originalID string
+	checkEmptyDNS := resource.ComposeTestCheckFunc(
+		resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0"),
+		testAccNetworkCheckDNS("terrifi_network.test", "", "", "", ""),
+	)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(checkEmptyDNS, func(s *terraform.State) error {
+					originalID = s.RootModule().Resources["terrifi_network.test"].Primary.ID
+					return nil
+				}),
+			},
+			{
+				ResourceName:       "terrifi_network.test",
+				ImportState:        true,
+				ImportStatePersist: true,
+				ImportStateVerify:  true,
+				// Import has no prior empty-list state and may read null.
+				// Verify the configured [] after applying the imported state.
+				ImportStateVerifyIgnore: []string{"dhcp_dns"},
+			},
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(checkEmptyDNS, func(s *terraform.State) error {
+					if got := s.RootModule().Resources["terrifi_network.test"].Primary.ID; got != originalID {
+						return fmt.Errorf("network was replaced after import: ID = %q, want %q", got, originalID)
+					}
+					return nil
+				}),
+			},
+			{RefreshState: true, Check: checkEmptyDNS},
+			{Config: config, PlanOnly: true},
+		},
+	})
+}

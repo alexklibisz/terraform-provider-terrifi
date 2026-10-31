@@ -97,6 +97,7 @@ Omitting `dhcp_dns` leaves it computed from the controller; omission does not cl
 | `dhcp_dns` | Shorten the list and clear removed servers | ✅ | ✅ |
 | `dhcp_dns` | Clear all servers, refresh, and restore servers | ✅ | ✅ |
 | `dhcp_dns` | Create with an explicitly empty list | ✅ | ✅ |
+| `dhcp_dns` | Import with an explicitly empty list, apply, and refresh without replacement or drift | ✅ | ✅ |
 | Unmanaged settings | Preserve mDNS, IGMP snooping, domain name, UPnP, and IPv6 RA preferred lifetime during updates | ✅ | ✅ |
 | Unmanaged settings | Preserve a disabled network during updates | ❌ | ❌ |
 | Unmanaged settings | Preserve IPv6 prefix delegation during updates | ◻️ | ❌ |
@@ -105,7 +106,7 @@ Omitting `dhcp_dns` leaves it computed from the controller; omission does not cl
 
 Network and DHCP configuration acceptance tests run against both controller targets.
 Coverage includes toggling internet access off, on, and off again with controller readback; preserving unmanaged settings during DHCP changes; and shortening, clearing, and restoring DNS server lists.
-Creating a network with `dhcp_dns = []` and retaining a clean plan after refresh are also covered.
+Creating or importing a network with `dhcp_dns = []`, applying the configuration, and retaining a clean plan after refresh are also covered.
 Disabled networks, UI edits between consecutive updates, and IPv6 prefix delegation have unit or HTTP-test coverage only.
 The simulated controller rejects IPv6 prefix delegation configuration, so its preservation requires validation on suitable hardware.
 
