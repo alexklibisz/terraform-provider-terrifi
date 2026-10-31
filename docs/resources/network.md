@@ -103,10 +103,9 @@ Omitting `dhcp_dns` leaves it computed from the controller; omission does not cl
 | `internet_access_enabled` | Set to `true` | ✅ | ✅ |
 | `internet_access_enabled` | Set to `false` | ✅ | ✅ |
 
-Network and DHCP configuration acceptance tests run against both controller targets. `TestAccNetwork_internetAccessToggle` checks `false` → `true` → `false` through controller readback.
-
-`TestAccNetwork_updatePreservesUnmanagedFields` checks preservation of unmanaged settings alongside DHCP changes, DNS-list shrinking, clearing, refresh, and restoring servers.
-`TestAccNetwork_emptyDNSOnCreate` checks creation with `dhcp_dns = []` and a clean plan after refresh.
+Network and DHCP configuration acceptance tests run against both controller targets.
+Coverage includes toggling internet access off, on, and off again with controller readback; preserving unmanaged settings during DHCP changes; and shortening, clearing, and restoring DNS server lists.
+Creating a network with `dhcp_dns = []` and retaining a clean plan after refresh are also covered.
 Disabled networks, UI edits between consecutive updates, and IPv6 prefix delegation have unit or HTTP-test coverage only.
 The simulated controller rejects IPv6 prefix delegation configuration, so its preservation requires validation on suitable hardware.
 
