@@ -4,7 +4,7 @@ import "fmt"
 
 // PortProfile mirrors the controller's representation of a switch port
 // profile at /api/s/{site}/rest/portconf. Only fields the provider manages are
-// typed; the controller returns more (link speed, STP, storm control, port
+// typed; the controller returns more (link speed, port
 // security, 802.1X, voice VLAN, qos_profile, ...), which are ignored on read
 // and preserved on update by a read-modify-write of the raw object (see
 // UpdatePortProfile).
@@ -36,9 +36,31 @@ type PortProfile struct {
 	// deny-list: every LAN network except the tagged and native ones.
 	ExcludedNetworkIDs []string `json:"excluded_networkconf_ids"`
 
-	PoeMode        *string `json:"poe_mode,omitempty"` // auto|off (UI "Auto PoE")
-	Isolation      *bool   `json:"isolation,omitempty"`
-	LldpmedEnabled *bool   `json:"lldpmed_enabled,omitempty"`
+	PoeMode              *string `json:"poe_mode,omitempty"` // auto|off (UI "Auto PoE")
+	Isolation            *bool   `json:"isolation,omitempty"`
+	LldpmedEnabled       *bool   `json:"lldpmed_enabled,omitempty"`
+	FlowControlEnabled   *bool   `json:"flow_control_enabled,omitempty"`
+	PTPEnabled           *bool   `json:"precision_time_protocol_enabled,omitempty"`
+	StpPortMode          *bool   `json:"stp_port_mode,omitempty"`
+	StpBpduGuardEnabled  *bool   `json:"stp_bpdu_guard_enabled,omitempty"`
+	PortKeepaliveEnabled *bool   `json:"port_keepalive_enabled,omitempty"` // UI "Non-STP loop protection"
+	EEEEnabled           *bool   `json:"eee_enabled,omitempty"`
+	// Auto ignores the stored debounce; Off uses 0; Custom uses 100–5000 ms.
+	LinkDebounceAuto *bool  `json:"link_debounce_auto,omitempty"`
+	LinkDebounce     *int64 `json:"link_debounce,omitempty"`
+
+	// Each enabled class uses a percentage level or packets-per-second rate.
+	// Disabled classes may retain stale thresholds, which reads must ignore.
+	StormctrlType         string `json:"stormctrl_type,omitempty"` // level|rate
+	StormctrlBcastEnabled *bool  `json:"stormctrl_bcast_enabled,omitempty"`
+	StormctrlBcastLevel   *int64 `json:"stormctrl_bcast_level,omitempty"`
+	StormctrlBcastRate    *int64 `json:"stormctrl_bcast_rate,omitempty"`
+	StormctrlMcastEnabled *bool  `json:"stormctrl_mcast_enabled,omitempty"`
+	StormctrlMcastLevel   *int64 `json:"stormctrl_mcast_level,omitempty"`
+	StormctrlMcastRate    *int64 `json:"stormctrl_mcast_rate,omitempty"`
+	StormctrlUcastEnabled *bool  `json:"stormctrl_ucast_enabled,omitempty"` // UI "unknown unicast"
+	StormctrlUcastLevel   *int64 `json:"stormctrl_ucast_level,omitempty"`
+	StormctrlUcastRate    *int64 `json:"stormctrl_ucast_rate,omitempty"`
 }
 
 // ExcludedFromTagged converts the UI's tagged allow-list into the stored
@@ -98,4 +120,26 @@ func TaggedVLANModeFromAPI(mode string) string {
 		return "allow_all"
 	}
 	return mode
+}
+
+// StormControlTypeToAPI converts the public threshold unit to the wire value.
+func StormControlTypeToAPI(unit string) string {
+	switch unit {
+	case "percentage":
+		return "level"
+	case "packets_per_second":
+		return "rate"
+	}
+	return unit
+}
+
+// StormControlTypeFromAPI converts the wire value to the public threshold unit.
+func StormControlTypeFromAPI(unit string) string {
+	switch unit {
+	case "", "level":
+		return "percentage"
+	case "rate":
+		return "packets_per_second"
+	}
+	return unit
 }

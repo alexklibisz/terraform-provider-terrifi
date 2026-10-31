@@ -7,11 +7,12 @@ description: |-
 
 # terrifi_port_profile (Resource)
 
-Manages a switch port profile on the UniFi controller. Port profiles are reusable port configurations (VLANs, PoE, port isolation and LLDP-MED) that can be assigned to switch and gateway ports. Other profile settings are not managed; see [unmanaged settings](#unmanaged-settings).
+Manages reusable switch port configurations on the UniFi controller.
+Assign a profile to a switch or gateway port with [`terrifi_device_ports`](device_ports.md) or in the UniFi UI.
+Creating a profile does not configure any ports until it is assigned.
 
-A profile only defines settings. Creating or changing one doesn't affect any port until the profile is assigned to that port, with [`terrifi_device_ports`](device_ports.md) or in the UI.
-
-Which settings take effect depends on the device a profile is assigned to. For example, a gateway's built-in switch ports may ignore settings that a managed switch honors.
+Which settings take effect depends on the device.
+For example, a gateway's built-in switch ports may ignore settings that a managed switch honors.
 
 ## Example Usage
 
@@ -46,17 +47,22 @@ resource "terrifi_port_profile" "iot_access" {
 }
 ```
 
-### Isolated port
+### Access port with isolation and loop protection
 
-An IoT port that can't reach other isolated ports, without PoE.
+An IoT port with isolation, STP, BPDU guard, non-STP loop protection, and a broadcast storm-control threshold of 20 percent.
+PoE is disabled.
 
 ```terraform
-resource "terrifi_port_profile" "isolated_iot" {
-  name                   = "Isolated - IoT"
-  native_network_id      = terrifi_network.iot.id
-  tagged_vlan_mode       = "block_all"
-  poe_mode               = "off"
-  port_isolation_enabled = true
+resource "terrifi_port_profile" "protected_iot" {
+  name                    = "Protected - IoT"
+  native_network_id       = terrifi_network.iot.id
+  tagged_vlan_mode        = "block_all"
+  poe_mode                = "off"
+  port_isolation_enabled  = true
+  stp_enabled             = true
+  bpdu_guard_enabled      = true
+  loop_protection_enabled = true
+  storm_control_broadcast = 20
 }
 ```
 
@@ -64,23 +70,51 @@ resource "terrifi_port_profile" "isolated_iot" {
 
 ### Required
 
-- `name` (String) — The name of the port profile.
+- `name` (String) — The name of the port profile, between 1 and 128 characters.
 
 ### Optional
 
 - `site` (String) — The site to associate the port profile with. Defaults to the provider site. Changing this forces a new resource.
 
-VLANs:
+Removing an optional attribute with a documented default resets it to that default.
+Removing `native_network_id` clears the native network, removing `link_debounce_ms` selects Auto, and removing a storm-control threshold disables its traffic class.
+Terraform manages these settings even when omitted and corrects out-of-band changes on apply.
 
-- `native_network_id` (String) — The ID of the native (untagged) network. When unset, the port has no native network (the UI's "None"). Note that the UI defaults new profiles to the Default network instead.
-- `tagged_vlan_mode` (String) — Tagged VLAN management. `allow_all` (UI "Allow All") tags every network, `block_all` tags none, and `custom` tags the networks given by `tagged_network_ids`. Default: `allow_all`.
-- `tagged_network_ids` (Set of String) — IDs of the networks tagged on the port, as selected in the UI. Required with `tagged_vlan_mode = "custom"`, not allowed otherwise. Must not include the native network, and must not be empty (use `tagged_vlan_mode = "block_all"` to tag no networks; the controller rewrites an empty custom selection to `block_all`). See [tagged networks](#tagged-networks).
+#### VLANs
 
-Other:
+- `native_network_id` (String) — The ID of the native (untagged) network. Unset means no native network (the UI's "None"). The UI defaults new profiles to the Default network instead.
+- `tagged_vlan_mode` (String) — `allow_all` permits all tagged networks, `block_all` permits none, and `custom` permits the networks in `tagged_network_ids`. Default: `allow_all`.
+- `tagged_network_ids` (Set of String) — IDs of the tagged networks. Required with `tagged_vlan_mode = "custom"` and not allowed otherwise. The set must be nonempty and must not contain the native network. Use `block_all` to permit no tagged networks. See [tagged networks](#tagged-networks).
 
-- `poe_mode` (String) — PoE mode. `auto` is the UI's "Auto PoE" checkbox ticked, `off` unticked. Default: `auto`.
+#### Link settings
+
+- `poe_mode` (String) — PoE mode: `auto` enables Auto PoE and `off` disables it. Default: `auto`.
+- `eee_enabled` (Boolean) — Whether Energy Efficient Ethernet is enabled. Default: `false`.
+- `flow_control_enabled` (Boolean) — Whether flow control is enabled. Default: `true`.
+- `ptp_enabled` (Boolean) — Whether Precision Time Protocol is enabled. Default: `true`.
+- `link_debounce_ms` (Number) — Link debounce in milliseconds. Unset selects Auto, `0` selects Off, and `100`–`5000` in steps of `100` selects Custom.
+
+#### Port isolation and discovery
+
 - `port_isolation_enabled` (Boolean) — Whether port isolation is enabled. Default: `false`.
 - `lldpmed_enabled` (Boolean) — Whether LLDP-MED is enabled. Default: `true`.
+
+#### Loop protection
+
+- `stp_enabled` (Boolean) — Whether spanning tree is enabled. Default: `true`. Disabling STP removes its protection against switching loops.
+- `bpdu_guard_enabled` (Boolean) — Whether BPDU guard is enabled. Default: `false`.
+- `loop_protection_enabled` (Boolean) — Whether non-STP loop protection is enabled. Default: `false`.
+
+#### Storm control
+
+- `storm_control_type` (String) — Threshold unit: `percentage` or `packets_per_second`. Default: `percentage`.
+- `storm_control_broadcast` (Number) — Broadcast threshold. Unset disables broadcast storm control.
+- `storm_control_multicast` (Number) — Multicast threshold. Unset disables multicast storm control.
+- `storm_control_unknown_unicast` (Number) — Unknown-unicast threshold. Unset disables unknown-unicast storm control.
+
+Thresholds accept integers from `0` to `100` for `percentage` and from `0` to `14880000` for `packets_per_second`.
+An explicit `0` enables the traffic class with a zero threshold.
+Omitting all three thresholds disables storm control.
 
 ### Read-Only
 
@@ -88,11 +122,13 @@ Other:
 
 ## Validation coverage
 
-**Hardware coverage is limited to saving and reading profile configuration on the controller.** The current HIL switch (USW Flex Mini) does not support custom-profile assignment, so these checks do not validate applying a profile to a physical port or enforcing its settings.
+Acceptance tests verify saving and reading profile configuration on both controller targets.
+They do not verify physical-port enforcement.
+The HIL switch (USW Flex Mini) does not support custom-profile assignment, and the Simulated target has no adopted devices or usable switch ports.
+Profile-assignment tests are therefore unavailable on both targets.
 
-✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
-
-The current Simulated target exposes no adopted devices or usable switch ports, so device configuration, lookup, radio, and profile-assignment tests skip. ◻️ describes this target limitation; it does not mean these operations are unsupported on real hardware.
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional.
+See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
@@ -103,19 +139,40 @@ The current Simulated target exposes no adopted devices or usable switch ports, 
 | `native_network_id` | Remove the native network | ✅ | ✅ |
 | `tagged_vlan_mode` | Set to `custom` | ✅ | ✅ |
 | `tagged_vlan_mode` | Set to `block_all` | ✅ | ✅ |
-| `tagged_vlan_mode` | Omit to restore `allow_all` | ✅ | ✅ |
+| `tagged_vlan_mode` | Omit to reset to `allow_all` | ✅ | ✅ |
 | `tagged_network_ids` | Select a tagged network | ✅ | ✅ |
 | `tagged_network_ids` | Add a tagged network | ✅ | ✅ |
 | `poe_mode` | Set to `off` | ✅ | ✅ |
-| `poe_mode` | Remove to restore `auto` | ✅ | ✅ |
+| `poe_mode` | Omit to reset to `auto` | ✅ | ✅ |
+| `eee_enabled` | Set to `true` | ✅ | ✅ |
+| `eee_enabled` | Omit to reset to `false` | ✅ | ✅ |
+| `flow_control_enabled` | Set to `false` | ✅ | ✅ |
+| `flow_control_enabled` | Omit to reset to `true` | ✅ | ✅ |
+| `ptp_enabled` | Set to `false` | ✅ | ✅ |
+| `ptp_enabled` | Omit to reset to `true` | ✅ | ✅ |
+| `link_debounce_ms` | Set to Off (`0`) or Custom (`1200`, `5000`) | ✅ | ✅ |
+| `link_debounce_ms` | Omit to select Auto | ✅ | ✅ |
 | `port_isolation_enabled` | Set to `true` | ✅ | ✅ |
-| `port_isolation_enabled` | Remove to restore `false` | ✅ | ✅ |
+| `port_isolation_enabled` | Omit to reset to `false` | ✅ | ✅ |
 | `lldpmed_enabled` | Set to `false` | ✅ | ✅ |
-| `lldpmed_enabled` | Remove to restore `true` | ✅ | ✅ |
+| `lldpmed_enabled` | Omit to reset to `true` | ✅ | ✅ |
+| `stp_enabled` | Set to `false` | ✅ | ✅ |
+| `stp_enabled` | Omit to reset to `true` | ✅ | ✅ |
+| `bpdu_guard_enabled` | Set to `true` | ✅ | ✅ |
+| `bpdu_guard_enabled` | Omit to reset to `false` | ✅ | ✅ |
+| `loop_protection_enabled` | Set to `true` | ✅ | ✅ |
+| `loop_protection_enabled` | Omit to reset to `false` | ✅ | ✅ |
+| `storm_control_type` | Change between percentage and packets per second | ✅ | ✅ |
+| `storm_control_type` | Omit to reset to `percentage` | ✅ | ✅ |
+| `storm_control_broadcast` | Set, change, and remove a threshold | ✅ | ✅ |
+| `storm_control_multicast` | Set, change, and remove a threshold | ✅ | ✅ |
+| `storm_control_unknown_unicast` | Set, change, and remove a threshold | ✅ | ✅ |
 
-Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. The assignment row above summarizes the [device-port tests](device_ports.md#validation-coverage); the remaining rows cover profile configuration only. Simulated assignment tests currently skip because there are no usable virtual switch ports.
+Both targets cover imports, defaults, values computed by other resources, and preservation of unmanaged fields.
+Drift-repair tests cover STP, BPDU guard, non-STP loop protection, EEE, flow control, PTP, link debounce, and broadcast storm control.
+Simulation tests use Network 10.6.106.
 
-Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
+Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [port_profile_advanced_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_advanced_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 
 ## Import
 
@@ -143,22 +200,33 @@ terrifi generate-imports terrifi_port_profile
 
 ### Tagged networks
 
-The UniFi UI shows the networks tagged on a port, but the controller stores the opposite: a list of *excluded* networks, containing every other network. `tagged_network_ids` matches what you select in the UI. Terrifi converts it to the excluded list when writing, and back when reading.
+The UniFi UI shows the networks tagged on a port, but the controller stores a list of excluded networks.
+`tagged_network_ids` is the allow-list selected in the UI.
+Terrifi converts it to the controller's exclude list when writing and back when reading.
+The native network is not included in either list.
 
 Only networks with the `corporate` purpose are considered when converting `tagged_network_ids`.
 
-#### New networks
+#### Network creation and deletion
 
-When a network is created, whether in the UI or through the API, the controller adds it to the excluded list of every profile with `tagged_vlan_mode = "custom"`, so a new network is never tagged on existing custom ports. It does this in the background, about a second after the network is created. Deleting a network removes it from the excluded lists.
+When a network is created, the controller adds it to the exclude list of every profile with `tagged_vlan_mode = "custom"`.
+A network omitted from `tagged_network_ids` therefore remains excluded without a Terraform update.
+Deleting a network removes it from the exclude lists.
 
-This is exactly what `tagged_network_ids` says: the new network isn't in the list, so there's no planned change. (A plan run within a second or two of creating the network may still show it being removed from the port, because the controller hasn't excluded it yet.)
+The controller processes network creation in the background, typically within a few seconds.
+A plan run before this processing finishes may show the network being removed from the profile's tagged networks.
 
-A network created in the same apply as a profile that tags it is still being processed when the profile is written, and the controller would exclude it from that profile too. To prevent this, when a profile tags a network created within the last minute, Terrifi waits a few seconds after writing the profile, checks it, and writes it again if the controller has excluded the network. Other applies aren't delayed.
+When a profile tags a network created within the last minute, Terrifi waits a few seconds after saving the profile and reads it back.
+If the controller has excluded that network, Terrifi reapplies the tag selection.
+This applies to profile creation and updates.
 
 ### Unmanaged settings
 
-Profile settings without an attribute are not managed: link speed and duplex, rate limiting, flow control, PTP, Energy Efficient Ethernet, link debounce, STP and loop protection, the MAC address filter, 802.1X, storm control, the voice VLAN, QoS and the multicast router port. A profile created by Terrifi gets the same values for these as one created in the UI. Updates leave them unchanged, and changes made to them in the UI don't show up as drift.
+Terrifi does not manage link speed and duplex, rate limiting, STP uplink mode, MAC address filtering, 802.1X, the voice VLAN, QoS, or the multicast router port.
+Profiles created by Terrifi use the UI defaults for these settings.
+Updates preserve their stored values, and changes made to them outside Terraform do not appear as drift.
 
 ### Advanced settings
 
-Settings in the UI's **Advanced** section, including port isolation and LLDP-MED, only apply when the profile's Advanced mode is **Manual**. Terrifi always sets Manual, including when it updates a profile that was created in the UI with Advanced left on Auto.
+Settings in the UI's **Advanced** section apply when the profile's Advanced mode is **Manual**.
+Terrifi sets this mode on every profile creation and update, including updates to profiles imported with Advanced set to Auto.
