@@ -60,10 +60,10 @@ resource "terrifi_client_device" "plug_bedroom" {
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `name` | Create a named group | ✅ | ✅ |
-| `name` | Rename a group | ❌ | ✅ |
-| `name` | Import a named group | ❌ | ✅ |
+| `name` | Rename a group | ✅ | ✅ |
+| `name` | Import a named group | ✅ | ✅ |
 
-The dedicated group acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. The client-device membership tests also create named groups and run on both targets, providing creation coverage through their Terraform lifecycle checks. Rename and import coverage remains hardware-only. Client membership coverage is documented on `terrifi_client_device`.
+The group lifecycle and client-device membership acceptance tests run on both targets, including rename, import, membership reassignment, and idempotent reapplication.
 
 Evidence: [client_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_group_resource_test.go) and `TestAccClientDevice_clientGroupIDs` / `TestAccClientDevice_clientGroupIDs_idempotent` in [client_device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_device_resource_test.go).
 

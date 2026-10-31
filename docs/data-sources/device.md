@@ -68,15 +68,17 @@ Exactly one of `name` or `mac` must be specified.
 
 ✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
+The current Simulated target exposes no adopted devices or usable switch ports, so device configuration, lookup, radio, and profile-assignment tests skip. ◻️ describes this target limitation; it does not mean these operations are unsupported on real hardware.
+
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
-| `name` | Look up an adopted device by name | ✅ | ✅ |
-| `mac` | Look up an adopted device by MAC | ✅ | ✅ |
-| `id` | Read from the controller | ✅ | ✅ |
-| `model` | Read from the controller | ✅ | ✅ |
-| `type` | Read from the controller | ✅ | ✅ |
-| `adopted` | Read from the controller | ✅ | ✅ |
+| `name` | Look up an adopted device by name | ◻️ | ✅ |
+| `mac` | Look up an adopted device by MAC | ◻️ | ✅ |
+| `id` | Read from the controller | ◻️ | ✅ |
+| `model` | Read from the controller | ◻️ | ✅ |
+| `type` | Read from the controller | ◻️ | ✅ |
+| `adopted` | Read from the controller | ◻️ | ✅ |
 
-Lookup tests run against both controller targets. They require an adopted device and skip if none is available; lookup by name also requires that device to have a name.
+Lookup tests require an adopted device and currently skip on the Simulated target; lookup by name also requires that device to have a name.
 
 Evidence: [device_data_source_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_data_source_test.go).

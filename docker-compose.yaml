@@ -1,7 +1,8 @@
 # UniFi controller in simulation mode for acceptance testing.
 #
-# This runs a real UniFi controller with simulated devices, so API validation
-# is identical to real hardware. Limitations: no real WAN, WireGuard, or RADIUS.
+# This runs a real UniFi controller configured for simulation mode. The current
+# image exposes no adopted devices despite the demo-device settings below, so
+# device and port tests skip. No real WAN, WireGuard, or RADIUS is available.
 #
 # Used automatically by `task test:acc` (Docker mode). The test harness in
 # provider_test.go starts/stops this via testcontainers-go.
@@ -77,7 +78,8 @@ configs:
         echo "$${1}=$${2}" >> /config/data/system.properties
       }
 
-      # Simulation mode creates virtual devices so tests can run without hardware.
+      # Request demo devices. The pinned image currently exposes no adopted
+      # devices through the API; these settings alone do not provide device coverage.
       write_config is_simulation true
       write_config demo.num_uap 1
       write_config demo.num_ugw 1

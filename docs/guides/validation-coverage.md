@@ -11,7 +11,7 @@ Each resource and data-source page includes a **Validation coverage** table imme
 
 | Target | Environment |
 | --- | --- |
-| Simulated | An ephemeral UniFi Network Application in simulation mode with virtual devices, run by `task test:acc`. |
+| Simulated | An ephemeral UniFi Network Application configured for simulation mode, run by `task test:acc`. |
 | Hardware-in-the-loop | The HIL UniFi OS Server connected to real UniFi devices, run by `task test:acc:hardware`. |
 
 A ✅ means the acceptance suite covers applying or reading that setting on the named target. Controller readback and Terraform lifecycle assertions are sufficient for this coverage; observing a physical effect is not required.
@@ -36,7 +36,9 @@ The tables describe the checked-in acceptance suites and their target restrictio
 
 Tests check saved controller configuration and Terraform behavior such as updates, imports, defaults, and drift correction. A check applies only to the listed usage. Unit tests, schema validation, and mock HTTP tests alone do not earn a ✅ in either target column.
 
-Some suites, including WLAN and zone-based firewall tests, explicitly require the Hardware-in-the-loop target and skip on the Simulated target. Others need an adopted device or a suitable AP; Docker supplies simulated devices. Model limitations also matter: custom-profile assignment tests skip on the Hardware-in-the-loop target's USW Flex Mini, while profile CRUD and inline VLAN tests run there.
+Zone-based firewall tests require the Hardware-in-the-loop target and skip on the Simulated target. WLAN and client-group configuration tests run on both targets. Device, device-port, and device data-source tests need adopted devices or suitable APs. The current Docker controller exposes none, despite its demo-device configuration, so those tests skip and are marked ◻️. Model limitations also matter: custom-profile assignment tests skip on the Hardware-in-the-loop target's USW Flex Mini, while profile CRUD and inline VLAN tests run there.
+
+The [2026-10-30 Simulated CI run](https://github.com/alexklibisz/terraform-provider-terrifi/actions/runs/41088244055) records the missing-device skips with the pinned Network Application 10.6.109 image. Recheck these limitations when changing the image or simulator setup.
 
 A skipped test provides no validation for that run. Optional tests that require additional environment variables are marked ⚠️. Each page explains relevant skips and conditions.
 
