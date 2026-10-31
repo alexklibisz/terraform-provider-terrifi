@@ -63,6 +63,34 @@ resource "terrifi_network" "cameras" {
 
 - `id` (String) — The ID of the network.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Create a named network | ✅ | ✅ |
+| `purpose` | Set to `corporate` | ✅ | ✅ |
+| `purpose` | Set to `vlan-only` | ✅ | ✅ |
+| `vlan_id` | Assign a VLAN ID | ✅ | ✅ |
+| `subnet` | Assign an IPv4 subnet | ✅ | ✅ |
+| `network_group` | Set to `LAN` | ✅ | ✅ |
+| `dhcp_enabled` | Set to `true` | ✅ | ✅ |
+| `dhcp_enabled` | Set to `false` | ✅ | ✅ |
+| `dhcp_start` | Set the pool start address | ✅ | ✅ |
+| `dhcp_start` | Change the pool start address | ✅ | ✅ |
+| `dhcp_stop` | Set the pool end address | ✅ | ✅ |
+| `dhcp_stop` | Change the pool end address | ✅ | ✅ |
+| `dhcp_lease` | Change the lease duration | ✅ | ✅ |
+| `dhcp_dns` | Set the DNS server list | ✅ | ✅ |
+| `dhcp_dns` | Replace the DNS server list | ✅ | ✅ |
+| `internet_access_enabled` | Set to `true` | ✅ | ✅ |
+| `internet_access_enabled` | Set to `false` | ✅ | ✅ |
+
+Network and DHCP configuration acceptance tests run against both controller targets. `TestAccNetwork_internetAccessToggle` checks `false` → `true` → `false` through controller readback.
+
+Evidence: [network_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/network_resource_test.go).
+
 ## Import
 
 Networks can be imported using the network ID:

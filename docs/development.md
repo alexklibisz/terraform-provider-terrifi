@@ -86,6 +86,8 @@ $ which terrifi
 
 ## Running tests
 
+Resource and data-source pages use the shared [validation coverage](guides/validation-coverage.md) convention. Update their tables when adding settings or changing test coverage. Track Simulated and Hardware-in-the-loop coverage separately, accounting for target-specific skips and opt-in tests. Applying settings and checking controller readback is sufficient for coverage on either target.
+
 Unit tests (fast, no network needed):
 
 ```sh
@@ -124,39 +126,24 @@ task lint
 
 ## Installing a pre-release version
 
-Pre-release versions (e.g. `0.4.0-RC2`) are published to the OpenTofu/Terraform registry but may take time to appear. If the version isn't available yet, download the binary directly from the GitHub release and use `dev_overrides`:
+If a release is available on GitHub but has not appeared in the OpenTofu/Terraform registry yet, use the [prerelease installation example](../examples/using-pre-release/README.md). Its installer downloads the release into a local filesystem mirror, so normal initialization, version selection, and dependency locking work without registry publication.
+
+Run the installer from your infrastructure configuration directory:
 
 ```sh
-VERSION="0.4.0-RC2"
-OS="linux"
-ARCH="amd64"
-PROVIDER="terraform-provider-terrifi"
-OWNER="alexklibisz"
-
-curl -L "https://github.com/${OWNER}/${PROVIDER}/releases/download/v${VERSION}/${PROVIDER}_${VERSION}_${OS}_${ARCH}.zip" \
-  -o /tmp/${PROVIDER}-${VERSION}.zip && \
-  unzip -o /tmp/${PROVIDER}-${VERSION}.zip -d ~/${PROVIDER}-${VERSION}/
+/path/to/terraform-provider-terrifi/examples/using-pre-release/install.sh v0.11.0-RC0
 ```
 
-Then add to `~/.tofurc` (or `~/.terraformrc`):
+Then pin `version = "= 0.11.0-RC0"` with `source = "alexklibisz/terrifi"` in your `required_providers` block, and run `tofu init -upgrade` followed by `tofu plan`. The example covers explicit CLI installation settings, Terraform compatibility, and switching back to registry installation.
 
-```hcl
-provider_installation {
-  dev_overrides {
-    "alexklibisz/terrifi" = "/home/<you>/terraform-provider-terrifi-0.4.0-RC2"
-  }
-  direct {}
-}
-```
-
-With `dev_overrides` active, skip `tofu init` and run `tofu plan` directly.
+The installer uses an unpacked mirror to preserve uppercase prerelease suffixes such as `RC0`; OpenTofu lowercases ZIP filenames when discovering packed mirrors. Remove any Terrifi `dev_overrides` entry from your active CLI configuration before using the release. In particular, the provider repository's development environment selects its generated `.terraformrc` through `TF_CLI_CONFIG_FILE`; use your infrastructure project's CLI configuration when testing a release.
 
 ## Releasing
 
-1. Go to the [Tag workflow](../../actions/workflows/tag.yml) in GitHub Actions.
-2. Click "Run workflow", enter the version tag (e.g., `v0.1.0`), and run it.
-3. The tag workflow creates and pushes the tag, which triggers the [Release workflow](../../actions/workflows/release.yml).
-4. The release workflow builds binaries for linux/darwin (amd64/arm64) and publishes them as a GitHub Release.
+1. Go to the [Release workflow](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/release.yml) in GitHub Actions.
+2. Click "Run workflow", select the branch or ref to release (normally `main`), and enter the version tag (e.g., `v0.11.0`).
+3. Run the workflow. It creates and pushes the tag at the selected ref, then builds provider and CLI binaries for Linux and macOS (amd64/arm64).
+4. Confirm the workflow succeeds and the GitHub Release contains the archives, checksums, detached checksum signature, and registry manifest. The signed release can then be indexed by the Terraform/OpenTofu registries.
 
 ## On-demand CodeRabbit PR reviews
 

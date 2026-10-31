@@ -2,14 +2,18 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -17,14 +21,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // Compile-time interface checks.
 var (
-	_ resource.Resource                = &devicePortsResource{}
-	_ resource.ResourceWithImportState = &devicePortsResource{}
+	_ resource.Resource                   = &devicePortsResource{}
+	_ resource.ResourceWithImportState    = &devicePortsResource{}
+	_ resource.ResourceWithValidateConfig = &devicePortsResource{}
 )
 
 // NewDevicePortsResource is the factory function registered in provider.Resources().
@@ -45,8 +51,10 @@ type devicePortsResourceModel struct {
 }
 
 type devicePortModel struct {
-	Name          types.String `tfsdk:"name"`
-	PortProfileID types.String `tfsdk:"port_profile_id"`
+	Name            types.String `tfsdk:"name"`
+	PortProfileID   types.String `tfsdk:"port_profile_id"`
+	NativeNetworkID types.String `tfsdk:"native_network_id"`
+	TaggedVLANMode  types.String `tfsdk:"tagged_vlan_mode"`
 }
 
 func (r *devicePortsResource) Metadata(
@@ -63,7 +71,7 @@ func (r *devicePortsResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Assigns port profiles (and port names) to the ports of an adopted UniFi switch or gateway. " +
+		MarkdownDescription: "Configures inline VLAN settings, port profiles, and port names on the ports of an adopted UniFi switch or gateway. " +
 			"Only the ports listed in `ports` are managed; every other port is left as it is. " +
 			"Use one `terrifi_device_ports` per device: two for the same device overwrite each other. " +
 			"Device-level settings (name, LEDs, ...) belong in `terrifi_device`.",
@@ -100,14 +108,21 @@ func (r *devicePortsResource) Schema(
 
 			"ports": schema.MapNestedAttribute{
 				MarkdownDescription: "The managed ports, keyed by port number (`\"1\"`, `\"2\"`, ...). " +
-					"Removing a port stops managing it: its name and profile are removed and any per-port " +
-					"settings made in the UI are kept.",
+					"Removing a port from this map clears its current port override and restores controller defaults.",
 				Required: true,
 				Validators: []validator.Map{
 					mapvalidator.KeysAre(stringvalidator.RegexMatches(portKeyRE, "must be a port number such as \"1\"")),
 				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
+						"native_network_id": schema.StringAttribute{
+							MarkdownDescription: "Native (untagged) network. Set with tagged_vlan_mode; conflicts with port_profile_id.",
+							Optional:            true, Validators: []validator.String{stringvalidator.LengthAtLeast(1)},
+						},
+						"tagged_vlan_mode": schema.StringAttribute{
+							MarkdownDescription: "Tagged traffic: allow_all or block_all. Set with native_network_id; conflicts with port_profile_id.",
+							Optional:            true, Validators: []validator.String{stringvalidator.OneOf("allow_all", "block_all")},
+						},
 						"name": schema.StringAttribute{
 							MarkdownDescription: "The port name. Omit to use the controller's default (`Port N`).",
 							Optional:            true,
@@ -116,7 +131,7 @@ func (r *devicePortsResource) Schema(
 						"port_profile_id": schema.StringAttribute{
 							MarkdownDescription: "The ID of the `terrifi_port_profile` to assign. The profile then controls " +
 								"every setting of the port, PoE included, and per-port settings are cleared. " +
-								"Omit to remove the profile: the port becomes a default port (all networks).",
+								"Use inline VLAN settings instead, or omit to remove the profile.",
 							Optional:   true,
 							Validators: []validator.String{stringvalidator.LengthAtLeast(1)},
 						},
@@ -127,7 +142,7 @@ func (r *devicePortsResource) Schema(
 	}
 }
 
-var portKeyRE = regexp.MustCompile(`^[1-9][0-9]*$`)
+var portKeyRE = regexp.MustCompile(`^[1-9][0-9]{0,8}$`)
 
 func (r *devicePortsResource) Configure(
 	_ context.Context,
@@ -161,6 +176,10 @@ func (r *devicePortsResource) Create(
 		return
 	}
 
+	resp.Diagnostics.Append(validateDevicePortModels(plan.Ports)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	plan.Site = types.StringValue(r.client.SiteOrDefault(plan.Site))
 	id, err := r.write(ctx, plan.Site.ValueString(), plan.DeviceMAC.ValueString(), portWants(plan.Ports, nil))
 	if err != nil {
@@ -199,7 +218,13 @@ func (r *devicePortsResource) Read(
 
 	state.ID = types.StringValue(d.ID)
 	state.Site = types.StringValue(site)
-	state.Ports = portsToModel(portsFromOverrides(d.PortOverrides), state.Ports)
+	overrides := d.PortOverrides
+	if state.Ports == nil {
+		var warnings diag.Diagnostics
+		overrides, warnings = importableDevicePortOverrides(overrides)
+		resp.Diagnostics.Append(warnings...)
+	}
+	state.Ports = portsToModel(portsFromOverrides(overrides), state.Ports)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -215,6 +240,10 @@ func (r *devicePortsResource) Update(
 		return
 	}
 
+	resp.Diagnostics.Append(validateDevicePortModels(plan.Ports)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	plan.Site = state.Site
 	id, err := r.write(ctx, plan.Site.ValueString(), plan.DeviceMAC.ValueString(), portWants(plan.Ports, state.Ports))
 	if err != nil {
@@ -225,8 +254,8 @@ func (r *devicePortsResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// Delete stops managing every port: names and profiles are removed, the
-// device itself is untouched.
+// Delete restores controller defaults on every managed port. The device
+// itself and unlisted ports are untouched.
 func (r *devicePortsResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
@@ -245,8 +274,8 @@ func (r *devicePortsResource) Delete(
 	}
 }
 
-// ImportState accepts "mac" or "site:mac". Every port that has a name or a
-// profile is imported.
+// ImportState accepts "mac" or "site:mac". Named, profiled, and inline VLAN
+// ports are imported.
 func (r *devicePortsResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
@@ -273,8 +302,20 @@ func (r *devicePortsResource) write(ctx context.Context, site, mac string, want 
 	if err != nil {
 		return "", fmt.Errorf("reading device %s: %w", mac, err)
 	}
+	if len(want) == 0 {
+		return d.ID, nil
+	}
 	if err := checkPortsAssignable(d, want); err != nil {
 		return "", err
+	}
+	if slices.ContainsFunc(slices.Collect(maps.Values(want)), func(w *portWant) bool { return w != nil && w.NativeNetworkID != nil }) {
+		networks, err := r.client.listPortNetworks(ctx, site)
+		if err != nil {
+			return "", fmt.Errorf("reading port networks: %w", err)
+		}
+		if err := validatePortNetworks(d, want, networks); err != nil {
+			return "", err
+		}
 	}
 	overrides, err := mergePortOverrides(d.PortOverrides, want)
 	if err != nil {
@@ -300,20 +341,30 @@ func portWants(planned, prior map[string]devicePortModel) map[int64]*portWant {
 		if err != nil {
 			continue // rejected by the schema validator
 		}
-		want[idx] = &portWant{Name: p.Name.ValueStringPointer(), ProfileID: p.PortProfileID.ValueStringPointer()}
+		previous := prior[k]
+		want[idx] = &portWant{Name: p.Name.ValueStringPointer(), ProfileID: p.PortProfileID.ValueStringPointer(),
+			NativeNetworkID: p.NativeNetworkID.ValueStringPointer(), TaggedVLANMode: p.TaggedVLANMode.ValueStringPointer(),
+			ResetVLAN: !previous.NativeNetworkID.IsNull() && p.NativeNetworkID.IsNull(),
+		}
 	}
 	return want
 }
 
 // portsToModel builds the ports attribute from the controller's view. Only
 // the ports in prior are reported; a nil prior (right after import) reports
-// every port that has a name or a profile.
+// every port that has a name, a profile, or an inline native network.
 func portsToModel(got map[int64]portWant, prior map[string]devicePortModel) map[string]devicePortModel {
 	out := map[string]devicePortModel{}
 	for idx, w := range got {
 		k := strconv.FormatInt(idx, 10)
-		if _, managed := prior[k]; managed || (prior == nil && (w.Name != nil || w.ProfileID != nil)) {
-			out[k] = devicePortModel{Name: types.StringPointerValue(w.Name), PortProfileID: types.StringPointerValue(w.ProfileID)}
+		if _, managed := prior[k]; managed || (prior == nil && (w.Name != nil || w.ProfileID != nil || w.NativeNetworkID != nil)) {
+			p := devicePortModel{Name: types.StringPointerValue(w.Name), PortProfileID: types.StringPointerValue(w.ProfileID)}
+			previous := prior[k]
+			if prior == nil || !previous.NativeNetworkID.IsNull() {
+				p.NativeNetworkID = types.StringPointerValue(w.NativeNetworkID)
+				p.TaggedVLANMode = types.StringPointerValue(w.TaggedVLANMode)
+			}
+			out[k] = p
 		}
 	}
 	for k := range prior {
@@ -322,4 +373,63 @@ func portsToModel(got map[int64]portWant, prior map[string]devicePortModel) map[
 		}
 	}
 	return out
+}
+
+func (r *devicePortsResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var ports types.Map
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("ports"), &ports)...)
+	if resp.Diagnostics.HasError() || ports.IsNull() || ports.IsUnknown() {
+		return
+	}
+	for key, value := range ports.Elements() {
+		object := value.(types.Object)
+		if object.IsUnknown() {
+			continue
+		}
+		if object.IsNull() {
+			resp.Diagnostics.AddAttributeError(path.Root("ports").AtMapKey(key), "Invalid Port Settings", "Port settings must be an object, not null.")
+			continue
+		}
+		var port devicePortModel
+		diags := object.As(ctx, &port, basetypes.ObjectAsOptions{})
+		resp.Diagnostics.Append(diags...)
+		if !diags.HasError() {
+			resp.Diagnostics.Append(validateDevicePortModels(map[string]devicePortModel{key: port})...)
+		}
+	}
+}
+
+func validateDevicePortModels(ports map[string]devicePortModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	for key, p := range ports {
+		if p.PortProfileID.IsUnknown() || p.NativeNetworkID.IsUnknown() || p.TaggedVLANMode.IsUnknown() {
+			continue
+		}
+		native, mode := !p.NativeNetworkID.IsNull(), !p.TaggedVLANMode.IsNull()
+		if (!p.PortProfileID.IsNull() && (native || mode)) || native != mode {
+			diags.AddAttributeError(path.Root("ports").AtMapKey(key), "Invalid Port Settings",
+				"Set either port_profile_id or both native_network_id and tagged_vlan_mode. A name alone is also allowed.")
+		}
+	}
+	return diags
+}
+
+// importableDevicePortOverrides excludes an entire unsupported port, including
+// its name, so later removal or destroy cannot reset settings we could not import.
+func importableDevicePortOverrides(overrides []map[string]json.RawMessage) ([]map[string]json.RawMessage, diag.Diagnostics) {
+	var warnings diag.Diagnostics
+	var imported []map[string]json.RawMessage
+	for _, entry := range overrides {
+		if reason := unifi.UnsupportedPortVLANReason(entry); reason != "" {
+			idx, err := portIdx(entry)
+			if err != nil {
+				warnings.AddWarning("Port Excluded from Import", err.Error())
+				continue
+			}
+			warnings.AddWarning("Port Excluded from Import", fmt.Sprintf("Port %d was excluded because %s. Its name and VLAN settings remain unmanaged and will not be reset when this resource is destroyed.", idx, reason))
+			continue
+		}
+		imported = append(imported, entry)
+	}
+	return imported, warnings
 }

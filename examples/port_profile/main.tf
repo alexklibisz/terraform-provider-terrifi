@@ -64,7 +64,7 @@ resource "terrifi_network" "guest" {
 resource "terrifi_port_profile" "hypervisor_trunk" {
   name              = "Trunk - Hypervisor"
   native_network_id = terrifi_network.management.id
-  tagged_vlan_mgmt  = "custom"
+  tagged_vlan_mode  = "custom"
 
   tagged_network_ids = [
     terrifi_network.servers.id,
@@ -77,11 +77,20 @@ resource "terrifi_port_profile" "hypervisor_trunk" {
 resource "terrifi_port_profile" "guest_access" {
   name              = "Access - Guest"
   native_network_id = terrifi_network.guest.id
-  tagged_vlan_mgmt  = "block_all"
+  tagged_vlan_mode  = "block_all"
 
-  storm_control = {
-    broadcast = 20
-  }
+  port_isolation_enabled = true
+}
+
+# Access-port protection with STP, BPDU guard, loop protection, and broadcast storm control.
+resource "terrifi_port_profile" "protected_access" {
+  name                    = "Protected access"
+  native_network_id       = terrifi_network.guest.id
+  tagged_vlan_mode        = "block_all"
+  stp_enabled             = true
+  bpdu_guard_enabled      = true
+  loop_protection_enabled = true
+  storm_control_broadcast = 20
 }
 
 output "hypervisor_trunk_id" {

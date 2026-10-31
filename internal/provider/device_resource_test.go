@@ -511,13 +511,14 @@ resource "terrifi_device" "test" {
 }
 `, dev.MAC),
 			},
-			// Import by MAC.
+			// Import by MAC. Runtime state may change from connected to
+			// provisioning after the name update, independently of import.
 			{
 				ResourceName:            "terrifi_device.test",
 				ImportState:             true,
 				ImportStateId:           dev.MAC,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume"},
+				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume", "state"},
 			},
 			// Import by site:mac.
 			{
@@ -525,7 +526,7 @@ resource "terrifi_device" "test" {
 				ImportState:             true,
 				ImportStateId:           "default:" + dev.MAC,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume"},
+				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume", "state"},
 			},
 		},
 	})
@@ -744,7 +745,7 @@ resource "terrifi_device" "test" {
 				ImportState:             true,
 				ImportStateId:           dev.MAC,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume"},
+				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume", "state"},
 			},
 			// Apply same config after import — must succeed with no errors.
 			{Config: config},

@@ -94,3 +94,35 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 4. Create `internal/generate/<name>.go` with a `<Name>Blocks()` function for import generation
 5. Add the resource type to `cmd/terrifi/generate_imports.go` (`validResourceTypes` slice and switch statement)
 6. Add docs in `docs/resources/` and examples in `examples/`
+
+## Development
+
+### Documentation
+
+#### Contents
+
+1. Write documentation for a reader who has no knowledge of the agent, the conversation, or the implementation process. The reader does not know or care who you are or what has been chatted about in the session. Describe the tool and its behavior as they exist: supported attributes, defaults, constraints, examples, and limitations. Every statement must make sense without hidden context from an issue, PR, review, or agent session.
+2. Carefully consider the long-term structure of the documentation. Just because we're working on something in a given PR, does not mean it now lands front-and-center in the docs.
+3. As implementations change, keep the documentation updated.
+4. Keep test validation coverage tables up to date in the same PR as the provider and its API change.
+
+#### Format
+
+1. Avoid the typical ~80-column newlines. In paragraphs, write one sentence per line. In numbered and un-numbered lists, each list item is a line with no breaks between sentences.
+
+### Merging Pull Requests
+
+PRs are squash-merged. Never use GitHub's default squash message, which concatenates every branch commit into a bullet list. Write the message explicitly:
+
+- **Subject:** the PR title followed by the PR number, e.g. `Add switch port profiles and device port assignments (#183)`.
+- **Body:** one short paragraph (1–3 sentences) summarizing what the PR changes and why, written for someone reading `git log` on `main`. Do not list the branch commits, review fixes, or intermediate steps.
+- **Trailers:** keep a `Co-authored-by:` line for every co-author of the branch commits except the person merging (GitHub may add one for the merger's other email address). GitHub only adds them automatically to its default message.
+- **No separator:** do not add the `---------` line that the GitHub web UI puts before the trailers. Separate the body and the trailers with one blank line.
+
+```sh
+gh pr merge 183 --squash \
+  --subject "Add switch port profiles and device port assignments (#183)" \
+  --body "Add terrifi_port_profile and terrifi_device_ports, including local UniFi API contracts, import generation, documentation, and lifecycle tests.
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>"
+```

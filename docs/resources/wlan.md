@@ -102,6 +102,41 @@ resource "terrifi_wlan" "maintenance" {
 
 - `id` (String) — The ID of the WLAN.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Create an SSID | ✅ | ✅ |
+| `name` | Rename the SSID | ✅ | ✅ |
+| `network_id` | Assign the WLAN network | ✅ | ✅ |
+| `network_id` | Change the WLAN network | ✅ | ✅ |
+| `enabled` | Set to `false` | ✅ | ✅ |
+| `enabled` | Re-enable with `true` | ✅ | ✅ |
+| `passphrase` | Set a WPA passphrase | ✅ | ✅ |
+| `passphrase` | Change the passphrase | ✅ | ✅ |
+| `wifi_band` | Set to `2g` | ✅ | ✅ |
+| `wifi_band` | Set to `5g` | ✅ | ✅ |
+| `wifi_band` | Set to `both` | ✅ | ✅ |
+| `security` | Set to `open` | ✅ | ✅ |
+| `security` | Change from `open` to `wpapsk` | ✅ | ✅ |
+| `security` | Change from `wpapsk` to `open` | ✅ | ✅ |
+| `hide_ssid` | Set to `true` | ✅ | ✅ |
+| `wpa_mode` | Set to `auto` | ✅ | ✅ |
+| `wpa_mode` | Set to `wpa2` | ✅ | ✅ |
+| `wpa3_support` | Set to `true` | ✅ | ✅ |
+| `wpa3_transition` | Set to `true` | ✅ | ✅ |
+| `application` | Omit to use `standard` | ✅ | ✅ |
+| `application` | Set to `hotspot` | ✅ | ✅ |
+| `application` | Set to `iot` | ✅ | ✅ |
+| `optimize_iot_connectivity` | Enable for an IoT WLAN | ✅ | ✅ |
+| `optimize_iot_connectivity` | Disable for an IoT WLAN | ✅ | ✅ |
+
+WLAN acceptance tests run on both controller targets. Simulated coverage verifies saved WLAN configuration; it does not validate broadcasting an SSID or connecting wireless clients.
+
+Evidence: [wlan_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/wlan_resource_test.go).
+
 ## Import
 
 WLANs can be imported using the WLAN ID:

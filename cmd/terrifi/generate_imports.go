@@ -200,18 +200,18 @@ func generateResourceBlocks(ctx context.Context, client *provider.Client, site, 
 	case "terrifi_device_ports":
 		devices, err := client.ListDevicePorts(ctx, site, "")
 		if err != nil {
-			return fmt.Errorf("listing devices: %w", err)
+			return nil, fmt.Errorf("listing devices: %w", err)
 		}
 		blocks = generate.DevicePortsBlocks(devices)
 
 	case "terrifi_port_profile":
 		profiles, err := client.ListPortProfiles(ctx, site)
 		if err != nil {
-			return fmt.Errorf("listing port profiles: %w", err)
+			return nil, fmt.Errorf("listing port profiles: %w", err)
 		}
 		lan, err := client.ListLANNetworkIDs(ctx, site)
 		if err != nil {
-			return fmt.Errorf("listing networks: %w", err)
+			return nil, fmt.Errorf("listing networks: %w", err)
 		}
 		blocks = generate.PortProfileBlocks(profiles, lan)
 

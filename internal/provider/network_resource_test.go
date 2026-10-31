@@ -202,11 +202,11 @@ func TestNetworkAPIToModel(t *testing.T) {
 		group := "LAN"
 
 		net := &unifi.Network{
-			ID:          "vlan123",
-			Purpose:     "vlan-only",
-			Name:        &name,
-			VLAN:        &vlan,
-			VLANEnabled: true,
+			ID:           "vlan123",
+			Purpose:      "vlan-only",
+			Name:         &name,
+			VLAN:         &vlan,
+			VLANEnabled:  true,
 			NetworkGroup: &group,
 		}
 
@@ -817,4 +817,28 @@ func TestMergeNetwork(t *testing.T) {
 	assert.Equal(t, false, body["enabled"])
 	assert.Equal(t, []any{"10.0.0.5"}, body["dhcp_relay_servers"])
 	assert.Equal(t, "net-1", body["_id"])
+}
+
+func TestAccNetwork_internetAccessToggle(t *testing.T) {
+	name := "tfacc-internet-" + randomSuffix()
+	config := func(enabled bool) string {
+		return fmt.Sprintf(`
+resource "terrifi_network" "test" {
+ name = %q
+ purpose = "corporate"
+ vlan_id = 49
+ subnet = "192.168.49.1/24"
+ dhcp_enabled = false
+ internet_access_enabled = %t
+}
+`, name, enabled)
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { preCheck(t) }, ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config(false), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "false")},
+			{Config: config(true), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "true")},
+			{Config: config(false), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "false")},
+		},
+	})
 }

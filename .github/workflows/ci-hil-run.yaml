@@ -193,7 +193,7 @@ jobs:
         timeout-minutes: 10
         run: task build
       - name: Acceptance tests (HIL)
-        timeout-minutes: 10
+        timeout-minutes: 20
         env:
           TEST_FILTER: ${{ inputs.test_filter }}
           TEST_COUNT: ${{ inputs.test_count }}
