@@ -133,6 +133,32 @@ func TestNetworkModelToAPI(t *testing.T) {
 	})
 }
 
+// TestNetworkAPIToModelEmptyDNS distinguishes an explicit empty list from an
+// unconfigured list while still accepting DNS servers returned by the controller.
+func TestNetworkAPIToModelEmptyDNS(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		prior types.List
+		want  types.List
+	}{
+		{"null", types.ListNull(types.StringType), types.ListNull(types.StringType)},
+		{"unknown", types.ListUnknown(types.StringType), types.ListNull(types.StringType)},
+		{"explicit empty", types.ListValueMust(types.StringType, nil), types.ListValueMust(types.StringType, nil)},
+		{"previous servers removed externally", types.ListValueMust(types.StringType, []attr.Value{types.StringValue("1.1.1.1")}), types.ListNull(types.StringType)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &networkResource{}
+			m := networkResourceModel{DHCPDns: tc.prior}
+			r.apiToModel(t.Context(), &unifi.Network{Purpose: "corporate"}, &m, "default")
+			require.Equal(t, tc.want, m.DHCPDns)
+			r.apiToModel(t.Context(), &unifi.Network{Purpose: "corporate"}, &m, "default")
+			require.Equal(t, tc.want, m.DHCPDns, "refresh must preserve the representation")
+			r.apiToModel(t.Context(), &unifi.Network{Purpose: "corporate", DHCPDDNS1: "9.9.9.9"}, &m, "default")
+			require.Equal(t, types.ListValueMust(types.StringType, []attr.Value{types.StringValue("9.9.9.9")}), m.DHCPDns)
+		})
+	}
+}
+
 func TestNetworkAPIToModel(t *testing.T) {
 	r := &networkResource{}
 	ctx := context.Background()
@@ -623,6 +649,25 @@ resource "terrifi_network" "test" {
 					testAccNetworkCheckDNS("terrifi_network.test", "9.9.9.9", "", "", ""),
 				),
 			},
+			// Clearing the final server must retain [] in state, including refresh.
+			{
+				Config: config(name+"-renamed", "200"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0"),
+					testAccNetworkCheckUnmanaged("terrifi_network.test"),
+					testAccNetworkCheckDNS("terrifi_network.test", "", "", "", ""),
+				),
+			},
+			{RefreshState: true, Check: resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0")},
+			{Config: config(name+"-renamed", "200"), PlanOnly: true},
+			{
+				Config: config(name+"-renamed", "200", "1.1.1.1", "8.8.8.8"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "2"),
+					testAccNetworkCheckUnmanaged("terrifi_network.test"),
+					testAccNetworkCheckDNS("terrifi_network.test", "1.1.1.1", "8.8.8.8", "", ""),
+				),
+			},
 		},
 	})
 }
@@ -839,6 +884,115 @@ resource "terrifi_network" "test" {
 			{Config: config(false), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "false")},
 			{Config: config(true), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "true")},
 			{Config: config(false), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "false")},
+		},
+	})
+}
+
+// TestAccNetwork_emptyDNSOnCreate covers an explicitly empty DNS list before
+// the controller has ever stored any user-supplied servers.
+func TestAccNetwork_emptyDNSOnCreate(t *testing.T) {
+	vlan := randomVLAN()
+	config := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+ name = %q
+ purpose = "corporate"
+ vlan_id = %d
+ subnet = "10.%d.%d.1/24"
+ dhcp_dns = []
+}
+`, "tfacc-empty-dns-"+randomSuffix(), vlan, vlan/256, vlan%256)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config, Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0"),
+				testAccNetworkCheckDNS("terrifi_network.test", "", "", "", ""),
+			)},
+			{RefreshState: true, Check: resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0")},
+			{Config: config, PlanOnly: true},
+		},
+	})
+}
+
+// TestAccNetwork_importEmptyDNS persists the imported state so the subsequent
+// apply reconciles the imported DNS value with an explicitly configured [].
+func TestAccNetwork_importEmptyDNS(t *testing.T) {
+	vlan := randomVLAN()
+	config := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+  name     = %q
+  purpose  = "corporate"
+  vlan_id  = %d
+  subnet   = "10.%d.%d.1/24"
+  dhcp_dns = []
+}
+`, "tfacc-import-empty-dns-"+randomSuffix(), vlan, vlan/256, vlan%256)
+	var originalID string
+	checkEmptyDNS := resource.ComposeTestCheckFunc(
+		resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0"),
+		testAccNetworkCheckDNS("terrifi_network.test", "", "", "", ""),
+	)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(checkEmptyDNS, func(s *terraform.State) error {
+					originalID = s.RootModule().Resources["terrifi_network.test"].Primary.ID
+					return nil
+				}),
+			},
+			// Persisted imports reuse the workspace, so forget the existing
+			// state entry without deleting the controller network first.
+			{
+				Config: `
+removed {
+  from = terrifi_network.test
+  lifecycle {
+    destroy = false
+  }
+}
+`,
+				Check: func(s *terraform.State) error {
+					if _, exists := s.RootModule().Resources["terrifi_network.test"]; exists {
+						return fmt.Errorf("network is still managed before import")
+					}
+					return nil
+				},
+			},
+			{
+				Config:             config,
+				ResourceName:       "terrifi_network.test",
+				ImportState:        true,
+				ImportStatePersist: true,
+				ImportStateIdFunc: func(_ *terraform.State) (string, error) {
+					return originalID, nil
+				},
+				ImportStateCheck: func(states []*terraform.InstanceState) error {
+					if len(states) != 1 || states[0].ID != originalID {
+						return fmt.Errorf("import did not restore the original network %q: %v", originalID, states)
+					}
+					// Import has no prior empty-list state and may read null.
+					// The following apply must reconcile it with configured [].
+					if count := states[0].Attributes["dhcp_dns.#"]; count != "" && count != "0" {
+						return fmt.Errorf("imported network has unexpected DNS servers: count = %q", count)
+					}
+					return nil
+				},
+			},
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(checkEmptyDNS, func(s *terraform.State) error {
+					if got := s.RootModule().Resources["terrifi_network.test"].Primary.ID; got != originalID {
+						return fmt.Errorf("network was replaced after import: ID = %q, want %q", got, originalID)
+					}
+					return nil
+				}),
+			},
+			{RefreshState: true, Check: checkEmptyDNS},
+			{Config: config, PlanOnly: true},
 		},
 	})
 }
