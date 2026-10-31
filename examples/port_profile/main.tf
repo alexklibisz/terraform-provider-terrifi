@@ -90,8 +90,7 @@ output "guest_access_id" {
   value = terrifi_port_profile.guest_access.id
 }
 
-# Controller-persisted protection settings; physical switch enforcement has
-# not been validated by Terrifi's hardware test rig.
+# Access-port protection with STP, BPDU guard, loop protection, and broadcast storm control.
 resource "terrifi_port_profile" "protected_access" {
   name                    = "Protected access"
   tagged_vlan_mode        = "block_all"

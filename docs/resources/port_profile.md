@@ -7,7 +7,7 @@ description: |-
 
 # terrifi_port_profile (Resource)
 
-Manages a switch port profile on the UniFi controller. Port profiles are reusable port configurations (VLANs, PoE, link tuning, loop protection, storm control and LLDP-MED) that can be assigned to switch and gateway ports. Other profile settings are not managed; see [unmanaged settings](#unmanaged-settings).
+Manages a switch port profile on the UniFi controller. Port profiles are reusable port configurations (VLANs, PoE, link tuning, port isolation, loop protection, storm control and LLDP-MED) that can be assigned to switch and gateway ports. Other profile settings are not managed; see [unmanaged settings](#unmanaged-settings).
 
 A profile only defines settings. Creating or changing one doesn't affect any port until the profile is assigned to that port, with [`terrifi_device_ports`](device_ports.md) or in the UI.
 
@@ -76,8 +76,6 @@ resource "terrifi_port_profile" "protected_access" {
 }
 ```
 
-These settings are saved on the controller; their enforcement on a physical switch has not been validated by Terrifi's test rig.
-
 ## Schema
 
 ### Required
@@ -121,11 +119,11 @@ Removing a defaulted attribute restores its documented default. Removing `link_d
 
 ## Validation coverage
 
-**Hardware coverage is limited to saving and reading profile configuration on the controller.** The current HIL switch (USW Flex Mini) does not support custom-profile assignment, so these checks do not validate applying a profile to a physical port or enforcing its settings.
+**Hardware coverage is limited to saving and reading profile configuration on the controller.** The HIL switch (USW Flex Mini) does not support custom-profile assignment, so these checks do not validate applying a profile to a physical port or enforcing its settings.
 
 ✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
 
-The current Simulated target exposes no adopted devices or usable switch ports, so device configuration, lookup, radio, and profile-assignment tests skip. ◻️ describes this target limitation; it does not mean these operations are unsupported on real hardware.
+The Simulated target exposes no adopted devices or usable switch ports, so device configuration, lookup, radio, and profile-assignment tests skip. ◻️ describes this target limitation; it does not mean these operations are unsupported on real hardware.
 
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
@@ -159,7 +157,7 @@ The current Simulated target exposes no adopted devices or usable switch ports, 
 
 Both controller targets cover profile imports, defaults, drift repair, values computed by other resources, and preservation of unmanaged fields. Simulation tests use Network 10.6.106; older controller versions may discard some link-tuning settings. All profile checks validate controller persistence. The assignment row summarizes the [device-port tests](device_ports.md#validation-coverage).
 
-Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [port_profile_restored_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_restored_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
+Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [port_profile_advanced_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_advanced_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 
 ## Import
 

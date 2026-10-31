@@ -107,7 +107,7 @@ func (r *portProfileResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a switch port profile on the UniFi controller. Port profiles are reusable " +
-			"port configurations (VLANs, PoE, link tuning, loop protection, storm control and LLDP-MED) that can be assigned to switch " +
+			"port configurations (VLANs, PoE, link tuning, port isolation, loop protection, storm control and LLDP-MED) that can be assigned to switch " +
 			"and gateway ports. Other profile settings are not managed and keep their current values.",
 
 		Attributes: map[string]schema.Attribute{

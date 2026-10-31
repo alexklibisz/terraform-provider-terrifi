@@ -13,8 +13,8 @@ import (
 
 // These lifecycle tests check controller persistence on both acceptance targets,
 // including Network 10.6.106 in Docker. They do not check switch enforcement.
-func TestAccPortProfile_newerSettings(t *testing.T) {
-	name := fmt.Sprintf("tfacc-pp-newer-%s", randomSuffix())
+func TestAccPortProfile_linkTuning(t *testing.T) {
+	name := fmt.Sprintf("tfacc-pp-link-%s", randomSuffix())
 	step := func(body string, checks ...resource.TestCheckFunc) resource.TestStep {
 		return resource.TestStep{Config: testAccPortProfileConfig(name, body), Check: resource.ComposeAggregateTestCheckFunc(checks...)}
 	}
@@ -42,12 +42,12 @@ func TestAccPortProfile_newerSettings(t *testing.T) {
 	})
 }
 
-func TestPortProfileRestoredSettingsRoundTrip(t *testing.T) {
+func TestPortProfileAdvancedSettingsRoundTrip(t *testing.T) {
 	for _, unit := range []string{"percentage", "packets_per_second"} {
 		for _, threshold := range []int64{0, 37, 100} {
 			for _, debounce := range []types.Int64{types.Int64Null(), types.Int64Value(0), types.Int64Value(100), types.Int64Value(5000)} {
 				t.Run(fmt.Sprintf("%s/%d/%s", unit, threshold, debounce.String()), func(t *testing.T) {
-					want := defaultPortProfileModel("restored")
+					want := defaultPortProfileModel("advanced")
 					want.ID = types.StringValue("id")
 					want.Site = types.StringValue("default")
 					want.FlowControlEnabled = types.BoolValue(false)
@@ -89,7 +89,7 @@ func TestPortProfileRestoredSettingsRoundTrip(t *testing.T) {
 	}
 }
 
-func TestPortProfileRestoredSettingsValidation(t *testing.T) {
+func TestPortProfileAdvancedSettingsValidation(t *testing.T) {
 	for _, tc := range []struct {
 		unit  string
 		value int64
@@ -126,7 +126,7 @@ func TestPortProfileRestoredSettingsValidation(t *testing.T) {
 	assert.False(t, validatePortProfileModel(&m).HasError())
 }
 
-func TestPortProfileRestoredSettingsClearStaleValues(t *testing.T) {
+func TestPortProfileAdvancedSettingsClearStaleValues(t *testing.T) {
 	fake, client := newFakePortconfController(t)
 	m := defaultPortProfileModel("clear")
 	m.LinkDebounceMs = types.Int64Value(1200)
@@ -209,7 +209,7 @@ func TestAccPortProfile_stormControl(t *testing.T) {
 	})
 }
 
-func TestAccPortProfile_restoredSettingsDrift(t *testing.T) {
+func TestAccPortProfile_advancedSettingsDrift(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-drift-%s", randomSuffix())
 	var site, id string
 	config := testAccPortProfileConfig(name, `
@@ -254,7 +254,7 @@ func TestAccPortProfile_restoredSettingsDrift(t *testing.T) {
 
 // Flat attributes must accept values that are unknown until another resource
 // is created, including an unknown unit controlling threshold validation.
-func TestAccPortProfile_restoredSettingsUnknown(t *testing.T) {
+func TestAccPortProfile_advancedSettingsUnknown(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-unknown-%s", randomSuffix())
 	config := `
 resource "terraform_data" "settings" {

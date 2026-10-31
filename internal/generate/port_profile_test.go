@@ -108,10 +108,10 @@ func TestPortProfileBlocks_RendersValidHCL(t *testing.T) {
 	assert.Contains(t, out, `port_isolation_enabled = true`)
 }
 
-func TestPortProfileBlocks_RestoredSettings(t *testing.T) {
+func TestPortProfileBlocks_AdvancedSettings(t *testing.T) {
 	for _, unit := range []string{"level", "rate"} {
 		t.Run(unit, func(t *testing.T) {
-			p := uiDefaults("restored", "Restored")
+			p := uiDefaults("advanced", "Advanced")
 			p.NativeNetworkID = nil
 			p.FlowControlEnabled = ptr(false)
 			p.PTPEnabled = ptr(false)
@@ -131,7 +131,7 @@ func TestPortProfileBlocks_RestoredSettings(t *testing.T) {
 			p.StormctrlUcastLevel = ptr(int64(37))
 			p.StormctrlUcastRate = ptr(int64(14880000))
 			want := map[string]string{
-				"name": `"Restored"`, "flow_control_enabled": "false", "ptp_enabled": "false",
+				"name": `"Advanced"`, "flow_control_enabled": "false", "ptp_enabled": "false",
 				"stp_enabled": "false", "bpdu_guard_enabled": "true", "loop_protection_enabled": "true", "eee_enabled": "true",
 				"link_debounce_ms": "0", "storm_control_broadcast": "0", "storm_control_unknown_unicast": "37",
 			}
@@ -149,7 +149,7 @@ func TestPortProfileBlocks_RestoredSettings(t *testing.T) {
 	}
 }
 
-func TestPortProfileBlocks_RestoredDefaultsOmitted(t *testing.T) {
+func TestPortProfileBlocks_AdvancedDefaultsOmitted(t *testing.T) {
 	p := uiDefaults("defaults", "Defaults")
 	p.FlowControlEnabled, p.PTPEnabled, p.StpPortMode = ptr(true), ptr(true), ptr(true)
 	p.StpBpduGuardEnabled, p.PortKeepaliveEnabled, p.EEEEnabled = ptr(false), ptr(false), ptr(false)
