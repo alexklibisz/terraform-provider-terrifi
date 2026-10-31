@@ -170,11 +170,13 @@ func (c *Client) networkURL(site, id string) string {
 // stored network as raw JSON, overlays managed, and PUTs the result, so every
 // other field goes back exactly as the controller returned it.
 //
-// The SDK can't be used for the body: marshalCorporate() sends every field it
+// TODO(go-unifi): The SDK can't be used for the body: marshalCorporate() sends every field it
 // knows and defaults unset ones (ipv6_interface_type "none", mdns_enabled and
 // igmp_snooping false, dhcp_relay_servers []), which resets settings made
 // outside Terraform, and it omits empty dhcpd_dns_N, so a slot can't be
 // cleared. managed values are sent as given, including "" to clear a slot.
+// Remove this workaround when the SDK can serialize only managed fields and
+// explicitly clear DNS slots without defaulting unmanaged settings.
 func (c *Client) UpdateNetworkManaged(ctx context.Context, site, id string, managed map[string]any) (*unifi.Network, error) {
 	// The PUT below invalidates the cache anyway; drop it now so the read is
 	// fresh and changes made in the UI since an earlier read are kept.

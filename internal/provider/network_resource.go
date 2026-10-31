@@ -158,7 +158,7 @@ func (r *networkResource) Schema(
 			},
 
 			"dhcp_dns": schema.ListAttribute{
-				MarkdownDescription: "List of DNS servers for DHCP clients. Maximum 4 servers.",
+				MarkdownDescription: "List of DNS servers for DHCP clients. Maximum 4 servers. Set to an empty list to clear all custom DNS servers; omit to use the controller value.",
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
@@ -633,6 +633,10 @@ func (r *networkResource) apiToModel(ctx context.Context, net *unifi.Network, m 
 				dnsValues = append(dnsValues, types.StringValue(dns))
 			}
 			m.DHCPDns = types.ListValueMust(types.StringType, toAttrValues(dnsValues))
+		} else if !m.DHCPDns.IsNull() && !m.DHCPDns.IsUnknown() && len(m.DHCPDns.Elements()) == 0 {
+			// Preserve an explicitly configured empty list through apply and
+			// refresh. Returning null would disagree with dhcp_dns = [].
+			m.DHCPDns = types.ListValueMust(types.StringType, nil)
 		} else {
 			m.DHCPDns = types.ListNull(types.StringType)
 		}

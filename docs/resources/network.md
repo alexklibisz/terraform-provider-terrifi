@@ -39,6 +39,16 @@ resource "terrifi_network" "cameras" {
 }
 ```
 
+## Update behavior
+
+Updates preserve controller settings this resource does not manage, including mDNS, IGMP snooping, domain names, DHCP relay, IPv6 configuration, and whether the network is enabled.
+Corporate network updates select manual settings mode so the controller does not recompute managed DHCP settings.
+Attributes with schema defaults, such as `dhcp_enabled`, continue to use those defaults when omitted.
+
+Shortening `dhcp_dns` clears the removed entries.
+Setting `dhcp_dns = []` clears all custom DNS servers and retains an empty list in Terraform state through refresh.
+Omitting `dhcp_dns` leaves it computed from the controller; omission does not clear an existing list.
+
 ## Schema
 
 ### Required
@@ -55,7 +65,7 @@ resource "terrifi_network" "cameras" {
 - `dhcp_start` (String) — The starting IP address for the DHCP pool. Computed by the API if not specified.
 - `dhcp_stop` (String) — The ending IP address for the DHCP pool. Computed by the API if not specified.
 - `dhcp_lease` (Number) — The DHCP lease time in seconds. Defaults to `86400` (24 hours).
-- `dhcp_dns` (List of String) — List of DNS servers for DHCP clients. Maximum 4 servers.
+- `dhcp_dns` (List of String) — List of DNS servers for DHCP clients. Maximum 4 servers. Set `dhcp_dns = []` to clear all custom DNS servers. If omitted, the controller value is retained.
 - `internet_access_enabled` (Boolean) — Whether internet access is enabled on this network. Defaults to `true`.
 - `site` (String) — The site to associate the network with. Defaults to the provider site. Changing this forces a new resource.
 
@@ -84,10 +94,21 @@ resource "terrifi_network" "cameras" {
 | `dhcp_lease` | Change the lease duration | ✅ | ✅ |
 | `dhcp_dns` | Set the DNS server list | ✅ | ✅ |
 | `dhcp_dns` | Replace the DNS server list | ✅ | ✅ |
+| `dhcp_dns` | Shorten the list and clear removed servers | ✅ | ✅ |
+| `dhcp_dns` | Clear all servers, refresh, and restore servers | ✅ | ✅ |
+| `dhcp_dns` | Create with an explicitly empty list | ✅ | ✅ |
+| Unmanaged settings | Preserve mDNS, IGMP snooping, domain name, UPnP, and IPv6 RA preferred lifetime during updates | ✅ | ✅ |
+| Unmanaged settings | Preserve a disabled network during updates | ❌ | ❌ |
+| Unmanaged settings | Preserve IPv6 prefix delegation during updates | ◻️ | ❌ |
 | `internet_access_enabled` | Set to `true` | ✅ | ✅ |
 | `internet_access_enabled` | Set to `false` | ✅ | ✅ |
 
 Network and DHCP configuration acceptance tests run against both controller targets. `TestAccNetwork_internetAccessToggle` checks `false` → `true` → `false` through controller readback.
+
+`TestAccNetwork_updatePreservesUnmanagedFields` checks preservation of unmanaged settings alongside DHCP changes, DNS-list shrinking, clearing, refresh, and restoring servers.
+`TestAccNetwork_emptyDNSOnCreate` checks creation with `dhcp_dns = []` and a clean plan after refresh.
+Disabled networks, UI edits between consecutive updates, and IPv6 prefix delegation have unit or HTTP-test coverage only.
+The simulated controller rejects IPv6 prefix delegation configuration, so its preservation requires validation on suitable hardware.
 
 Evidence: [network_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/network_resource_test.go).
 

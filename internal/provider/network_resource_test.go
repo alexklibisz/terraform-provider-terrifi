@@ -133,6 +133,32 @@ func TestNetworkModelToAPI(t *testing.T) {
 	})
 }
 
+// TestNetworkAPIToModelEmptyDNS distinguishes an explicit empty list from an
+// unconfigured list while still accepting DNS servers returned by the controller.
+func TestNetworkAPIToModelEmptyDNS(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		prior types.List
+		want  types.List
+	}{
+		{"null", types.ListNull(types.StringType), types.ListNull(types.StringType)},
+		{"unknown", types.ListUnknown(types.StringType), types.ListNull(types.StringType)},
+		{"explicit empty", types.ListValueMust(types.StringType, nil), types.ListValueMust(types.StringType, nil)},
+		{"previous servers removed externally", types.ListValueMust(types.StringType, []attr.Value{types.StringValue("1.1.1.1")}), types.ListNull(types.StringType)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &networkResource{}
+			m := networkResourceModel{DHCPDns: tc.prior}
+			r.apiToModel(t.Context(), &unifi.Network{Purpose: "corporate"}, &m, "default")
+			require.Equal(t, tc.want, m.DHCPDns)
+			r.apiToModel(t.Context(), &unifi.Network{Purpose: "corporate"}, &m, "default")
+			require.Equal(t, tc.want, m.DHCPDns, "refresh must preserve the representation")
+			r.apiToModel(t.Context(), &unifi.Network{Purpose: "corporate", DHCPDDNS1: "9.9.9.9"}, &m, "default")
+			require.Equal(t, types.ListValueMust(types.StringType, []attr.Value{types.StringValue("9.9.9.9")}), m.DHCPDns)
+		})
+	}
+}
+
 func TestNetworkAPIToModel(t *testing.T) {
 	r := &networkResource{}
 	ctx := context.Background()
@@ -623,6 +649,25 @@ resource "terrifi_network" "test" {
 					testAccNetworkCheckDNS("terrifi_network.test", "9.9.9.9", "", "", ""),
 				),
 			},
+			// Clearing the final server must retain [] in state, including refresh.
+			{
+				Config: config(name+"-renamed", "200"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0"),
+					testAccNetworkCheckUnmanaged("terrifi_network.test"),
+					testAccNetworkCheckDNS("terrifi_network.test", "", "", "", ""),
+				),
+			},
+			{RefreshState: true, Check: resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0")},
+			{Config: config(name+"-renamed", "200"), PlanOnly: true},
+			{
+				Config: config(name+"-renamed", "200", "1.1.1.1", "8.8.8.8"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "2"),
+					testAccNetworkCheckUnmanaged("terrifi_network.test"),
+					testAccNetworkCheckDNS("terrifi_network.test", "1.1.1.1", "8.8.8.8", "", ""),
+				),
+			},
 		},
 	})
 }
@@ -839,6 +884,33 @@ resource "terrifi_network" "test" {
 			{Config: config(false), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "false")},
 			{Config: config(true), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "true")},
 			{Config: config(false), Check: resource.TestCheckResourceAttr("terrifi_network.test", "internet_access_enabled", "false")},
+		},
+	})
+}
+
+// TestAccNetwork_emptyDNSOnCreate covers an explicitly empty DNS list before
+// the controller has ever stored any user-supplied servers.
+func TestAccNetwork_emptyDNSOnCreate(t *testing.T) {
+	vlan := randomVLAN()
+	config := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+ name = %q
+ purpose = "corporate"
+ vlan_id = %d
+ subnet = "10.%d.%d.1/24"
+ dhcp_dns = []
+}
+`, "tfacc-empty-dns-"+randomSuffix(), vlan, vlan/256, vlan%256)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config, Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0"),
+				testAccNetworkCheckDNS("terrifi_network.test", "", "", "", ""),
+			)},
+			{RefreshState: true, Check: resource.TestCheckResourceAttr("terrifi_network.test", "dhcp_dns.#", "0")},
+			{Config: config, PlanOnly: true},
 		},
 	})
 }
