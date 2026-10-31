@@ -43,6 +43,20 @@ All provider code lives in `internal/provider/`. Each resource follows the Terra
 - **Configuration cascading**: HCL attributes → environment variables (`UNIFI_API`, `UNIFI_USERNAME`, `UNIFI_PASSWORD`, `UNIFI_API_KEY`, `UNIFI_INSECURE`, `UNIFI_SITE`) → defaults.
 - **Compile-time interface checks**: `var _ resource.Resource = &dnsRecordResource{}` pattern at the top of each resource file.
 
+### Setting Ownership
+
+For resources managed by Terraform, assume every controller setting exposed as a configurable Terraform attribute is exclusively managed through Terraform.
+This applies even when an optional attribute is omitted from the configuration.
+Implementations, tests, and code reviews should not assume someone concurrently edits these settings in the UniFi UI or through another API client between Terraform refresh and apply.
+Preserving such concurrent edits is not a requirement and does not by itself justify a fix or additional update logic.
+
+Controller settings the provider does not expose may be managed outside Terraform and must be preserved during resource updates.
+Full-object API writes and SDK serialization defaults must not reset these settings.
+
+Interpret omitted, null, and unknown values according to the attribute's schema and Terraform Plugin Framework semantics.
+Omitting an optional/computed attribute does not by itself relinquish ownership or request a reset; it may retain its prior state or use a controller-computed value.
+This ownership model does not remove the need for correct refresh and drift handling, imports, or consistency between configuration, plan, and resulting state.
+
 ### Testing
 
 Tests are in the same package (`internal/provider/`), controlled by `TestMain`:
