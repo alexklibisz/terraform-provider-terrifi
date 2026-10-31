@@ -95,7 +95,20 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 5. Add the resource type to `cmd/terrifi/generate_imports.go` (`validResourceTypes` slice and switch statement)
 6. Add docs in `docs/resources/` and examples in `examples/`
 
-## Git Workflow
+## Development
+
+### Documentation
+
+#### Contents
+
+1. Write documentation for a reader who has no knowledge of the agent, the conversation, or the implementation process. The reader does not know or care who you are or what has been chatted about in the session. Describe the tool and its behavior as they exist: supported attributes, defaults, constraints, examples, and limitations. Every statement must make sense without hidden context from an issue, PR, review, or agent session.
+2. Carefully consider the long-term structure of the documentation. Just because we're working on something in a given PR, does not mean it now lands front-and-center in the docs.
+3. As implementations change, keep the documentation updated.
+4. Keep test validation coverage tables up to date in the same PR as the provider and its API change.
+
+#### Format
+
+1. Avoid the typical ~80-column newlines. In paragraphs, write one sentence per line. In numbered and un-numbered lists, each list item is a line with no breaks between sentences.
 
 ### Merging Pull Requests
 
