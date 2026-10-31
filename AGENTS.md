@@ -99,27 +99,16 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 
 ### Documentation
 
-Write documentation for a human who has no knowledge of the agent, its conversation,
-or the implementation process. Describe the API and provider behavior as they exist:
-supported attributes, defaults, constraints, examples, and limitations. Every statement
-must make sense without hidden context from an issue, PR, review, or agent session.
+#### Contents
 
-- Do not describe settings as "restored," "newer," "previously removed," or otherwise
-  organize reference documentation around implementation history. Use feature names.
-- Keep agent progress, local environment problems, pending validation, review feedback,
-  and abandoned approaches out of reference documentation. Report them in the PR
-  description or discussion when relevant.
-- Include versions, compatibility constraints, and testing limitations when they help
-  readers understand supported behavior. State the specific behavior or limitation
-  directly, rather than referring to "this change" or what the agent has done so far.
-- Keep validation coverage tables up to date in the same PR as changes to attributes,
-  behavior, or acceptance tests. Add, update, or remove rows for the affected settings
-  and lifecycle operations, and check both Simulated and Hardware-in-the-loop columns
-  against test results. Do not mark coverage based only on an unrun test or a passing
-  suite in which the relevant test skipped.
-- Distinguish controller persistence from device enforcement. Document target-specific
-  skips and limitations, and keep evidence links and test names accurate. A successful
-  controller write does not establish that a physical device enforces the setting.
+1. Write documentation for a reader who has no knowledge of the agent, the conversation, or the implementation process. The reader does not know or care who you are or what has been chatted about in the session. Describe the tool and its behavior as they exist: supported attributes, defaults, constraints, examples, and limitations. Every statement must make sense without hidden context from an issue, PR, review, or agent session.
+2. Carefully consider the long-term structure of the documentation. Just because we're working on something in a given PR, does not mean it now lands front-and-center in the docs.
+3. As implementations change, keep the documentation updated.
+4. Keep test validation coverage tables up to date in the same PR as the provider and its API change.
+
+#### Format
+
+1. Avoid the typical ~80-column newlines. In paragraphs, write one sentence per line. In numbered and un-numbered lists, each list item is a line with no breaks between sentences.
 
 ### Merging Pull Requests
 
