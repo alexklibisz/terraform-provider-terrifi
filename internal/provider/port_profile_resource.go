@@ -36,9 +36,13 @@ var (
 // Network 10.x). Attributes with defaults are always sent explicitly, so
 // removing one from the config reverts it to the UI default.
 const (
-	portProfileDefaultTaggedVLANMgmt = "allow_all"
-	portProfileDefaultPoeMode        = "auto"
-	portProfileDefaultLldpmedEnabled = true
+	portProfileDefaultTaggedVLANMgmt   = "allow_all"
+	portProfileDefaultPoeMode          = "auto"
+	portProfileDefaultLldpmedEnabled   = true
+	portProfileDefaultStormControlType = "percentage"
+	portProfileDefaultFlowControl      = true
+	portProfileDefaultPTP              = true
+	portProfileDefaultStpEnabled       = true
 )
 
 // NewPortProfileResource is the factory function registered in provider.Resources().
@@ -61,9 +65,20 @@ type portProfileResourceModel struct {
 	TaggedVLANMgmt   types.String `tfsdk:"tagged_vlan_mode"`
 	TaggedNetworkIDs types.Set    `tfsdk:"tagged_network_ids"`
 
-	PoeMode        types.String `tfsdk:"poe_mode"`
-	Isolation      types.Bool   `tfsdk:"port_isolation_enabled"`
-	LldpmedEnabled types.Bool   `tfsdk:"lldpmed_enabled"`
+	PoeMode                    types.String `tfsdk:"poe_mode"`
+	Isolation                  types.Bool   `tfsdk:"port_isolation_enabled"`
+	LldpmedEnabled             types.Bool   `tfsdk:"lldpmed_enabled"`
+	FlowControlEnabled         types.Bool   `tfsdk:"flow_control_enabled"`
+	PTPEnabled                 types.Bool   `tfsdk:"ptp_enabled"`
+	StpEnabled                 types.Bool   `tfsdk:"stp_enabled"`
+	BpduGuardEnabled           types.Bool   `tfsdk:"bpdu_guard_enabled"`
+	LoopProtectionEnabled      types.Bool   `tfsdk:"loop_protection_enabled"`
+	EEEEnabled                 types.Bool   `tfsdk:"eee_enabled"`
+	LinkDebounceMs             types.Int64  `tfsdk:"link_debounce_ms"`
+	StormControlType           types.String `tfsdk:"storm_control_type"`
+	StormControlBroadcast      types.Int64  `tfsdk:"storm_control_broadcast"`
+	StormControlMulticast      types.Int64  `tfsdk:"storm_control_multicast"`
+	StormControlUnknownUnicast types.Int64  `tfsdk:"storm_control_unknown_unicast"`
 }
 
 // Metadata sets the resource type name.
@@ -92,7 +107,7 @@ func (r *portProfileResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a switch port profile on the UniFi controller. Port profiles are reusable " +
-			"port configurations (VLANs, PoE, port isolation and LLDP-MED) that can be assigned to switch " +
+			"port configurations (VLANs, PoE, link tuning, loop protection, storm control and LLDP-MED) that can be assigned to switch " +
 			"and gateway ports. Other profile settings are not managed and keep their current values.",
 
 		Attributes: map[string]schema.Attribute{
@@ -168,8 +183,41 @@ func (r *portProfileResource) Schema(
 
 			// Advanced (UI "Advanced: Manual").
 
+			"flow_control_enabled":   boolAttr("Whether flow control is enabled.", portProfileDefaultFlowControl),
+			"ptp_enabled":            boolAttr("Whether Precision Time Protocol is enabled.", portProfileDefaultPTP),
 			"port_isolation_enabled": boolAttr("Whether port isolation is enabled.", false),
-			"lldpmed_enabled":        boolAttr("Whether LLDP-MED is enabled.", portProfileDefaultLldpmedEnabled),
+			"stp_enabled":            boolAttr("Whether spanning tree (STP) is enabled.", portProfileDefaultStpEnabled),
+			"bpdu_guard_enabled":     boolAttr("Whether BPDU guard is enabled.", false),
+			"loop_protection_enabled": boolAttr("Whether non-STP loop protection is enabled "+
+				"(`port_keepalive_enabled` in the API).", false),
+			"eee_enabled":     boolAttr("Whether Energy Efficient Ethernet is enabled.", false),
+			"lldpmed_enabled": boolAttr("Whether LLDP-MED is enabled.", portProfileDefaultLldpmedEnabled),
+
+			"link_debounce_ms": schema.Int64Attribute{
+				MarkdownDescription: "Link debounce. Unset is the UI's \"Auto\", `0` is \"Off\", and " +
+					"100–5000 (in steps of 100) is \"Custom\" in milliseconds.",
+				Optional: true,
+			},
+
+			"storm_control_type": schema.StringAttribute{
+				MarkdownDescription: "Storm-control threshold unit: `percentage` or `packets_per_second`. Default: `percentage`. With no thresholds, storm control is disabled.",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(portProfileDefaultStormControlType),
+				Validators:          []validator.String{stringvalidator.OneOf("percentage", "packets_per_second")},
+			},
+			"storm_control_broadcast": schema.Int64Attribute{
+				MarkdownDescription: "Broadcast threshold (0–100 percent or 0–14880000 packets per second). Unset disables broadcast storm control.",
+				Optional:            true,
+			},
+			"storm_control_multicast": schema.Int64Attribute{
+				MarkdownDescription: "Multicast threshold (0–100 percent or 0–14880000 packets per second). Unset disables multicast storm control.",
+				Optional:            true,
+			},
+			"storm_control_unknown_unicast": schema.Int64Attribute{
+				MarkdownDescription: "Unknown-unicast threshold (0–100 percent or 0–14880000 packets per second). Unset disables unknown-unicast storm control.",
+				Optional:            true,
+			},
 		},
 	}
 }
@@ -213,6 +261,38 @@ func setContains(set types.Set, s string) bool {
 // null in config when the user relies on the default.
 func validatePortProfileModel(m *portProfileResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
+	// Link debounce: 0 (off) or 100–5000 in steps of 100 (custom).
+	if known(m.LinkDebounceMs) && !m.LinkDebounceMs.IsNull() {
+		v := m.LinkDebounceMs.ValueInt64()
+		if v != 0 && (v < 100 || v > 5000 || v%100 != 0) {
+			diags.AddAttributeError(path.Root("link_debounce_ms"), "Invalid Attribute Value",
+				fmt.Sprintf("`link_debounce_ms` must be 0 (off) or 100–5000 in steps of 100, got %d.", v))
+		}
+	}
+
+	if known(m.StormControlType) {
+		unit := m.StormControlType.ValueString()
+		if m.StormControlType.IsNull() {
+			unit = portProfileDefaultStormControlType
+		}
+		limit := int64(100)
+		if unit == "packets_per_second" {
+			limit = 14880000
+		}
+		for name, v := range map[string]types.Int64{
+			"storm_control_broadcast":       m.StormControlBroadcast,
+			"storm_control_multicast":       m.StormControlMulticast,
+			"storm_control_unknown_unicast": m.StormControlUnknownUnicast,
+		} {
+			if v.IsNull() || v.IsUnknown() {
+				continue
+			}
+			if v.ValueInt64() < 0 || v.ValueInt64() > limit {
+				diags.AddAttributeError(path.Root(name), "Invalid Attribute Value", fmt.Sprintf("With `storm_control_type = %q`, `%s` must be between 0 and %d, got %d.", unit, name, limit, v.ValueInt64()))
+			}
+		}
+	}
+
 	if !known(m.TaggedVLANMgmt) || !known(m.TaggedNetworkIDs) {
 		return diags
 	}
@@ -553,10 +633,29 @@ func (r *portProfileResource) modelToAPI(ctx context.Context, m *portProfileReso
 		// rather than omitting the key; that clears a previously set value.
 		NativeNetworkID: ptrTo(m.NativeNetworkID.ValueString()),
 
+		FlowControlEnabled:   ptrTo(m.FlowControlEnabled.ValueBool()),
+		PTPEnabled:           ptrTo(m.PTPEnabled.ValueBool()),
+		StpPortMode:          ptrTo(m.StpEnabled.ValueBool()),
+		StpBpduGuardEnabled:  ptrTo(m.BpduGuardEnabled.ValueBool()),
+		PortKeepaliveEnabled: ptrTo(m.LoopProtectionEnabled.ValueBool()),
+		EEEEnabled:           ptrTo(m.EEEEnabled.ValueBool()),
+
 		PoeMode:        ptrTo(m.PoeMode.ValueString()),
 		Isolation:      ptrTo(m.Isolation.ValueBool()),
 		LldpmedEnabled: ptrTo(m.LldpmedEnabled.ValueBool()),
 	}
+
+	p.LinkDebounceAuto = ptrTo(m.LinkDebounceMs.IsNull())
+	if !m.LinkDebounceMs.IsNull() {
+		p.LinkDebounce = ptrTo(m.LinkDebounceMs.ValueInt64())
+	}
+	p.StormctrlType = unifi.StormControlTypeToAPI(m.StormControlType.ValueString())
+	p.StormctrlBcastEnabled = ptrTo(false)
+	p.StormctrlMcastEnabled = ptrTo(false)
+	p.StormctrlUcastEnabled = ptrTo(false)
+	setStormControlClass(p.StormctrlType, m.StormControlBroadcast, &p.StormctrlBcastEnabled, &p.StormctrlBcastLevel, &p.StormctrlBcastRate)
+	setStormControlClass(p.StormctrlType, m.StormControlMulticast, &p.StormctrlMcastEnabled, &p.StormctrlMcastLevel, &p.StormctrlMcastRate)
+	setStormControlClass(p.StormctrlType, m.StormControlUnknownUnicast, &p.StormctrlUcastEnabled, &p.StormctrlUcastLevel, &p.StormctrlUcastRate)
 
 	// Tagged networks, always sent so switching away from custom clears them.
 	p.ExcludedNetworkIDs = []string{}
@@ -586,6 +685,35 @@ func portProfileForward(taggedVLANMgmt string) string {
 	return "customize"
 }
 
+// setStormControlClass enables one storm control traffic class and stores its
+// threshold in the level or rate field, depending on the storm control type.
+func setStormControlClass(scType string, v types.Int64, enabled **bool, level, rate **int64) {
+	if v.IsNull() {
+		return
+	}
+	*enabled = ptrTo(true)
+	if scType == "rate" {
+		*rate = ptrTo(v.ValueInt64())
+	} else {
+		*level = ptrTo(v.ValueInt64())
+	}
+}
+
+// stormControlClassToModel is the inverse of setStormControlClass.
+func stormControlClassToModel(scType string, enabled *bool, level, rate *int64) types.Int64 {
+	if enabled == nil || !*enabled {
+		return types.Int64Null()
+	}
+	v := level
+	if scType == "packets_per_second" {
+		v = rate
+	}
+	if v == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(*v)
+}
+
 // apiToModel converts the local PortProfile struct back to our Terraform
 // model. Fields missing from the controller response fall back to the UI
 // defaults, matching the schema defaults. lan is needed only with
@@ -610,6 +738,26 @@ func (r *portProfileResource) apiToModel(p *unifi.PortProfile, m *portProfileRes
 	if p.PoeMode != nil && *p.PoeMode != "" {
 		m.PoeMode = types.StringValue(*p.PoeMode)
 	}
+	m.FlowControlEnabled = types.BoolValue(boolOr(p.FlowControlEnabled, portProfileDefaultFlowControl))
+	m.PTPEnabled = types.BoolValue(boolOr(p.PTPEnabled, portProfileDefaultPTP))
+	m.StpEnabled = types.BoolValue(boolOr(p.StpPortMode, portProfileDefaultStpEnabled))
+	m.BpduGuardEnabled = types.BoolValue(boolOr(p.StpBpduGuardEnabled, false))
+	m.LoopProtectionEnabled = types.BoolValue(boolOr(p.PortKeepaliveEnabled, false))
+	m.EEEEnabled = types.BoolValue(boolOr(p.EEEEnabled, false))
+
+	if boolOr(p.LinkDebounceAuto, true) {
+		m.LinkDebounceMs = types.Int64Null()
+	} else if p.LinkDebounce != nil {
+		m.LinkDebounceMs = types.Int64Value(*p.LinkDebounce)
+	} else {
+		m.LinkDebounceMs = types.Int64Value(0)
+	}
+
+	m.StormControlType = types.StringValue(unifi.StormControlTypeFromAPI(p.StormctrlType))
+	m.StormControlBroadcast = stormControlClassToModel(m.StormControlType.ValueString(), p.StormctrlBcastEnabled, p.StormctrlBcastLevel, p.StormctrlBcastRate)
+	m.StormControlMulticast = stormControlClassToModel(m.StormControlType.ValueString(), p.StormctrlMcastEnabled, p.StormctrlMcastLevel, p.StormctrlMcastRate)
+	m.StormControlUnknownUnicast = stormControlClassToModel(m.StormControlType.ValueString(), p.StormctrlUcastEnabled, p.StormctrlUcastLevel, p.StormctrlUcastRate)
+
 	m.Isolation = types.BoolValue(boolOr(p.Isolation, false))
 	m.LldpmedEnabled = types.BoolValue(boolOr(p.LldpmedEnabled, portProfileDefaultLldpmedEnabled))
 }

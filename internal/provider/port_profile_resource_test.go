@@ -89,15 +89,26 @@ const uiDefaultPortProfileJSON = `{
 // a config that only sets name: every defaulted attribute is filled in.
 func defaultPortProfileModel(name string) portProfileResourceModel {
 	return portProfileResourceModel{
-		ID:               types.StringUnknown(),
-		Site:             types.StringUnknown(),
-		Name:             types.StringValue(name),
-		NativeNetworkID:  types.StringNull(),
-		TaggedVLANMgmt:   types.StringValue("allow_all"),
-		TaggedNetworkIDs: types.SetNull(types.StringType),
-		PoeMode:          types.StringValue("auto"),
-		Isolation:        types.BoolValue(false),
-		LldpmedEnabled:   types.BoolValue(true),
+		ID:                         types.StringUnknown(),
+		Site:                       types.StringUnknown(),
+		Name:                       types.StringValue(name),
+		NativeNetworkID:            types.StringNull(),
+		TaggedVLANMgmt:             types.StringValue("allow_all"),
+		TaggedNetworkIDs:           types.SetNull(types.StringType),
+		PoeMode:                    types.StringValue("auto"),
+		Isolation:                  types.BoolValue(false),
+		LldpmedEnabled:             types.BoolValue(true),
+		FlowControlEnabled:         types.BoolValue(true),
+		PTPEnabled:                 types.BoolValue(true),
+		StpEnabled:                 types.BoolValue(true),
+		BpduGuardEnabled:           types.BoolValue(false),
+		LoopProtectionEnabled:      types.BoolValue(false),
+		EEEEnabled:                 types.BoolValue(false),
+		LinkDebounceMs:             types.Int64Null(),
+		StormControlType:           types.StringValue("percentage"),
+		StormControlBroadcast:      types.Int64Null(),
+		StormControlMulticast:      types.Int64Null(),
+		StormControlUnknownUnicast: types.Int64Null(),
 	}
 }
 
@@ -159,10 +170,9 @@ func TestPortProfileAPIToModel_UnmanagedSettingsIgnored(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(uiDefaultPortProfileJSON), &changed))
 	for k, v := range map[string]any{
 		"autoneg": false, "speed": 100, "full_duplex": true, "voice_networkconf_id": testNetB,
-		"stp_port_mode": false, "stp_uplink": true, "dot1x_ctrl": "multi_host",
+		"stp_uplink": true, "dot1x_ctrl": "multi_host",
 		"port_security_enabled": true, "port_security_mac_address": []string{"00:00:5e:00:53:01"},
-		"link_debounce_auto": false, "egress_rate_limit_kbps_enabled": true, "egress_rate_limit_kbps": 64,
-		"stormctrl_bcast_enabled": true, "stormctrl_bcast_level": 20,
+		"egress_rate_limit_kbps_enabled": true, "egress_rate_limit_kbps": 64,
 	} {
 		changed[k] = v
 	}
@@ -217,15 +227,26 @@ func TestPortProfileModelToAPI_Defaults(t *testing.T) {
 	wire := toWire(t, mustModelToAPI(t, &m, nil))
 
 	assert.Equal(t, map[string]any{
-		"name":                     "Defaults",
-		"setting_preference":       "manual",
-		"forward":                  "customize",
-		"native_networkconf_id":    "",
-		"tagged_vlan_mgmt":         "auto",
-		"excluded_networkconf_ids": []any{},
-		"poe_mode":                 "auto",
-		"isolation":                false,
-		"lldpmed_enabled":          true,
+		"name":                            "Defaults",
+		"setting_preference":              "manual",
+		"forward":                         "customize",
+		"native_networkconf_id":           "",
+		"tagged_vlan_mgmt":                "auto",
+		"excluded_networkconf_ids":        []any{},
+		"poe_mode":                        "auto",
+		"isolation":                       false,
+		"lldpmed_enabled":                 true,
+		"flow_control_enabled":            true,
+		"precision_time_protocol_enabled": true,
+		"stp_port_mode":                   true,
+		"stp_bpdu_guard_enabled":          false,
+		"port_keepalive_enabled":          false,
+		"eee_enabled":                     false,
+		"link_debounce_auto":              true,
+		"stormctrl_type":                  "level",
+		"stormctrl_bcast_enabled":         false,
+		"stormctrl_mcast_enabled":         false,
+		"stormctrl_ucast_enabled":         false,
 	}, wire, "exact payload for a name-only config")
 }
 
@@ -374,9 +395,9 @@ func TestMergePortProfile(t *testing.T) {
 	assert.Equal(t, "disabled", got["stp_edge_state"])
 	assert.Equal(t, false, got["autoneg"])
 	assert.Equal(t, float64(100), got["speed"])
-	assert.Equal(t, false, got["stp_port_mode"])
+	assert.Equal(t, true, got["stp_port_mode"], "managed STP is reset to its planned value")
 	assert.Equal(t, testNetB, got["voice_networkconf_id"])
-	assert.Equal(t, true, got["stormctrl_bcast_enabled"])
+	assert.Equal(t, false, got["stormctrl_bcast_enabled"], "removing a threshold disables its class")
 
 	// Managed settings replaced: advanced mode forced to manual.
 	assert.Equal(t, "new name", got["name"])
@@ -529,13 +550,17 @@ func TestPortProfileSchemaRemovedAttributes(t *testing.T) {
 	(&portProfileResource{}).Schema(t.Context(), fwresource.SchemaRequest{}, &resp)
 	for _, name := range []string{
 		"excluded_network_ids", "voice_network_id", "auto_negotiation_enabled", "speed_mbps", "full_duplex",
-		"egress_rate_limit_kbps", "flow_control_enabled", "ptp_enabled", "stp_enabled", "stp_uplink",
-		"bpdu_guard_enabled", "loop_protection_enabled", "eee_enabled", "link_debounce_ms",
+		"egress_rate_limit_kbps", "stp_uplink",
 		"port_security_enabled", "port_security_mac_addresses", "dot1x_control", "storm_control",
 	} {
 		assert.NotContains(t, resp.Schema.Attributes, name)
 	}
-	assert.Len(t, resp.Schema.Attributes, 9)
+	for _, name := range []string{
+		"flow_control_enabled", "ptp_enabled", "stp_enabled", "bpdu_guard_enabled", "loop_protection_enabled", "eee_enabled", "link_debounce_ms",
+		"storm_control_type", "storm_control_broadcast", "storm_control_multicast", "storm_control_unknown_unicast",
+	} {
+		assert.Contains(t, resp.Schema.Attributes, name)
+	}
 }
 
 // The framework only validates schemas when serving them, which unit tests
@@ -1037,6 +1062,17 @@ func portProfileDefaultsChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "poe_mode", "auto"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "port_isolation_enabled", "false"),
 		resource.TestCheckResourceAttr(testAccPortProfileAddr, "lldpmed_enabled", "true"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "flow_control_enabled", "true"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "ptp_enabled", "true"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "stp_enabled", "true"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "bpdu_guard_enabled", "false"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "loop_protection_enabled", "false"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "eee_enabled", "false"),
+		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "link_debounce_ms"),
+		resource.TestCheckResourceAttr(testAccPortProfileAddr, "storm_control_type", "percentage"),
+		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control_broadcast"),
+		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control_multicast"),
+		resource.TestCheckNoResourceAttr(testAccPortProfileAddr, "storm_control_unknown_unicast"),
 	)
 }
 
@@ -1084,7 +1120,7 @@ func TestAccPortProfile_basic(t *testing.T) {
 	})
 }
 
-// TestAccPortProfile_allSettingsThenDefaults sets every non-VLAN attribute to
+// TestAccPortProfile_allSettingsThenDefaults sets the core non-VLAN attributes to
 // a non-default value, then removes them all. Removing proves that clearing
 // an attribute in config clears it on the controller, given that the
 // controller merges PUTs.
@@ -1151,10 +1187,9 @@ func TestAccPortProfile_allSettingsThenDefaults(t *testing.T) {
 func TestAccPortProfile_unmanagedFieldsPreserved(t *testing.T) {
 	name := fmt.Sprintf("tfacc-pp-unmanaged-%s", randomSuffix())
 	advanced := map[string]any{
-		"stp_port_mode":           false,
-		"stormctrl_type":          "level",
-		"stormctrl_bcast_enabled": true,
-		"stormctrl_bcast_level":   20,
+		"egress_rate_limit_kbps_enabled": true,
+		"egress_rate_limit_kbps":         640,
+		"stp_uplink":                     true,
 	}
 	auto := map[string]any{
 		"setting_preference": "auto",

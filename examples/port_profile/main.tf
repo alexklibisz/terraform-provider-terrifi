@@ -89,3 +89,14 @@ output "hypervisor_trunk_id" {
 output "guest_access_id" {
   value = terrifi_port_profile.guest_access.id
 }
+
+# Controller-persisted protection settings; physical switch enforcement has
+# not been validated by Terrifi's hardware test rig.
+resource "terrifi_port_profile" "protected_access" {
+  name                    = "Protected access"
+  tagged_vlan_mode        = "block_all"
+  stp_enabled             = true
+  bpdu_guard_enabled      = true
+  loop_protection_enabled = true
+  storm_control_broadcast = 20
+}

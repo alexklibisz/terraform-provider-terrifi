@@ -6,7 +6,7 @@ package provider
 //
 // Update is a read-modify-write on the raw controller object: the fields the
 // provider sets are overlaid, and every other key the controller returned
-// (link speed, STP, storm control, qos_profile, ...) is sent back untouched.
+// (link speed, port security, qos_profile, ...) is sent back untouched.
 // Create starts from portProfileUnmanagedDefaults instead. The controller
 // merges PUTs (keys left out keep their stored value), but sending the full
 // object keeps the update correct even if that changes.
@@ -69,24 +69,14 @@ func normalizePortProfile(d *unifi.PortProfile) unifi.PortProfile {
 // missing key.
 func portProfileUnmanagedDefaults() map[string]json.RawMessage {
 	return map[string]json.RawMessage{
-		"autoneg":                         json.RawMessage(`true`),
-		"full_duplex":                     json.RawMessage(`false`),
-		"voice_networkconf_id":            json.RawMessage(`""`),
-		"egress_rate_limit_kbps_enabled":  json.RawMessage(`false`),
-		"flow_control_enabled":            json.RawMessage(`true`),
-		"precision_time_protocol_enabled": json.RawMessage(`true`),
-		"stp_port_mode":                   json.RawMessage(`true`),
-		"stp_uplink":                      json.RawMessage(`false`),
-		"stp_bpdu_guard_enabled":          json.RawMessage(`false`),
-		"port_keepalive_enabled":          json.RawMessage(`false`),
-		"eee_enabled":                     json.RawMessage(`false`),
-		"link_debounce_auto":              json.RawMessage(`true`),
-		"port_security_enabled":           json.RawMessage(`false`),
-		"port_security_mac_address":       json.RawMessage(`[]`),
-		"dot1x_ctrl":                      json.RawMessage(`"force_authorized"`),
-		"stormctrl_bcast_enabled":         json.RawMessage(`false`),
-		"stormctrl_mcast_enabled":         json.RawMessage(`false`),
-		"stormctrl_ucast_enabled":         json.RawMessage(`false`),
+		"autoneg":                        json.RawMessage(`true`),
+		"full_duplex":                    json.RawMessage(`false`),
+		"voice_networkconf_id":           json.RawMessage(`""`),
+		"egress_rate_limit_kbps_enabled": json.RawMessage(`false`),
+		"stp_uplink":                     json.RawMessage(`false`),
+		"port_security_enabled":          json.RawMessage(`false`),
+		"port_security_mac_address":      json.RawMessage(`[]`),
+		"dot1x_ctrl":                     json.RawMessage(`"force_authorized"`),
 	}
 }
 

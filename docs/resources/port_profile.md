@@ -7,7 +7,7 @@ description: |-
 
 # terrifi_port_profile (Resource)
 
-Manages a switch port profile on the UniFi controller. Port profiles are reusable port configurations (VLANs, PoE, port isolation and LLDP-MED) that can be assigned to switch and gateway ports. Other profile settings are not managed; see [unmanaged settings](#unmanaged-settings).
+Manages a switch port profile on the UniFi controller. Port profiles are reusable port configurations (VLANs, PoE, link tuning, loop protection, storm control and LLDP-MED) that can be assigned to switch and gateway ports. Other profile settings are not managed; see [unmanaged settings](#unmanaged-settings).
 
 A profile only defines settings. Creating or changing one doesn't affect any port until the profile is assigned to that port, with [`terrifi_device_ports`](device_ports.md) or in the UI.
 
@@ -60,6 +60,24 @@ resource "terrifi_port_profile" "isolated_iot" {
 }
 ```
 
+### Protected access port
+
+Keep STP enabled and enable BPDU guard, non-STP loop protection, and broadcast storm control on an edge port:
+
+```terraform
+resource "terrifi_port_profile" "protected_access" {
+  name                    = "Protected access"
+  native_network_id       = terrifi_network.iot.id
+  tagged_vlan_mode        = "block_all"
+  stp_enabled             = true
+  bpdu_guard_enabled      = true
+  loop_protection_enabled = true
+  storm_control_broadcast = 20
+}
+```
+
+These settings are saved on the controller; their enforcement on a physical switch has not been validated by Terrifi's test rig.
+
 ## Schema
 
 ### Required
@@ -81,6 +99,21 @@ Other:
 - `poe_mode` (String) — PoE mode. `auto` is the UI's "Auto PoE" checkbox ticked, `off` unticked. Default: `auto`.
 - `port_isolation_enabled` (Boolean) — Whether port isolation is enabled. Default: `false`.
 - `lldpmed_enabled` (Boolean) — Whether LLDP-MED is enabled. Default: `true`.
+- `eee_enabled` (Boolean) — Whether Energy Efficient Ethernet is enabled. Default: `false`.
+- `flow_control_enabled` (Boolean) — Whether flow control is enabled. Default: `true`.
+- `ptp_enabled` (Boolean) — Whether Precision Time Protocol is enabled. Default: `true`.
+- `link_debounce_ms` (Number) — Unset selects Auto; `0` selects Off; `100`–`5000` in steps of `100` selects a custom debounce in milliseconds.
+- `stp_enabled` (Boolean) — Whether spanning tree is enabled. Default: `true`. Disabling STP removes its protection against switching loops.
+- `bpdu_guard_enabled` (Boolean) — Whether BPDU guard is enabled. Default: `false`.
+- `loop_protection_enabled` (Boolean) — Whether non-STP loop protection is enabled (`port_keepalive_enabled` in the API). Default: `false`.
+- `storm_control_type` (String) — Threshold unit: `percentage` (default) or `packets_per_second`.
+- `storm_control_broadcast` (Number) — Broadcast threshold. Unset disables storm control for this traffic class.
+- `storm_control_multicast` (Number) — Multicast threshold. Unset disables storm control for this traffic class.
+- `storm_control_unknown_unicast` (Number) — Unknown-unicast threshold. Unset disables storm control for this traffic class.
+
+Storm-control thresholds accept `0`–`100` for `percentage` and `0`–`14880000` for `packets_per_second`. An explicit `0` enables that class with a zero threshold; it is distinct from omitting the attribute. Omitting all three thresholds disables storm control. Thresholds are flat attributes; there is no nested `storm_control` object.
+
+Removing a defaulted attribute restores its documented default. Removing `link_debounce_ms` restores Auto. These fields are managed even when omitted, so updates also reset their out-of-band changes to the configured values or defaults.
 
 ### Read-Only
 
@@ -113,9 +146,11 @@ The current Simulated target exposes no adopted devices or usable switch ports, 
 | `lldpmed_enabled` | Set to `false` | ✅ | ✅ |
 | `lldpmed_enabled` | Remove to restore `true` | ✅ | ✅ |
 
+The restored link-tuning and protection settings have lifecycle tests in `port_profile_restored_test.go` for both targets, including imports, drift repair, values computed by other resources, debounce changes, storm-control unit changes, and removing thresholds. These tests require Network 10.6.106 or a controller that stores the same fields; older controllers may discard some link-tuning settings. The new lifecycle tests have not yet been run for this change. No physical-port enforcement is claimed for these settings.
+
 Profile configuration acceptance tests run against both controller targets, including imports, defaults, drift, and preservation of unmanaged fields. These profile CRUD tests run on the Hardware-in-the-loop target even though its USW Flex Mini cannot accept custom-profile assignments. The assignment row above summarizes the [device-port tests](device_ports.md#validation-coverage); the remaining rows cover profile configuration only. Simulated assignment tests currently skip because there are no usable virtual switch ports.
 
-Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
+Evidence: [device_ports_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_ports_resource_test.go), [port_profile_restored_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_restored_test.go) and [port_profile_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/port_profile_resource_test.go).
 
 ## Import
 
@@ -157,8 +192,8 @@ A network created in the same apply as a profile that tags it is still being pro
 
 ### Unmanaged settings
 
-Profile settings without an attribute are not managed: link speed and duplex, rate limiting, flow control, PTP, Energy Efficient Ethernet, link debounce, STP and loop protection, the MAC address filter, 802.1X, storm control, the voice VLAN, QoS and the multicast router port. A profile created by Terrifi gets the same values for these as one created in the UI. Updates leave them unchanged, and changes made to them in the UI don't show up as drift.
+Profile settings without an attribute are not managed: link speed and duplex, rate limiting, STP uplink mode, the MAC address filter, 802.1X, the voice VLAN, QoS and the multicast router port. A profile created by Terrifi gets the same values for these as one created in the UI. Updates leave them unchanged, and changes made to them in the UI don't show up as drift.
 
 ### Advanced settings
 
-Settings in the UI's **Advanced** section, including port isolation and LLDP-MED, only apply when the profile's Advanced mode is **Manual**. Terrifi always sets Manual, including when it updates a profile that was created in the UI with Advanced left on Auto.
+Settings in the UI's **Advanced** section, including port isolation, loop protection, storm control and LLDP-MED, only apply when the profile's Advanced mode is **Manual**. Terrifi always sets Manual, including when it updates a profile that was created in the UI with Advanced left on Auto.

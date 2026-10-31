@@ -90,9 +90,7 @@ func TestPortProfileBlocks_UnmanagedSettingsOmitted(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{
 		"_id": "prof4", "name": "Unmanaged", "native_networkconf_id": "",
 		"autoneg": false, "speed": 100, "full_duplex": true, "voice_networkconf_id": "net-b",
-		"stp_port_mode": false, "dot1x_ctrl": "multi_host", "port_security_enabled": true,
-		"link_debounce_auto": false, "link_debounce": 1200,
-		"stormctrl_bcast_enabled": true, "stormctrl_bcast_level": 20
+		"stp_uplink": true, "dot1x_ctrl": "multi_host", "port_security_enabled": true
 	}`), &p))
 	attrs := attrMapFromBlock(PortProfileBlocks([]unifi.PortProfile{p}, testLAN)[0])
 	assert.Equal(t, map[string]string{"name": `"Unmanaged"`}, attrs)
@@ -108,4 +106,54 @@ func TestPortProfileBlocks_RendersValidHCL(t *testing.T) {
 	assert.Contains(t, out, `to = terrifi_port_profile.isolated`)
 	assert.Contains(t, out, `native_network_id = "net-default" # TODO: reference the corresponding terrifi_network resource`)
 	assert.Contains(t, out, `port_isolation_enabled = true`)
+}
+
+func TestPortProfileBlocks_RestoredSettings(t *testing.T) {
+	for _, unit := range []string{"level", "rate"} {
+		t.Run(unit, func(t *testing.T) {
+			p := uiDefaults("restored", "Restored")
+			p.NativeNetworkID = nil
+			p.FlowControlEnabled = ptr(false)
+			p.PTPEnabled = ptr(false)
+			p.StpPortMode = ptr(false)
+			p.StpBpduGuardEnabled = ptr(true)
+			p.PortKeepaliveEnabled = ptr(true)
+			p.EEEEnabled = ptr(true)
+			p.LinkDebounceAuto = ptr(false)
+			p.LinkDebounce = ptr(int64(0))
+			p.StormctrlType = unit
+			p.StormctrlBcastEnabled = ptr(true)
+			p.StormctrlBcastLevel = ptr(int64(0))
+			p.StormctrlBcastRate = ptr(int64(12345))
+			p.StormctrlMcastEnabled = ptr(false)
+			p.StormctrlMcastLevel = ptr(int64(99)) // stale, disabled
+			p.StormctrlUcastEnabled = ptr(true)
+			p.StormctrlUcastLevel = ptr(int64(37))
+			p.StormctrlUcastRate = ptr(int64(14880000))
+			want := map[string]string{
+				"name": `"Restored"`, "flow_control_enabled": "false", "ptp_enabled": "false",
+				"stp_enabled": "false", "bpdu_guard_enabled": "true", "loop_protection_enabled": "true", "eee_enabled": "true",
+				"link_debounce_ms": "0", "storm_control_broadcast": "0", "storm_control_unknown_unicast": "37",
+			}
+			if unit == "rate" {
+				want["storm_control_type"] = `"packets_per_second"`
+				want["storm_control_broadcast"] = "12345"
+				want["storm_control_unknown_unicast"] = "14880000"
+			}
+			blocks := PortProfileBlocks([]unifi.PortProfile{p}, nil)
+			assert.Equal(t, want, attrMapFromBlock(blocks[0]))
+			var buf bytes.Buffer
+			require.NoError(t, WriteBlocks(&buf, blocks))
+			assert.Contains(t, buf.String(), "storm_control_unknown_unicast")
+		})
+	}
+}
+
+func TestPortProfileBlocks_RestoredDefaultsOmitted(t *testing.T) {
+	p := uiDefaults("defaults", "Defaults")
+	p.FlowControlEnabled, p.PTPEnabled, p.StpPortMode = ptr(true), ptr(true), ptr(true)
+	p.StpBpduGuardEnabled, p.PortKeepaliveEnabled, p.EEEEnabled = ptr(false), ptr(false), ptr(false)
+	p.LinkDebounceAuto, p.LinkDebounce = ptr(true), ptr(int64(1200))
+	p.StormctrlType, p.StormctrlBcastEnabled, p.StormctrlBcastLevel = "level", ptr(false), ptr(int64(37))
+	assert.Equal(t, map[string]string{"name": `"Defaults"`, "native_network_id": `"net-default"`}, attrMapFromBlock(PortProfileBlocks([]unifi.PortProfile{p}, nil)[0]))
 }
