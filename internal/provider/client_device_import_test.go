@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -44,7 +45,7 @@ func TestClientDeviceImportAndRead(t *testing.T) {
 					return
 				}
 				paths = append(paths, req.URL.Path)
-				fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"client-id","mac":"aa:bb:cc:dd:ee:ff","name":"Printer"}]}`)
+				fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"client-id","mac":"aa:bb:cc:dd:ee:ff","name":"Printer","use_fixedip":true,"fixed_ip":"10.0.0.20","network_id":"lan-id","network_members_group_ids":["group-id"]}]}`)
 			}))
 			defer srv.Close()
 			c := newTestClient(t, srv.URL, false)
@@ -62,6 +63,9 @@ func TestClientDeviceImportAndRead(t *testing.T) {
 				require.Equal(t, "client-id", model.ID.ValueString())
 				require.Equal(t, tc.site, model.Site.ValueString())
 				require.Equal(t, mac, model.MAC.ValueString())
+				require.Equal(t, "10.0.0.20", model.FixedIP.ValueString())
+				require.Equal(t, "lan-id", model.NetworkID.ValueString())
+				require.Equal(t, types.SetValueMust(types.StringType, []attr.Value{types.StringValue("group-id")}), model.ClientGroupIDs)
 				state = resp.State
 			}
 			direct := "/proxy/network/api/s/" + tc.site + "/rest/user/client-id"
@@ -154,6 +158,57 @@ func TestClientDeviceReadLookupErrors(t *testing.T) {
 					require.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "api.err.NoSiteContext")
 				}
 			}
+		})
+	}
+}
+
+// On ordinary refresh, a controller-derived network must not populate an
+// omitted network_id, and omitted group fields must not clear configured groups.
+func TestClientDeviceReadPreservesPriorFields(t *testing.T) {
+	for _, groups := range []types.Set{types.SetNull(types.StringType), types.SetValueMust(types.StringType, []attr.Value{types.StringValue("group-id")})} {
+		t.Run(groups.String(), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if strings.Contains(req.URL.Path, "/v2/") {
+					fmt.Fprint(w, `{}`)
+					return
+				}
+				fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"client-id","mac":"aa:bb:cc:dd:ee:ff","use_fixedip":true,"fixed_ip":"10.0.0.20","network_id":"derived-network","virtual_network_override_enabled":true,"virtual_network_override_id":"override-network"}]}`)
+			}))
+			defer srv.Close()
+			r := &clientDeviceResource{client: newTestClient(t, srv.URL, false)}
+			imported := clientDeviceImportState(t, r, "client-id")
+			model := clientDeviceResourceModel{ID: types.StringValue("client-id"), MAC: types.StringValue("aa:bb:cc:dd:ee:ff"), NetworkID: types.StringNull(), ClientGroupIDs: groups, NetworkOverrideID: types.StringValue("override-network")}
+			require.False(t, imported.State.Set(t.Context(), &model).HasError())
+			resp := resource.ReadResponse{State: imported.State}
+			r.Read(t.Context(), resource.ReadRequest{State: imported.State}, &resp)
+			require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+			require.False(t, resp.State.Get(t.Context(), &model).HasError())
+			require.True(t, model.NetworkID.IsNull())
+			require.Equal(t, groups, model.ClientGroupIDs)
+		})
+	}
+}
+
+func TestClientDeviceImportEmptyGroups(t *testing.T) {
+	for _, field := range []string{"", `,"network_members_group_ids":[]`} {
+		t.Run(field, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if strings.Contains(req.URL.Path, "/v2/") {
+					fmt.Fprint(w, `{}`)
+					return
+				}
+				fmt.Fprintf(w, `{"meta":{"rc":"ok"},"data":[{"_id":"client-id","mac":"aa:bb:cc:dd:ee:ff"%s}]}`, field)
+			}))
+			defer srv.Close()
+			r := &clientDeviceResource{client: newTestClient(t, srv.URL, false)}
+			imported := clientDeviceImportState(t, r, "aa:bb:cc:dd:ee:ff")
+			require.False(t, imported.Diagnostics.HasError())
+			resp := resource.ReadResponse{State: imported.State}
+			r.Read(t.Context(), resource.ReadRequest{State: imported.State}, &resp)
+			require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+			var model clientDeviceResourceModel
+			require.False(t, resp.State.Get(t.Context(), &model).HasError())
+			require.True(t, model.ClientGroupIDs.IsNull(), "no groups must import as null to match omitted configuration")
 		})
 	}
 }

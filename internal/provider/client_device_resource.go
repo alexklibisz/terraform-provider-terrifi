@@ -264,7 +264,10 @@ func (r *clientDeviceResource) Read(
 		return
 	}
 
-	// Save fields before the API call that need to be restored after apiToModel.
+	// Initial imports contain only ID/site. Retain controller values on that
+	// first read; ordinary refreshes preserve fields that the API may omit or
+	// derive from network_override_id rather than the configured network_id.
+	importing := state.MAC.IsNull() || state.MAC.IsUnknown()
 	priorGroupIDs := state.ClientGroupIDs
 	priorNetworkID := state.NetworkID
 	priorDeviceTypeID := state.DeviceTypeID
@@ -296,8 +299,10 @@ func (r *clientDeviceResource) Read(
 	}
 
 	r.apiToModel(apiObj, &state, site)
-	state.ClientGroupIDs = priorGroupIDs
-	state.NetworkID = priorNetworkID
+	if !importing {
+		state.ClientGroupIDs = priorGroupIDs
+		state.NetworkID = priorNetworkID
+	}
 
 	// Read fingerprint override via the v2 client info API. This may fail for
 	// clients that have never connected (404) — treat as no override. Other
@@ -683,7 +688,7 @@ func (r *clientDeviceResource) apiToModel(c *unifi.Client, m *clientDeviceResour
 		m.FixedApMAC = types.StringNull()
 	}
 
-	if c.NetworkMembersGroupIDs != nil {
+	if len(c.NetworkMembersGroupIDs) > 0 {
 		vals := make([]attr.Value, len(c.NetworkMembersGroupIDs))
 		for i, id := range c.NetworkMembersGroupIDs {
 			vals[i] = types.StringValue(id)

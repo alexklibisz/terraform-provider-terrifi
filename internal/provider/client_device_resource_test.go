@@ -1963,7 +1963,20 @@ func TestAccClientDevice_importByMAC(t *testing.T) {
 	for _, withSite := range []bool{false, true} {
 		t.Run(fmt.Sprintf("site=%t", withSite), func(t *testing.T) {
 			mac, otherMAC := randomMAC(), randomMAC()
-			other := fmt.Sprintf(`
+			vlan := randomVLAN()
+			fixedIP := fmt.Sprintf("10.%d.%d.100", vlan/256, vlan%256)
+			network := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+ name = %q
+ purpose = "corporate"
+ vlan_id = %d
+ subnet = "10.%d.%d.1/24"
+ dhcp_enabled = true
+ dhcp_start = "10.%d.%d.6"
+ dhcp_stop = "10.%d.%d.254"
+}
+`, "tfacc-import-mac-"+randomSuffix(), vlan, vlan/256, vlan%256, vlan/256, vlan%256, vlan/256, vlan%256)
+			other := network + fmt.Sprintf(`
 resource "terrifi_client_device" "other" {
  mac = %q
  name = "tfacc-import-other"
@@ -1974,8 +1987,10 @@ resource "terrifi_client_device" "other" {
 resource "terrifi_client_device" "test" {
  mac = %q
  name = %q
+ fixed_ip = %q
+ network_id = terrifi_network.test.id
 }
-`, mac, name)
+`, mac, name, fixedIP)
 			}
 			var originalID, importID string
 			resource.Test(t, resource.TestCase{
@@ -2021,7 +2036,11 @@ removed {
 							return fmt.Errorf("imported client %s not found", mac)
 						},
 					},
-					{RefreshState: true, Check: resource.TestCheckResourceAttr("terrifi_client_device.test", "mac", mac)},
+					{RefreshState: true, Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("terrifi_client_device.test", "mac", mac),
+						resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fixedIP),
+						resource.TestCheckResourceAttrPair("terrifi_client_device.test", "network_id", "terrifi_network.test", "id"),
+					)},
 					{Config: config("tfacc-import-mac"), PlanOnly: true},
 					{Config: config("tfacc-import-renamed"), Check: resource.ComposeTestCheckFunc(
 						resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-import-renamed"),

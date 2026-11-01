@@ -149,7 +149,7 @@ resource "terrifi_client_device" "blocked" {
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
 | `id` | Import by internal ID or `site:ID` | ✅ | ✅ |
-| `id` | Import by MAC or `site:MAC`, refresh, and update | ✅ | ✅ |
+| `id` | Import a DHCP reservation by MAC or `site:MAC`, refresh, and update | ✅ | ✅ |
 | `name` | Set a client alias | ✅ | ✅ |
 | `name` | Rename a client | ✅ | ✅ |
 | `note` | Set a note | ✅ | ✅ |
@@ -200,6 +200,8 @@ terraform import terrifi_client_device.printer default:aa:bb:cc:dd:ee:ff
 MAC addresses are matched case-insensitively.
 The client must already exist on the controller in the selected site.
 The first read resolves the MAC to the controller's internal ID, which is stored in Terraform state and used for subsequent operations.
+DHCP reservation network IDs and group memberships are populated from the controller response during import.
+Some controller versions omit group membership from client responses; keep `client_group_ids` in the resource configuration and apply it after import when necessary.
 The CLI generates imports using internal IDs.
 
 You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks for all client devices automatically:
