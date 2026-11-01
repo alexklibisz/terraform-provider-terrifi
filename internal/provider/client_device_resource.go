@@ -278,7 +278,7 @@ func (r *clientDeviceResource) Read(
 	id := state.ID.ValueString()
 	var apiObj *unifi.Client
 	var err error
-	if strings.Contains(id, ":") {
+	if macRegexp.MatchString(id) {
 		apiObj, err = r.client.GetClientDeviceByMAC(ctx, site, id)
 	} else {
 		apiObj, err = r.client.GetClientDevice(ctx, site, id)
@@ -435,30 +435,48 @@ func (r *clientDeviceResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	// MAC addresses contain exactly 5 colons (aa:bb:cc:dd:ee:ff).
-	// The "site:mac" format contains 6 (site:aa:bb:cc:dd:ee:ff).
-	// The "site:id" format contains 1 (site:64hexchars).
-	// A bare internal _id contains 0.
-	colonCount := strings.Count(req.ID, ":")
-
-	switch {
-	case colonCount == 5:
-		// Bare MAC: "aa:bb:cc:dd:ee:ff"
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
-	case colonCount == 6:
-		// Site-prefixed MAC: "site:aa:bb:cc:dd:ee:ff"
-		idx := strings.Index(req.ID, ":")
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site"), req.ID[:idx])...)
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID[idx+1:])...)
-	case colonCount == 1:
-		// Site-prefixed internal ID: "site:64hexchars"
-		parts := strings.SplitN(req.ID, ":", 2)
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site"), parts[0])...)
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
-	default:
-		// Bare internal ID
-		resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	site, id, err := parseClientDeviceImportID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Client Device Import ID", err.Error())
+		return
 	}
+	if site != "" {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site"), site)...)
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
+}
+
+// parseClientDeviceImportID accepts controller IDs and colon-separated MACs,
+// optionally prefixed with a site. Controller IDs remain opaque.
+func parseClientDeviceImportID(input string) (site, id string, err error) {
+	invalid := func() (string, string, error) {
+		return "", "", fmt.Errorf("Expected an internal ID, site:ID, MAC, or site:MAC; got %q.", input)
+	}
+	if input == "" || strings.ContainsAny(input, " \t\r\n") {
+		return invalid()
+	}
+	id = input
+	colonCount := strings.Count(input, ":")
+	switch colonCount {
+	case 0:
+	case 1:
+		site, id, _ = strings.Cut(input, ":")
+	case 5:
+		if !macRegexp.MatchString(id) {
+			return invalid()
+		}
+	case 6:
+		site, id, _ = strings.Cut(input, ":")
+		if !macRegexp.MatchString(id) {
+			return invalid()
+		}
+	default:
+		return invalid()
+	}
+	if id == "" || (colonCount == 1 || colonCount == 6) && site == "" {
+		return invalid()
+	}
+	return site, id, nil
 }
 
 // ---------------------------------------------------------------------------

@@ -148,6 +148,8 @@ resource "terrifi_client_device" "blocked" {
 
 | Setting | Usage | Simulated | Hardware-in-the-loop |
 | --- | --- | :---: | :---: |
+| `id` | Import by internal ID or `site:ID` | ✅ | ✅ |
+| `id` | Import by MAC or `site:MAC`, refresh, and update | ✅ | ✅ |
 | `name` | Set a client alias | ✅ | ✅ |
 | `name` | Rename a client | ✅ | ✅ |
 | `note` | Set a note | ✅ | ✅ |
@@ -173,17 +175,32 @@ Evidence: [client_device_resource_test.go](https://github.com/alexklibisz/terraf
 
 ## Import
 
-Client devices can be imported using the device ID:
+Client devices can be imported using the controller's internal device ID or a colon-separated MAC address.
+Both forms accept an optional site prefix; without one, the provider's default site is used.
+
+Import by internal ID:
 
 ```shell
 terraform import terrifi_client_device.printer <id>
 ```
 
-To import from a non-default site, use the `site:id` format:
+To specify a site, use the `site:ID` format:
 
 ```shell
 terraform import terrifi_client_device.printer <site>:<id>
 ```
+
+Import by MAC address, with or without a site prefix:
+
+```shell
+terraform import terrifi_client_device.printer aa:bb:cc:dd:ee:ff
+terraform import terrifi_client_device.printer default:aa:bb:cc:dd:ee:ff
+```
+
+MAC addresses are matched case-insensitively.
+The client must already exist on the controller in the selected site.
+The first read resolves the MAC to the controller's internal ID, which is stored in Terraform state and used for subsequent operations.
+The CLI generates imports using internal IDs.
 
 You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks for all client devices automatically:
 
