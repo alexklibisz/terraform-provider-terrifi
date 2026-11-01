@@ -124,6 +124,29 @@ The `internal/generate/` package provides the conversion logic: each resource ty
 
 1. Avoid the typical ~80-column newlines. In paragraphs, write one sentence per line. In numbered and un-numbered lists, each list item is a line with no breaks between sentences.
 
+### Release Notes
+
+Use [Scala Steward's release notes](https://github.com/scala-steward-org/scala-steward/releases) as a formatting guide and [v0.11.0](https://github.com/alexklibisz/terraform-provider-terrifi/releases/tag/v0.11.0) as a repository example.
+Start with a short paragraph highlighting the release's main user-facing changes.
+Under `## What's Changed`, group entries in this order, omitting empty categories:
+
+- `### 🚀 Features and Enhancements`
+- `### 🐛 Bug Fixes`
+- `### 📚 Documentation`
+- `### 🧪 Testing`
+- `### 🏗️ Build and Infrastructure`
+- `### 🌱 Dependency Updates`
+
+Lead with features and fixes that matter to provider users; put internal testing, CI, security, and contributor-workflow changes in the later categories.
+Describe the final released behavior and its benefit rather than copying PR titles or recounting implementation history.
+For major user-facing entries, start the bullet with a short bold summary, name the affected resources or attributes, and link to documentation when useful.
+Combine related PRs into one item when they implement or refine the same behavior, including fixes to code introduced earlier in the same release; link every contributing PR from that item.
+Group related internal changes and dependency bumps to keep them concise, and show the previous and final versions for dependency updates.
+Distinguish product fixes from test-only changes; a fix to import verification tests, for example, belongs under Testing unless provider behavior also changed.
+Account for every PR in the release range, remove duplicate generated entries, and avoid claims broader than the implementation and validation support.
+Credit contributors in the relevant entries, retain `## New Contributors` when applicable, and finish with a `Full Changelog` link comparing the previous and current release tags.
+Follow the documentation line-formatting rules above.
+
 ### Merging Pull Requests
 
 PRs are squash-merged. Never use GitHub's default squash message, which concatenates every branch commit into a bullet list. Write the message explicitly:
