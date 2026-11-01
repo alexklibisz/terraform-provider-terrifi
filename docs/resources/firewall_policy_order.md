@@ -9,7 +9,7 @@ description: |-
 
 Manages the evaluation order of firewall policies for a specific zone pair on the UniFi controller. Policies are evaluated in the order specified by `policy_ids`, before any predefined (system) policies.
 
-~> **Note:** This resource only controls ordering. The policies themselves must be created separately using `terrifi_firewall_policy`. Destroying this resource removes it from Terraform state but does not change the ordering on the controller.
+Create the policies separately using [`terrifi_firewall_policy`](firewall_policy.md).
 
 ## Example Usage
 
@@ -79,6 +79,22 @@ resource "terrifi_firewall_policy_order" "iot_to_trusted" {
 
 - `id` (String) — Synthetic ID in the format `source_zone_id:destination_zone_id`.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `source_zone_id` | Select the source zone | ◻️ | ✅ |
+| `destination_zone_id` | Select the destination zone | ◻️ | ✅ |
+| `policy_ids` | Set an initial policy order | ◻️ | ✅ |
+| `policy_ids` | Reorder existing policies | ◻️ | ✅ |
+| `policy_ids` | Verify the imported policy order | ◻️ | ❌ |
+
+Ordering acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. ◻️ The zone-based firewall v2 API requires a fully adopted gateway, which the current simulator does not provide. `TestAccFirewallPolicyOrder_import` covers resource import, but explicitly excludes `policy_ids` from import-state verification because import discovers all policies for the zone pair. It does not assert the imported policy order.
+
+Evidence: [firewall_policy_order_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_order_resource_test.go).
+
 ## Import
 
 Firewall policy ordering can be imported using the zone pair:
@@ -98,3 +114,9 @@ You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks au
 ```shell
 terrifi generate-imports terrifi_firewall_policy_order
 ```
+
+## Additional Notes
+
+### Destroy behavior
+
+Destroying this resource removes it from Terraform state but does not change the ordering on the controller.

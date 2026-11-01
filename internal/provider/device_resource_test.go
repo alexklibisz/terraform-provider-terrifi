@@ -455,6 +455,7 @@ func TestAccDeviceResource_locked(t *testing.T) {
 	requireAdoptedDevice(t)
 
 	dev := findFirstAdoptedDevice(t)
+	t.Logf("locked test targets model=%s mac=%s name=%q locked=%v", dev.Model, dev.MAC, dev.Name, dev.Locked)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -487,15 +488,17 @@ resource "terrifi_device" "test" {
 	})
 }
 
-// TestAccDeviceResource_import tests importing by MAC and site:mac.
+// TestAccDeviceResource_import tests importing by MAC and site:mac on an AP.
+// Avoid provisioning the gateway that carries the hardware controller's uplink.
 func TestAccDeviceResource_import(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
 	}
 	preCheck(t)
-	requireAdoptedDevice(t)
+	requireAdoptedAP(t)
 
-	dev := findFirstAdoptedDevice(t)
+	dev := findFirstAdoptedAP(t)
+	t.Logf("import test targets AP model=%s mac=%s", dev.Model, dev.MAC)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -508,13 +511,14 @@ resource "terrifi_device" "test" {
 }
 `, dev.MAC),
 			},
-			// Import by MAC.
+			// Import by MAC. Runtime state may change from connected to
+			// provisioning after the name update, independently of import.
 			{
 				ResourceName:            "terrifi_device.test",
 				ImportState:             true,
 				ImportStateId:           dev.MAC,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume"},
+				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume", "state"},
 			},
 			// Import by site:mac.
 			{
@@ -522,7 +526,7 @@ resource "terrifi_device" "test" {
 				ImportState:             true,
 				ImportStateId:           "default:" + dev.MAC,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume"},
+				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume", "state"},
 			},
 		},
 	})
@@ -741,7 +745,7 @@ resource "terrifi_device" "test" {
 				ImportState:             true,
 				ImportStateId:           dev.MAC,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume"},
+				ImportStateVerifyIgnore: []string{"name", "led_enabled", "led_color", "led_brightness", "outdoor_mode_override", "locked", "disabled", "snmp_contact", "snmp_location", "volume", "state"},
 			},
 			// Apply same config after import — must succeed with no errors.
 			{Config: config},

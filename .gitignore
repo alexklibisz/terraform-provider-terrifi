@@ -42,3 +42,14 @@ scratch
 /terrifi
 /unifi-device-types/
 /unifi-device-types.html
+
+# Terraform working files under examples/. Running an example leaves state
+# behind, and state can carry resource IDs and provider credentials.
+examples/**/terraform.tfstate
+examples/**/terraform.tfstate.*
+examples/**/.terraform/
+examples/**/.terraform.lock.hcl
+examples/**/crash.log
+
+# HIL controller certificate, fetched by hardware-testing/github-runner/rsync.sh
+hardware-testing/github-runner/controller.crt*

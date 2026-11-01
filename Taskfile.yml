@@ -1,5 +1,10 @@
 version: '3'
 
+includes:
+  hil:terraform:
+    taskfile: ./hardware-testing/terraform/Taskfile.yml
+    dir: ./hardware-testing/terraform
+
 vars:
   # GOBIN is where `go install` puts binaries. We need this for dev_overrides
   # to point Terraform at the built provider binary.
@@ -43,7 +48,7 @@ tasks:
     env:
       TF_ACC: "" # Set to empty value to prevent running acceptance tests.
     cmds:
-      - go test ./internal/provider/ -v -count 1 -shuffle=on {{.CLI_ARGS}}
+      - go test ./internal/provider/ ./internal/unifi/ -v -count 1 -shuffle=on {{.CLI_ARGS}}
 
   test:acc:
     desc: Run acceptance tests against Docker simulation (default)
@@ -51,7 +56,7 @@ tasks:
       TF_ACC: "1"
       TERRIFI_ACC_TARGET: docker
     cmds:
-      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 15m -run "^TestAcc" {{.CLI_ARGS}}
 
   test:acc:hardware:
     desc: Run acceptance tests against real hardware (uses env vars from .envrc.local)
@@ -59,7 +64,7 @@ tasks:
       TF_ACC: "1"
       TERRIFI_ACC_TARGET: hardware
     cmds:
-      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+      - go test ./internal/provider/ -v -count 1 -shuffle=on -timeout 15m -run "^TestAcc" {{.CLI_ARGS}}
 
   test:cli:
     desc: Run CLI + generate unit tests
@@ -76,6 +81,21 @@ tasks:
     cmds:
       - go build -o {{.GOBIN}}/terrifi ./cmd/terrifi
       - go test ./cmd/terrifi/ -v -count 1 -shuffle=on -timeout 10m -run "^TestAcc" {{.CLI_ARGS}}
+
+  test:reset:
+    desc: Test HIL reset generation and plan guards (no controller required)
+    env:
+      TF_ACC: ""
+    cmds:
+      - go test ./internal/generate/ ./cmd/terrifi-tests/ -v -count 1 {{.CLI_ARGS}}
+
+  test:reset:hardware:
+    desc: Exercise full HIL reset with disposable fixtures (run separately from acceptance tests)
+    env:
+      TF_ACC: "1"
+      TERRIFI_ACC_TARGET: hardware
+    cmds:
+      - go test ./cmd/terrifi-tests/ -v -count 1 -timeout 15m -run '^TestAccResetHIL$' {{.CLI_ARGS}}
 
   deps:
     desc: Download Go module dependencies

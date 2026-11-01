@@ -9,7 +9,7 @@ description: |-
 
 Terrifi is a Terraform provider and CLI for managing Ubiquiti UniFi network infrastructure. The provider communicates with the UniFi API to create, read, update, and delete network configuration such as DNS records, networks, WLANs, firewall zones, firewall policies, and client devices. The CLI provides tools for importing existing infrastructure into Terraform, verifying controller connectivity, and browsing the device fingerprint database.
 
-We leverage hardware-in-the-loop testing to ensure that all resources are fully functional with real UniFi hardware.
+Acceptance tests run against two targets: Simulated (a Docker controller configured for simulation mode) and Hardware-in-the-loop (a controller connected to UniFi hardware). Each resource and data-source page documents its [validation coverage](guides/validation-coverage.md) separately for these two targets.
 
 ## Example Usage
 
@@ -123,11 +123,13 @@ Supported resource types:
 |---|---|---|
 | `terrifi_client_device` | Client devices (aliases, fixed IPs, etc.) | [client_device](resources/client_device.md) |
 | `terrifi_client_group` | Client groups | [client_group](resources/client_group.md) |
+| `terrifi_device_ports` | Port profile and name assignments on device ports | [device_ports](resources/device_ports.md) |
 | `terrifi_dns_record` | DNS records | [dns_record](resources/dns_record.md) |
 | `terrifi_firewall_zone` | Firewall zones | [firewall_zone](resources/firewall_zone.md) |
 | `terrifi_firewall_policy` | Firewall policies | [firewall_policy](resources/firewall_policy.md) |
 | `terrifi_firewall_policy_order` | Firewall policy ordering | [firewall_policy_order](resources/firewall_policy_order.md) |
 | `terrifi_network` | Networks | [network](resources/network.md) |
+| `terrifi_port_profile` | Switch port profiles | [port_profile](resources/port_profile.md) |
 | `terrifi_wlan` | Wireless networks | [wlan](resources/wlan.md) |
 
 Example:
@@ -135,6 +137,25 @@ Example:
 ```sh
 terrifi generate-imports terrifi_dns_record > imports.tf
 ```
+
+Use `all` to generate every supported resource type. To include only objects
+that are not already managed by a Terraform project:
+
+```sh
+terraform show -json > current-state.json # Or: tofu show -json
+terrifi generate-imports all --exclude-state current-state.json > imports.tf
+```
+
+The state file must be `show -json` output, not raw `.tfstate` or plan JSON.
+Matching uses resource type, site, and controller ID or device MAC, including
+resources in child modules. Names and Terraform addresses do not affect matching.
+The CLI reads this snapshot; it does not inspect configuration or refresh state.
+Keep the snapshot out of Git and delete it after use because it can contain secrets.
+
+`--exclude-default-zones` omits built-in firewall zones. `--format=json` outputs
+resource block descriptions for scripts: `resource_type`, `resource_name`,
+`import_id`, `attributes`, and nested `blocks`. Attribute `value` strings contain
+HCL expressions, rather than evaluated JSON values. HCL remains the default format.
 
 This produces output like:
 

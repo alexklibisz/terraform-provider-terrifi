@@ -1,3 +1,5 @@
+# Run for Go source, dependency, workflow, and Docker Compose changes.
+# Manual runs remain available regardless of changed paths.
 name: CI - Local
 
 concurrency:
@@ -6,27 +8,53 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      test_filter:
+        description: Go test name regex (defaults to all acceptance tests)
+        type: string
+        default: '^TestAcc'
   push:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'docker-compose.yaml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'docker-compose.yaml'
+      - '.github/workflows/**'
+  # Nightly run on main. The acceptance job pulls a published UniFi controller
+  # image, so it can start failing without anything in this repo changing --
+  # a new image tag, a controller behaviour change, an upstream base-image
+  # update. Without a schedule that goes unnoticed until the next PR, which is
+  # a bad time to discover it.
+  schedule:
+    - cron: "0 6 * * *"
 
 jobs:
   main:
     name: Main
     runs-on: ubuntu-latest
+    # Only run cron jobs on the original repository, not on forks.
+    if: github.event_name != 'schedule' || github.repository == 'alexklibisz/terraform-provider-terrifi'
     steps:
       - name: Checkout
         timeout-minutes: 1
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Go
         timeout-minutes: 1
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Set up OpenTofu
         timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_wrapper: false
       - name: Configure OpenTofu for acceptance tests
@@ -35,7 +63,7 @@ jobs:
           echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
       - name: Install Task
         timeout-minutes: 1
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -50,12 +78,14 @@ jobs:
         run: task build
       - name: Unit tests
         timeout-minutes: 1
-        run: task test:unit
+        run: |
+          task test:unit
+          task test:reset
       - name: Compute Docker image cache key
         id: docker-image-key
         run: echo "hash=$(grep 'image:' docker-compose.yaml | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Cache Docker images
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: docker-cache
         with:
           path: /tmp/docker-images
@@ -78,11 +108,13 @@ jobs:
             docker save "$img" -o "/tmp/docker-images/${name}.tar"
           done
       - name: Acceptance tests (Docker)
-        timeout-minutes: 10
-        run: task test:acc
+        timeout-minutes: 20
+        env:
+          TEST_FILTER: ${{ inputs.test_filter || '^TestAcc' }}
+        run: task test:acc -- -run "$TEST_FILTER"
       - name: GoReleaser dry run
         timeout-minutes: 5
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           version: latest
           args: build --snapshot --clean

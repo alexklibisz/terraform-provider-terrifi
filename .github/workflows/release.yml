@@ -1,3 +1,6 @@
+# Builds and releases the current ref as a Github release.
+# Tags the current ref, builds the provider with GoReleaser, and publishes a
+# signed GitHub Release that the Terraform/OpenTofu registries can index.
 name: Release
 
 on:
@@ -15,8 +18,23 @@ jobs:
     name: Release
     runs-on: ubuntu-24.04
     steps:
+      # Check for expected secrets and error with a useful message instead 
+      # of failing cryptically in the build/release steps.
+      - name: Check required secrets
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          missing=
+          [ -z "$GPG_PRIVATE_KEY" ] && missing="$missing GPG_PRIVATE_KEY"
+          [ -z "$GPG_PASSPHRASE" ] && missing="$missing GPG_PASSPHRASE"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required release secret(s):$missing. See the header comment in .github/workflows/release.yml for how to set them."
+            exit 1
+          fi
+          echo "Required release secrets are present."
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Create and push tag
@@ -24,17 +42,17 @@ jobs:
           git tag "${{ github.event.inputs.tag }}"
           git push origin "${{ github.event.inputs.tag }}"
       - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v7
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
         id: import_gpg
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           version: latest
           args: release --clean

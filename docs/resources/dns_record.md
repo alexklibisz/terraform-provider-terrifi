@@ -57,6 +57,36 @@ resource "terrifi_dns_record" "minecraft" {
 
 - `id` (String) — The ID of the DNS record.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Create an A-record hostname | ✅ | ✅ |
+| `value` | Change an A-record address | ✅ | ✅ |
+| `record_type` | Set to `A` | ✅ | ✅ |
+| `record_type` | Set to `SRV` | ✅ | ✅ |
+| `record_type` | Set to `AAAA` | ✅ | ✅ |
+| `record_type` | Set to `CNAME` | ✅ | ✅ |
+| `record_type` | Set to `MX` | ✅ | ✅ |
+| `record_type` | Set to `TXT` | ✅ | ✅ |
+| `record_type` | Set to `PTR` | ◻️ | ◻️ |
+| `enabled` | Set to `false` | ✅ | ✅ |
+| `enabled` | Re-enable with `true` | ✅ | ✅ |
+| `ttl` | Set an explicit TTL | ✅ | ✅ |
+| `ttl` | Change the TTL | ✅ | ✅ |
+| `port` | Set an SRV port | ✅ | ✅ |
+| `port` | Change the SRV port | ✅ | ✅ |
+| `priority` | Set an SRV priority | ✅ | ✅ |
+| `priority` | Change the SRV priority | ✅ | ✅ |
+| `weight` | Set an SRV weight | ✅ | ✅ |
+| `weight` | Change the SRV weight | ✅ | ✅ |
+
+A, AAAA, CNAME, MX, TXT, and SRV record acceptance tests run against both controller targets. Additional-type tests cover creation, value updates, and import. Both current acceptance controllers reject a reverse-lookup PTR creation request with HTTP 400; `TestAccDNSRecord_PTRRejected` records that rejection, which does not count as successful PTR lifecycle coverage.
+
+Evidence: [dns_record_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/dns_record_resource_test.go).
+
 ## Import
 
 DNS records can be imported using the record ID:

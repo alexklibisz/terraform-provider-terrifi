@@ -1,64 +1,164 @@
-name: CI - HIL
+# Hardware-in-the-loop tests. They run on a self-hosted runner with the labels
+# `self-hosted` + `terrifi-hardware-test`, wired to a real UniFi controller —
+# infrastructure that only exists in the upstream repo. The repository guard
+# on every job keeps this inert in forks. The test steps live in
+# ci-hil-run.yaml.
+#
+# PR events run when the PR diff includes Go source, dependencies, or workflows.
+# Nightly and manual runs remain available regardless of changed paths.
+#
+# Who runs what:
+# - Cron, manual dispatch, and PRs from branches in this repo run directly.
+#   Pushing a branch here already requires write access.
+# - PRs from forks and PRs opened by Dependabot are untrusted. They run
+#   through `pull_request_target`, so this file and ci-hil-run.yaml always
+#   come from main, never from the PR. The run pauses on the
+#   `hil-fork-approval` environment until a maintainer approves it. Read the
+#   PR diff at the commit shown in the run before approving: the approved run
+#   executes that exact commit, with the UniFi API key, on the home lab
+#   runner. Every new push needs a new approval.
+# - Dependabot PRs live in this repo, but their dependency updates are
+#   unreviewed code. GitHub also gives Dependabot's `pull_request` runs only
+#   Dependabot secrets, while its `pull_request_target` runs get Actions
+#   secrets, so the gated path is the only one that can pass.
+#
+# Never add a step to this workflow that checks out or runs PR code outside
+# ci-hil-run.yaml, and never run untrusted PR code before the approval gate.
+#
+# Security model, approval checklist, and required GitHub settings:
+# hardware-testing/SECURITY.md
+#
+# To opt a fork into HIL:
+# 1. replace the repository name in each job's `if:` with your own `owner/repo`
+# 2. register a self-hosted runner with the `self-hosted` + `terrifi-hardware-test` labels, pointed at your controller
+# 3. add the `TERRIFI_HIL_TEST_UNIFI_API_KEY` secret in https://github.com/<owner/repo>/settings/secrets/actions
+# 4. add the four TERRIFI_HIL_STATE_* secrets documented in hardware-testing/terraform/README.md
+# 5. create a `hil-fork-approval` environment with yourself as a required reviewer
 
-concurrency:
-  group: ${{ github.workflow }} 
-  cancel-in-progress: false
+name: CI - HIL
 
 on:
   workflow_dispatch:
+    inputs:
+      test_filter:
+        description: Go test name regex (defaults to all acceptance tests)
+        type: string
+        default: '^TestAcc'
+      test_count:
+        description: Number of times to run each selected test
+        type: number
+        default: 1
   pull_request:
     branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
+  pull_request_target:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
   schedule:
-    - cron: '22 * * * *'
+    - cron: '33 3 * * *'
+
+# A new push to any PR supersedes its older run for the same event, including
+# a fork or Dependabot run still waiting for approval. Scheduled and manual
+# runs never cancel each other. The jobs that call ci-hil-run.yaml share the
+# `terrifi-hil-hardware` group below, which serializes complete hardware runs
+# across all events without cancelling the run using the hardware.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' ||
+        github.event_name == 'pull_request_target' }}
+
+# pull_request_target grants a write token by default. Nothing here needs it.
+permissions:
+  contents: read
 
 jobs:
-  main:
+  trusted:
     name: Main
-    runs-on:
-      - self-hosted
-      - terrifi-hardware-test
-    env:
-      # Using IP instead of hostname for reliability in the self-hosted runner.
-      UNIFI_API: https://192.168.1.3:11443
-      UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
-      UNIFI_INSECURE: true
+    # Cron, dispatch, and same-repo PRs not opened by Dependabot. Untrusted
+    # PRs also fire `pull_request`, but they get no Actions secrets there, so
+    # skip them; `untrusted` handles them. Checking the PR author rather than
+    # the actor keeps a Dependabot PR gated even after someone else pushes
+    # to it.
+    if: >-
+      github.repository == 'alexklibisz/terraform-provider-terrifi' &&
+      (github.event_name == 'schedule' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.user.login != 'dependabot[bot]'))
+    # One hardware run at a time, from cleanup-before through cleanup-after.
+    # queue: max keeps up to 100 pending runs instead of cancelling all but
+    # the newest, so a burst of PRs cannot drop a queued cron or manual run.
+    concurrency:
+      group: terrifi-hil-hardware
+      cancel-in-progress: false
+      queue: max
+    uses: ./.github/workflows/ci-hil-run.yaml
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      test_filter: ${{ inputs.test_filter || '^TestAcc' }}
+      # workflow_dispatch passes number inputs as strings, and workflow_call
+      # number inputs reject strings. fromJSON converts both cases.
+      test_count: ${{ fromJSON(inputs.test_count || '1') }}
+      send_heartbeat: ${{ github.event_name == 'schedule' }}
+    secrets:
+      unifi_api_key: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
+      state_bucket: ${{ secrets.TERRIFI_HIL_STATE_BUCKET }}
+      state_endpoint: ${{ secrets.TERRIFI_HIL_STATE_ENDPOINT }}
+      state_access_key_id: ${{ secrets.TERRIFI_HIL_STATE_ACCESS_KEY_ID }}
+      state_secret_access_key: ${{ secrets.TERRIFI_HIL_STATE_SECRET_ACCESS_KEY }}
+      heartbeat_url: ${{ secrets.TERRIFI_HIL_HEARTBEAT_URL }}
+
+  untrusted-approval:
+    name: Fork or Dependabot PR approval
+    if: >-
+      github.repository == 'alexklibisz/terraform-provider-terrifi' &&
+      github.event_name == 'pull_request_target' &&
+      (github.event.pull_request.head.repo.full_name != github.repository ||
+       github.event.pull_request.user.login == 'dependabot[bot]')
+    # Required reviewers on this environment are the gate. This job runs on a
+    # GitHub-hosted runner so a run waiting for approval never occupies the
+    # hardware runner.
+    environment: hil-fork-approval
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        timeout-minutes: 1
-        uses: actions/checkout@v4
-      - name: Set up Go
-        timeout-minutes: 1
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: Set up OpenTofu
-        timeout-minutes: 1
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_wrapper: false
-      - name: Configure OpenTofu for acceptance tests
+      - name: Record approved commit
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        # Block scalar: in a plain YAML scalar, " #" starts a comment and
+        # truncates the command.
         run: |
-          echo "TF_ACC_TERRAFORM_PATH=$(which tofu)" >> "$GITHUB_ENV"
-          echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
-      - name: Install Task
-        timeout-minutes: 1
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check UniFi API key
-        timeout-minutes: 1
-        run: task checkAPIConnection
-      - name: Download Go dependencies
-        timeout-minutes: 10
-        run: task deps
-      - name: Build
-        timeout-minutes: 10
-        run: task build
-      - name: Cleanup leftover test resources
-        timeout-minutes: 5
-        run: go run ./cmd/terrifi-tests cleanup
-      - name: Acceptance tests (HIL)
-        timeout-minutes: 10
-        run: task test:acc:hardware
+          echo "Approved HIL run for PR #$PR_NUMBER at $HEAD_REPO@$HEAD_SHA"
+
+  untrusted:
+    name: Fork or Dependabot PR
+    needs: untrusted-approval
+    # Same group as `trusted`. Joined only after approval, so a run waiting
+    # for a maintainer never holds the hardware.
+    concurrency:
+      group: terrifi-hil-hardware
+      cancel-in-progress: false
+      queue: max
+    uses: ./.github/workflows/ci-hil-run.yaml
+    with:
+      # The exact commit the event was created for. A later push creates a
+      # new run that needs its own approval.
+      ref: ${{ github.event.pull_request.head.sha }}
+      untrusted_pr: true
+    secrets:
+      unifi_api_key: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
+      state_bucket: ${{ secrets.TERRIFI_HIL_STATE_BUCKET }}
+      state_endpoint: ${{ secrets.TERRIFI_HIL_STATE_ENDPOINT }}
+      state_access_key_id: ${{ secrets.TERRIFI_HIL_STATE_ACCESS_KEY_ID }}
+      state_secret_access_key: ${{ secrets.TERRIFI_HIL_STATE_SECRET_ACCESS_KEY }}

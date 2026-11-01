@@ -1,3 +1,17 @@
+# Builds and publishes the device-types GitHub Pages site. It runs on the
+# self-hosted HIL runner (it needs a real controller to enumerate device
+# types) and deploys to the upstream repo's Pages environment. The `if:`
+# guard keeps it inert in forks: without it, a push to a fork's main touching
+# the watched paths queues a job that can't schedule (no runner, no Pages
+# env, no secret), leaving a permanent red X on the fork's history.
+#
+# To opt a fork in:
+# 1. replace the repository name in the `if:` guard
+# 2. register a self-hosted runner (see ci-hil.yaml)
+# 3. enable Github Pages in https://github.com/<owner/repo>/settings/pages
+# 4. add the TERRIFI_HIL_TEST_UNIFI_API_KEY secret in 
+#    https://github.com/<owner/repo>/settings/secrets/actions.
+
 name: Deploy Site
 
 on:
@@ -21,24 +35,26 @@ concurrency:
 jobs:
   deploy:
     name: Deploy
+    # Skip everywhere except the upstream repo — see header.
+    if: github.repository == 'alexklibisz/terraform-provider-terrifi'
     runs-on:
       - self-hosted
       - terrifi-hardware-test
     env:
-      UNIFI_API: https://192.168.1.3:11443
+      # Resolved and trusted by the runner image; see ci-hil-run.yaml.
+      UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.TERRIFI_HIL_TEST_UNIFI_API_KEY }}
-      UNIFI_INSECURE: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         timeout-minutes: 1
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
         timeout-minutes: 1
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: false
@@ -55,10 +71,10 @@ jobs:
         run: cp -r unifi-device-types site/device-types
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
