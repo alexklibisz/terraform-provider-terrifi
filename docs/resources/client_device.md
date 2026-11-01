@@ -176,7 +176,10 @@ Evidence: [client_device_resource_test.go](https://github.com/alexklibisz/terraf
 ## Import
 
 Client devices can be imported using the controller's internal device ID or a colon-separated MAC address.
-Both forms accept an optional site prefix; without one, the provider's default site is used.
+Both forms accept an optional site prefix.
+Without a prefix, the import uses the provider's `site` setting, falling back to `UNIFI_SITE`, then `default` if neither is set.
+Terrifi looks up the client only in that site; it does not search other sites or move the client between sites.
+The resolved site is saved in Terraform state during the first read.
 
 Import by internal ID:
 
