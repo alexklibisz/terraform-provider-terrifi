@@ -78,3 +78,9 @@ func (c *APIClient) DeleteFirewallZone(ctx context.Context, site string, id stri
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone/%s", c.BaseURL, c.APIPath, site, id),
 		struct{}{}, nil)
 }
+
+func (c *APIClient) ListFirewallZone(ctx context.Context, site string) ([]FirewallZone, error) {
+	var data []FirewallZone
+	err := c.Do(ctx, http.MethodGet, fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", c.BaseURL, c.APIPath, site), nil, &data)
+	return data, err
+}

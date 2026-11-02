@@ -173,3 +173,13 @@ func MergeNetwork(existing map[string]json.RawMessage, managed map[string]any) (
 	}
 	return existing, nil
 }
+
+func (c *APIClient) DeleteNetwork(ctx context.Context, site, id, name string) error {
+	var response struct {
+		Meta json.RawMessage `json:"meta"`
+	}
+	if err := c.doV1Request(ctx, http.MethodDelete, c.NetworkURL(site, id), map[string]string{"name": name}, &response); err != nil {
+		return err
+	}
+	return CheckV1Meta(response.Meta)
+}
