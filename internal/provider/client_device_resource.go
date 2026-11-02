@@ -112,16 +112,16 @@ func (r *clientDeviceResource) Schema(
 					"set it, whatever note the controller already holds (for example one added " +
 					"through the UI) is adopted into state instead of being reported as drift. " +
 					"Removing `note` from the configuration therefore does not clear it on the " +
-					"controller — the API exposes no clear-a-note operation.",
+					"controller; the provider does not support clearing notes.",
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
-					// The controller drops an empty note from the request body, so it
-					// would read back as null and contradict a planned "". Reject it at
-					// validate time rather than failing after apply.
+					// buildClientDeviceRequest omits an empty note from the request
+					// body, so it would read back as null and contradict a planned "".
+					// Reject it at validate time rather than failing after apply.
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
