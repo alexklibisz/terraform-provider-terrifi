@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/require"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 func clientDeviceImportState(t *testing.T, r *clientDeviceResource, id string) resource.ImportStateResponse {

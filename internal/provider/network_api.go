@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // ipv6RaPreferredLifetimeStringRE matches `"ipv6_ra_preferred_lifetime": "<digits>"`

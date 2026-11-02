@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // Verifies the workaround that strips quotes from string-encoded
@@ -81,12 +81,12 @@ func TestFixNetworkBytes_decodesIntoUnifiNetwork(t *testing.T) {
 		}]
 	}`
 
-	// Sanity: raw payload fails to decode without the workaround.
+	// The local contract decodes the controller response directly.
 	var rawEnvelope struct {
 		Data []unifi.Network `json:"data"`
 	}
 	rawErr := json.Unmarshal([]byte(payload), &rawEnvelope)
-	require.Error(t, rawErr, "expected SDK to reject string ipv6_ra_preferred_lifetime without workaround")
+	require.NoError(t, rawErr, "local contract accepts string-encoded IPv6 lifetimes")
 
 	patched := fixNetworkBytes([]byte(payload))
 	var envelope struct {

@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // clientDeviceRequest is the payload for POST/PUT to api/s/{site}/rest/user.

@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 var _ datasource.DataSource = &deviceDataSource{}

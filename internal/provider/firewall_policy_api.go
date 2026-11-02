@@ -31,7 +31,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // firewallPolicyCreateRequest is the payload for POST /v2/api/site/{site}/firewall-policies.

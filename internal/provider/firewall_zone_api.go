@@ -39,7 +39,7 @@ import (
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // firewallZoneCreateRequest is the minimal payload for POST /v2/api/site/{site}/firewall/zone.

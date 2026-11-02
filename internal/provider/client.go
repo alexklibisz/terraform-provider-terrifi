@@ -15,7 +15,6 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	ui "github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // Client wraps the go-unifi API client with site information.
@@ -23,13 +22,12 @@ import (
 // and CRUD methods for every UniFi API endpoint. We wrap it to carry the default site
 // name alongside the API client so resources can fall back to it.
 type Client struct {
-	*ui.ApiClient
 	Site    string
 	BaseURL string
 	APIPath string // API path prefix, e.g. "/proxy/network" for UniFi OS, empty for legacy
 	APIKey  string // Stored separately because the SDK's apiKey field is private
 	HTTP    *retryablehttp.Client
-	csrf    string // CSRF token for custom v2/v1 API requests that bypass the SDK
+	csrf    string         // CSRF token for custom v2/v1 API requests that bypass the SDK
 	cache   *responseCache // nil when response caching is disabled (zero overhead)
 }
 
@@ -47,13 +45,13 @@ func (c *Client) SiteOrDefault(site types.String) string {
 // UniFi API client. It can be populated from Terraform attributes, env vars,
 // or both (via ClientConfigFromEnv).
 type ClientConfig struct {
-	APIURL           string
-	Username         string
-	Password         string
-	APIKey           string
-	Site             string
-	AllowInsecure    bool
-	ResponseCaching  bool
+	APIURL          string
+	Username        string
+	Password        string
+	APIKey          string
+	Site            string
+	AllowInsecure   bool
+	ResponseCaching bool
 }
 
 // ClientConfigFromEnv reads UniFi connection configuration from environment
@@ -97,23 +95,6 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("either API key or both username and password are required")
 	}
 
-	// Create the SDK client using the v1.33.36+ constructor.
-	// This handles HTTP setup, TLS, login, and API path discovery internally.
-	sdkClient, err := ui.New(ctx, &ui.Config{
-		BaseURL:       cfg.APIURL,
-		APIKey:        cfg.APIKey,
-		Username:      cfg.Username,
-		Password:      cfg.Password,
-		AllowInsecure: cfg.AllowInsecure,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("initializing SDK client: %w", err)
-	}
-
-	// Create a separate HTTP client for custom v2/v1 API requests that bypass
-	// the SDK (firewall zones, firewall policies, client devices). The SDK
-	// doesn't expose its internal HTTP client or CSRF token, so we maintain
-	// our own authenticated session for these requests.
 	httpClient := newRetryableHTTPClient(cfg.AllowInsecure)
 
 	apiPath, err := discoverAPIPath(ctx, httpClient, cfg.APIURL)
@@ -139,14 +120,13 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 	}
 
 	return &Client{
-		ApiClient: sdkClient,
-		Site:      cfg.Site,
-		BaseURL:   cfg.APIURL,
-		APIPath:   apiPath,
-		APIKey:    cfg.APIKey,
-		HTTP:      httpClient,
-		csrf:      csrf,
-		cache:     cache,
+		Site:    cfg.Site,
+		BaseURL: cfg.APIURL,
+		APIPath: apiPath,
+		APIKey:  cfg.APIKey,
+		HTTP:    httpClient,
+		csrf:    csrf,
+		cache:   cache,
 	}, nil
 }
 

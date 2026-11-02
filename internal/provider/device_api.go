@@ -37,7 +37,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // deviceUpdatePayload contains only the fields the device resource manages.
