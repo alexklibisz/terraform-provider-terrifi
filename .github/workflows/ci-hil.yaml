@@ -26,13 +26,13 @@
 # ci-hil-run.yaml, and never run untrusted PR code before the approval gate.
 #
 # Security model, approval checklist, and required GitHub settings:
-# hardware-testing/SECURITY.md
+# testing/hardware/SECURITY.md
 #
 # To opt a fork into HIL:
 # 1. replace the repository name in each job's `if:` with your own `owner/repo`
 # 2. register a self-hosted runner with the `self-hosted` + `terrifi-hardware-test` labels, pointed at your controller
 # 3. add the `TERRIFI_HIL_TEST_UNIFI_API_KEY` secret in https://github.com/<owner/repo>/settings/secrets/actions
-# 4. add the four TERRIFI_HIL_STATE_* secrets documented in hardware-testing/terraform/README.md
+# 4. add the four TERRIFI_HIL_STATE_* secrets documented in testing/hardware/terraform/README.md
 # 5. create a `hil-fork-approval` environment with yourself as a required reviewer
 
 name: CI - HIL
@@ -55,7 +55,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/**'
-      - 'hardware-testing/terraform/**'
+      - 'testing/hardware/terraform/**'
   pull_request_target:
     branches: [main]
     paths:
@@ -63,7 +63,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/**'
-      - 'hardware-testing/terraform/**'
+      - 'testing/hardware/terraform/**'
   schedule:
     - cron: '33 3 * * *'
 

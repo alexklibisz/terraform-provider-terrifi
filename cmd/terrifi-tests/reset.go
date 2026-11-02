@@ -22,7 +22,7 @@ func resetCmd() *cobra.Command {
 			return runReset(cmd.Context(), dir, tf, cli)
 		},
 	}
-	cmd.Flags().StringVar(&dir, "terraform-dir", "hardware-testing/terraform", "Baseline Terraform directory")
+	cmd.Flags().StringVar(&dir, "terraform-dir", "testing/hardware/terraform", "Baseline Terraform directory")
 	cmd.Flags().StringVar(&tf, "terraform", "tofu", "Terraform/OpenTofu executable")
 	cmd.Flags().StringVar(&cli, "terrifi", "terrifi", "Terrifi CLI executable")
 	return cmd

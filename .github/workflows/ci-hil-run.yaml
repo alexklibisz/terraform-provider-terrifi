@@ -21,7 +21,7 @@
 #   heartbeat URL.
 # - The caller restricts GITHUB_TOKEN to `contents: read`.
 #
-# See hardware-testing/SECURITY.md for the full security model.
+# See testing/hardware/SECURITY.md for the full security model.
 
 name: CI - HIL (run)
 
@@ -100,7 +100,7 @@ jobs:
       BASELINE_REF: ${{ inputs.untrusted_pr && 'main' || inputs.ref }}
       # unifi.local is the name on the controller's self-signed certificate.
       # Runner containers resolve it to the controller's LAN address and trust
-      # the certificate (see hardware-testing/github-runner/rsync.sh), so TLS is
+      # the certificate (see testing/hardware/github-runner/rsync.sh), so TLS is
       # verified and API traffic stays on the HIL LAN.
       UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
@@ -134,7 +134,7 @@ jobs:
         # version from its GitHub release. The baseline lock file still pins
         # the package hashes, so the reset's readonly init rejects any mismatch.
         timeout-minutes: 2
-        working-directory: hil-baseline/hardware-testing/terraform
+        working-directory: hil-baseline/testing/hardware/terraform
         run: ./provider-mirror.sh --configure "$RUNNER_TEMP/terrifi-provider-mirror"
       - name: Reset HIL baseline
         timeout-minutes: 10
@@ -158,7 +158,7 @@ jobs:
     env:
       # unifi.local is the name on the controller's self-signed certificate.
       # Runner containers resolve it to the controller's LAN address and trust
-      # the certificate (see hardware-testing/github-runner/rsync.sh), so TLS is
+      # the certificate (see testing/hardware/github-runner/rsync.sh), so TLS is
       # verified and API traffic stays on the HIL LAN.
       UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}
@@ -222,7 +222,7 @@ jobs:
       BASELINE_REF: ${{ needs.cleanup-before.outputs.baseline_sha }}
       # unifi.local is the name on the controller's self-signed certificate.
       # Runner containers resolve it to the controller's LAN address and trust
-      # the certificate (see hardware-testing/github-runner/rsync.sh), so TLS is
+      # the certificate (see testing/hardware/github-runner/rsync.sh), so TLS is
       # verified and API traffic stays on the HIL LAN.
       UNIFI_API: https://unifi.local:11443
       UNIFI_API_KEY: ${{ secrets.unifi_api_key }}

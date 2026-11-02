@@ -4,7 +4,7 @@
 
 ## Overview
 
-Terrifi uses hardware-in-the-loop (HIL) testing to exercise the provider against a real controller connected to UniFi hardware. Resource and data-source pages list their [validation coverage](../docs/guides/validation-coverage.md) separately for Simulated and Hardware-in-the-loop targets: ✅ covered, ❌ not covered, ◻️ unavailable on this target, and ⚠️ conditional. Applying settings and checking controller readback is sufficient for coverage on either target.
+Terrifi uses hardware-in-the-loop (HIL) testing to exercise the provider against a real controller connected to UniFi hardware. Resource and data-source pages list their [validation coverage](../../docs/guides/validation-coverage.md) separately for Simulated and Hardware-in-the-loop targets: ✅ covered, ❌ not covered, ◻️ unavailable on this target, and ⚠️ conditional. Applying settings and checking controller readback is sufficient for coverage on either target.
 
 The continuous integration suite has a series of acceptance tests (aka integration tests) which run against two targets:
 
@@ -82,10 +82,10 @@ See the subdirectory READMEs for setup instructions:
 The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests
 that target `main` and change at least one `.go` file anywhere in the repository,
 the root `go.mod` or `go.sum`, any file under `.github/workflows/`, or any file
-under `hardware-testing/terraform/`. This includes Go test files, deleted Go
+under `testing/hardware/terraform/`. This includes Go test files, deleted Go
 files, dependency-only changes, workflow changes, and HIL baseline changes.
 Documentation-only PRs skip HIL, including the approval gate, unless they change
-documentation under `hardware-testing/terraform/`. Use manual dispatch when
+documentation under `testing/hardware/terraform/`. Use manual dispatch when
 skipped changes need hardware validation; nightly runs remain unconditional.
 
 The path filter uses the whole PR diff, not just the latest commit. A docs-only

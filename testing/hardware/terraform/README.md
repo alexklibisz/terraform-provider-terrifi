@@ -50,7 +50,7 @@ The ignored `.env` file is not copied into the worktree, so load the environment
 ```sh
 git worktree add /tmp/terrifi-hil-reset HEAD
 cd /tmp/terrifi-hil-reset
-hardware-testing/terraform/provider-mirror.sh --configure /tmp/terrifi-mirror
+testing/hardware/terraform/provider-mirror.sh --configure /tmp/terrifi-mirror
 task build:cli
 task hil:terraform:reset
 cd - && git worktree remove --force /tmp/terrifi-hil-reset

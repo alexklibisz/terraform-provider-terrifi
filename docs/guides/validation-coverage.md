@@ -44,7 +44,7 @@ A skipped test provides no validation for that run. Optional tests that require 
 
 The tables list specific uses and known gaps rather than every possible value or operation. An unlisted usage has no coverage claim. Shared resource identity fields such as `id` and `site` are generally omitted.
 
-See the [HIL setup](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/hardware-testing/README.md) for equipment details, and the [Docker CI](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/ci-local.yaml) and [HIL CI](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/ci-hil.yaml) runs for execution results.
+See the [HIL setup](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/testing/hardware/README.md) for equipment details, and the [Simulated CI](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/ci-simulated.yaml) and [HIL CI](https://github.com/alexklibisz/terraform-provider-terrifi/actions/workflows/ci-hil.yaml) runs for execution results.
 
 ## Keeping coverage current
 
