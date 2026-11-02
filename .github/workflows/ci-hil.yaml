@@ -55,6 +55,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/**'
+      - 'hardware-testing/terraform/**'
   pull_request_target:
     branches: [main]
     paths:
@@ -62,6 +63,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/**'
+      - 'hardware-testing/terraform/**'
   schedule:
     - cron: '33 3 * * *'
 
