@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -1955,4 +1956,105 @@ resource "terrifi_client_device" "test" {
 			},
 		},
 	})
+}
+
+// Persist the second import to exercise refresh and update using imported state.
+func TestAccClientDevice_importByMAC(t *testing.T) {
+	for _, withSite := range []bool{false, true} {
+		t.Run(fmt.Sprintf("site=%t", withSite), func(t *testing.T) {
+			mac, otherMAC := randomMAC(), randomMAC()
+			vlan := randomVLAN()
+			fixedIP := fmt.Sprintf("10.%d.%d.100", vlan/256, vlan%256)
+			network := fmt.Sprintf(`
+resource "terrifi_network" "test" {
+ name = %q
+ purpose = "corporate"
+ vlan_id = %d
+ subnet = "10.%d.%d.1/24"
+ dhcp_enabled = true
+ dhcp_start = "10.%d.%d.6"
+ dhcp_stop = "10.%d.%d.254"
+}
+`, "tfacc-import-mac-"+randomSuffix(), vlan, vlan/256, vlan%256, vlan/256, vlan%256, vlan/256, vlan%256)
+			other := network + fmt.Sprintf(`
+resource "terrifi_client_device" "other" {
+ mac = %q
+ name = "tfacc-import-other"
+}
+`, otherMAC)
+			config := func(name string) string {
+				return other + fmt.Sprintf(`
+resource "terrifi_client_device" "test" {
+ mac = %q
+ name = %q
+ fixed_ip = %q
+ network_id = terrifi_network.test.id
+}
+`, mac, name, fixedIP)
+			}
+			var originalID, importID string
+			resource.Test(t, resource.TestCase{
+				PreCheck:                 func() { preCheck(t) },
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{Config: config("tfacc-import-mac"), Check: func(s *terraform.State) error {
+						rs := s.RootModule().Resources["terrifi_client_device.test"]
+						originalID = rs.Primary.ID
+						importID = strings.ToUpper(mac)
+						if withSite {
+							importID = rs.Primary.Attributes["site"] + ":" + importID
+						}
+						return nil
+					}},
+					{
+						ResourceName:      "terrifi_client_device.test",
+						ImportState:       true,
+						ImportStateVerify: true,
+						ImportStateIdFunc: func(_ *terraform.State) (string, error) { return importID, nil },
+					},
+					{Config: other + `
+removed {
+ from = terrifi_client_device.test
+ lifecycle { destroy = false }
+}
+`},
+					{
+						Config:             config("tfacc-import-mac"),
+						ResourceName:       "terrifi_client_device.test",
+						ImportState:        true,
+						ImportStatePersist: true,
+						ImportStateIdFunc:  func(_ *terraform.State) (string, error) { return importID, nil },
+						ImportStateCheck: func(states []*terraform.InstanceState) error {
+							for _, state := range states {
+								if state.Attributes["mac"] == mac {
+									if state.ID != originalID {
+										return fmt.Errorf("imported ID = %q; want %q", state.ID, originalID)
+									}
+									return nil
+								}
+							}
+							return fmt.Errorf("imported client %s not found", mac)
+						},
+					},
+					{RefreshState: true, Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("terrifi_client_device.test", "mac", mac),
+						resource.TestCheckResourceAttr("terrifi_client_device.test", "fixed_ip", fixedIP),
+						resource.TestCheckResourceAttrPair("terrifi_client_device.test", "network_id", "terrifi_network.test", "id"),
+					)},
+					{Config: config("tfacc-import-mac"), PlanOnly: true},
+					{Config: config("tfacc-import-renamed"), Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr("terrifi_client_device.test", "name", "tfacc-import-renamed"),
+						resource.TestCheckResourceAttr("terrifi_client_device.other", "name", "tfacc-import-other"),
+						func(s *terraform.State) error {
+							if got := s.RootModule().Resources["terrifi_client_device.test"].Primary.ID; got != originalID {
+								return fmt.Errorf("client was replaced: %q; want %q", got, originalID)
+							}
+							return nil
+						},
+					)},
+					{Config: config("tfacc-import-renamed"), PlanOnly: true},
+				},
+			})
+		})
+	}
 }

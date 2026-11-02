@@ -135,6 +135,9 @@ func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Cl
 	if err != nil {
 		return nil, err
 	}
+	if err := checkV1Meta(respBody.Meta); err != nil {
+		return nil, err
+	}
 	return respBody.Data, nil
 }
 
