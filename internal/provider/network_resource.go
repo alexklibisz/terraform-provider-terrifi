@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -27,6 +28,13 @@ var (
 	_ resource.ResourceWithImportState = &networkResource{}
 	_ resource.ResourceWithModifyPlan  = &networkResource{}
 )
+
+// networkDeleteMu serializes network deletes. On delete, the controller
+// removes the network's ID from every port profile's exclude list, and when
+// several networks are deleted concurrently some of those removals are lost,
+// leaving IDs of deleted networks behind (observed on UniFi OS 5.1 / Network
+// 10.x).
+var networkDeleteMu sync.Mutex
 
 func NewNetworkResource() resource.Resource {
 	return &networkResource{}
@@ -150,7 +158,7 @@ func (r *networkResource) Schema(
 			},
 
 			"dhcp_dns": schema.ListAttribute{
-				MarkdownDescription: "List of DNS servers for DHCP clients. Maximum 4 servers.",
+				MarkdownDescription: "List of DNS servers for DHCP clients. Maximum 4 servers. Set to an empty list to clear all custom DNS servers; omit to use the controller value.",
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
@@ -259,10 +267,11 @@ func (r *networkResource) Update(
 	r.applyPlanToState(&plan, &state)
 
 	site := r.client.SiteOrDefault(state.Site)
-	network := r.modelToAPI(ctx, &state)
-	network.ID = state.ID.ValueString()
 
-	updated, err := r.client.UpdateNetwork(ctx, site, network)
+	// Only the attributes this resource manages are written; every other field
+	// (IPv6, mDNS, IGMP snooping, DHCP relay, enabled, ...) keeps the value the
+	// controller has, including changes made in the UniFi UI.
+	updated, err := r.client.UpdateNetworkManaged(ctx, site, state.ID.ValueString(), r.managedFields(ctx, &state))
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Network", err.Error())
 		return
@@ -285,7 +294,9 @@ func (r *networkResource) Delete(
 
 	site := r.client.SiteOrDefault(state.Site)
 
+	networkDeleteMu.Lock()
 	err := r.client.DeleteNetwork(ctx, site, state.ID.ValueString(), state.Name.ValueString())
+	networkDeleteMu.Unlock()
 	if err != nil {
 		resp.Diagnostics.AddError("Error Deleting Network", err.Error())
 	}
@@ -389,6 +400,68 @@ func (r *networkResource) applyPlanToState(plan, state *networkResourceModel) {
 	if !plan.InternetAccessEnabled.IsNull() && !plan.InternetAccessEnabled.IsUnknown() {
 		state.InternetAccessEnabled = plan.InternetAccessEnabled
 	}
+}
+
+// managedFields returns the controller fields this resource manages, keyed by
+// their JSON name, for a read-modify-write update. Unset (null or unknown)
+// attributes are left out, so the stored value is kept. A known dhcp_dns list
+// sets all four slots, with "" for the unused ones so dropped servers are
+// cleared.
+func (r *networkResource) managedFields(ctx context.Context, m *networkResourceModel) map[string]any {
+	set := func(v attr.Value) bool { return !v.IsNull() && !v.IsUnknown() }
+	f := map[string]any{"purpose": m.Purpose.ValueString()}
+
+	if set(m.Name) {
+		f["name"] = m.Name.ValueString()
+	}
+	if set(m.VLANId) {
+		vlan := m.VLANId.ValueInt64()
+		f["vlan"] = vlan
+		f["vlan_enabled"] = vlan > 0
+	}
+	if set(m.NetworkGroup) {
+		f["networkgroup"] = m.NetworkGroup.ValueString()
+	}
+
+	// Subnet and DHCP only apply to corporate networks, as in modelToAPI.
+	if m.Purpose.ValueString() != "corporate" {
+		return f
+	}
+	// In "auto" mode the controller recomputes settings such as the DHCP range
+	// and would override the ones written here, so managed corporate networks
+	// stay in "manual" mode (as Create does, see
+	// applySDKSettingPreferenceWorkaround).
+	f["setting_preference"] = "manual"
+	if set(m.Subnet) {
+		f["ip_subnet"] = m.Subnet.ValueString()
+	}
+	if set(m.DHCPEnabled) {
+		f["dhcpd_enabled"] = m.DHCPEnabled.ValueBool()
+	}
+	if set(m.DHCPStart) {
+		f["dhcpd_start"] = m.DHCPStart.ValueString()
+	}
+	if set(m.DHCPStop) {
+		f["dhcpd_stop"] = m.DHCPStop.ValueString()
+	}
+	if set(m.DHCPLease) {
+		f["dhcpd_leasetime"] = m.DHCPLease.ValueInt64()
+	}
+	if set(m.DHCPDns) {
+		var servers []types.String
+		m.DHCPDns.ElementsAs(ctx, &servers, false)
+		for i := 0; i < 4; i++ {
+			v := ""
+			if i < len(servers) {
+				v = servers[i].ValueString()
+			}
+			f[fmt.Sprintf("dhcpd_dns_%d", i+1)] = v
+		}
+	}
+	if set(m.InternetAccessEnabled) {
+		f["internet_access_enabled"] = m.InternetAccessEnabled.ValueBool()
+	}
+	return f
 }
 
 func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceModel) *unifi.Network {
@@ -560,6 +633,10 @@ func (r *networkResource) apiToModel(ctx context.Context, net *unifi.Network, m 
 				dnsValues = append(dnsValues, types.StringValue(dns))
 			}
 			m.DHCPDns = types.ListValueMust(types.StringType, toAttrValues(dnsValues))
+		} else if !m.DHCPDns.IsNull() && !m.DHCPDns.IsUnknown() && len(m.DHCPDns.Elements()) == 0 {
+			// Preserve an explicitly configured empty list through apply and
+			// refresh. Returning null would disagree with dhcp_dns = [].
+			m.DHCPDns = types.ListValueMust(types.StringType, nil)
 		} else {
 			m.DHCPDns = types.ListNull(types.StringType)
 		}

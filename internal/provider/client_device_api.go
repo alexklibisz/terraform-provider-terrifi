@@ -135,30 +135,27 @@ func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Cl
 	if err != nil {
 		return nil, err
 	}
-	return respBody.Data, nil
-}
-
-// GetClientDeviceByMAC looks up a client device by MAC address. This is needed
-// when the controller auto-cleans a user record (common for non-connected MACs)
-// but the MAC still exists in the client table with a different ID.
-func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac string) (*unifi.Client, error) {
-	var respBody struct {
-		Meta json.RawMessage `json:"meta"`
-		Data []unifi.Client  `json:"data"`
-	}
-	err := c.doV1Request(ctx, http.MethodGet,
-		fmt.Sprintf("%s%s/api/s/%s/rest/user?mac=%s", c.BaseURL, c.APIPath, site, mac),
-		nil, &respBody)
-	if err != nil {
-		return nil, err
-	}
 	if err := checkV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
-	if len(respBody.Data) != 1 {
-		return nil, &unifi.NotFoundError{}
+	return respBody.Data, nil
+}
+
+// GetClientDeviceByMAC looks up a client device by MAC address. The REST API's
+// ?mac= query parameter is not honored by all controller versions, so this
+// falls back to listing all users and filtering client-side.
+func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac string) (*unifi.Client, error) {
+	mac = strings.ToLower(mac)
+	clients, err := c.ListClientDevices(ctx, site)
+	if err != nil {
+		return nil, err
 	}
-	return &respBody.Data[0], nil
+	for i := range clients {
+		if strings.ToLower(clients[i].MAC) == mac {
+			return &clients[i], nil
+		}
+	}
+	return nil, &unifi.NotFoundError{}
 }
 
 // ForgetClientDevicesByMAC removes one or more known client devices via the

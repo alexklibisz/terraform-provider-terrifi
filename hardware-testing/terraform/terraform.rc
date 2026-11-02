@@ -1,0 +1,4 @@
+# Use the pinned release even when the parent repo enables dev_overrides.
+provider_installation {
+  direct {}
+}

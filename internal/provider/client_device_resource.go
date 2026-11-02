@@ -107,8 +107,23 @@ func (r *clientDeviceResource) Schema(
 			},
 
 			"note": schema.StringAttribute{
-				MarkdownDescription: "A free-text note for the client device.",
-				Optional:            true,
+				MarkdownDescription: "A free-text note for the client device.\n\n" +
+					"This attribute is optional *and* computed: when the configuration does not " +
+					"set it, whatever note the controller already holds (for example one added " +
+					"through the UI) is adopted into state instead of being reported as drift. " +
+					"Removing `note` from the configuration therefore does not clear it on the " +
+					"controller; the provider does not support clearing notes.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					// buildClientDeviceRequest omits an empty note from the request
+					// body, so it would read back as null and contradict a planned "".
+					// Reject it at validate time rather than failing after apply.
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 
 			"fixed_ip": schema.StringAttribute{
@@ -264,14 +279,28 @@ func (r *clientDeviceResource) Read(
 		return
 	}
 
-	// Save fields before the API call that need to be restored after apiToModel.
+	// Initial imports contain only ID/site. Retain controller values on that
+	// first read; ordinary refreshes preserve fields that the API may omit or
+	// derive from network_override_id rather than the configured network_id.
+	importing := state.MAC.IsNull() || state.MAC.IsUnknown()
 	priorGroupIDs := state.ClientGroupIDs
 	priorNetworkID := state.NetworkID
 	priorDeviceTypeID := state.DeviceTypeID
 
 	site := r.client.SiteOrDefault(state.Site)
 
-	apiObj, err := r.client.GetClientDevice(ctx, site, state.ID.ValueString())
+	// Import sets the ID to a MAC address, but GetClientDevice expects the
+	// controller's internal _id. Detect MAC format and use the MAC lookup
+	// endpoint instead. After the first successful read, apiToModel sets
+	// ID to the internal _id, so subsequent reads use the direct path.
+	id := state.ID.ValueString()
+	var apiObj *unifi.Client
+	var err error
+	if macRegexp.MatchString(id) {
+		apiObj, err = r.client.GetClientDeviceByMAC(ctx, site, id)
+	} else {
+		apiObj, err = r.client.GetClientDevice(ctx, site, id)
+	}
 	if err != nil {
 		if _, ok := err.(*unifi.NotFoundError); ok {
 			resp.State.RemoveResource(ctx)
@@ -279,14 +308,16 @@ func (r *clientDeviceResource) Read(
 		}
 		resp.Diagnostics.AddError(
 			"Error Reading Client Device",
-			fmt.Sprintf("Could not read client device %s: %s", state.ID.ValueString(), err.Error()),
+			fmt.Sprintf("Could not read client device %s: %s", id, err.Error()),
 		)
 		return
 	}
 
 	r.apiToModel(apiObj, &state, site)
-	state.ClientGroupIDs = priorGroupIDs
-	state.NetworkID = priorNetworkID
+	if !importing {
+		state.ClientGroupIDs = priorGroupIDs
+		state.NetworkID = priorNetworkID
+	}
 
 	// Read fingerprint override via the v2 client info API. This may fail for
 	// clients that have never connected (404) — treat as no override. Other
@@ -424,15 +455,48 @@ func (r *clientDeviceResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	parts := strings.SplitN(req.ID, ":", 2)
-
-	if len(parts) == 2 {
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site"), parts[0])...)
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	site, id, err := parseClientDeviceImportID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Client Device Import ID", err.Error())
 		return
 	}
+	if site != "" {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("site"), site)...)
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
+}
 
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+// parseClientDeviceImportID accepts controller IDs and colon-separated MACs,
+// optionally prefixed with a site. Controller IDs remain opaque.
+func parseClientDeviceImportID(input string) (site, id string, err error) {
+	invalid := func() (string, string, error) {
+		return "", "", fmt.Errorf("Expected an internal ID, site:ID, MAC, or site:MAC; got %q.", input)
+	}
+	if input == "" || strings.ContainsAny(input, " \t\r\n") {
+		return invalid()
+	}
+	id = input
+	colonCount := strings.Count(input, ":")
+	switch colonCount {
+	case 0:
+	case 1:
+		site, id, _ = strings.Cut(input, ":")
+	case 5:
+		if !macRegexp.MatchString(id) {
+			return invalid()
+		}
+	case 6:
+		site, id, _ = strings.Cut(input, ":")
+		if !macRegexp.MatchString(id) {
+			return invalid()
+		}
+	default:
+		return invalid()
+	}
+	if id == "" || (colonCount == 1 || colonCount == 6) && site == "" {
+		return invalid()
+	}
+	return site, id, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -504,10 +568,13 @@ func (r *clientDeviceResource) applyPlanToState(plan, state *clientDeviceResourc
 	} else {
 		state.Name = types.StringNull()
 	}
-	if !plan.Note.IsNull() && !plan.Note.IsUnknown() {
+	// note is optional+computed, so an absent config value plans as unknown
+	// rather than null. Copy only when known and let apiToModel hydrate the
+	// unknown case from the controller's response; forcing null here is what
+	// produced "provider produced inconsistent result after apply" whenever the
+	// controller held a note the configuration did not set.
+	if !plan.Note.IsUnknown() {
 		state.Note = plan.Note
-	} else {
-		state.Note = types.StringNull()
 	}
 	if !plan.FixedIP.IsNull() && !plan.FixedIP.IsUnknown() {
 		state.FixedIP = plan.FixedIP
@@ -639,7 +706,7 @@ func (r *clientDeviceResource) apiToModel(c *unifi.Client, m *clientDeviceResour
 		m.FixedApMAC = types.StringNull()
 	}
 
-	if c.NetworkMembersGroupIDs != nil {
+	if len(c.NetworkMembersGroupIDs) > 0 {
 		vals := make([]attr.Value, len(c.NetworkMembersGroupIDs))
 		for i, id := range c.NetworkMembersGroupIDs {
 			vals[i] = types.StringValue(id)

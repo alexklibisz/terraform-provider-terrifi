@@ -53,6 +53,24 @@ resource "terrifi_firewall_zone" "iot" {
 - `id` (String) — The ID of the firewall zone.
 - `zone_key` (String) — The zone key assigned by the controller.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Create a named zone | ◻️ | ✅ |
+| `name` | Rename a zone | ◻️ | ✅ |
+| `network_ids` | Assign a network to a zone | ◻️ | ✅ |
+| `network_ids` | Add a network | ◻️ | ✅ |
+| `network_ids` | Remove a network | ◻️ | ✅ |
+| `network_ids` | Replace the member set | ◻️ | ✅ |
+| `network_ids` | Use an empty set | ◻️ | ✅ |
+
+Zone lifecycle and membership acceptance tests require `TERRIFI_ACC_TARGET=hardware` with an adopted gateway and skip on the Simulated target. ◻️ The zone-based firewall v2 API requires a fully adopted gateway, which the current simulator does not provide.
+
+Evidence: [firewall_zone_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_zone_resource_test.go).
+
 ## Import
 
 Firewall zones can be imported using the zone ID:

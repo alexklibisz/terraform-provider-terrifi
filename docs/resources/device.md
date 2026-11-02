@@ -9,6 +9,8 @@ description: |-
 
 Manages settings on an adopted UniFi network device (access point, switch, or gateway). The device must already be adopted by the controller. This resource does not adopt or forget devices — it only manages configurable properties like name, LED behavior, and SNMP settings. Removing the resource from Terraform state does not affect the device on the controller.
 
+To assign port profiles and names to a device's ports, use [`terrifi_device_ports`](device_ports.md).
+
 ## Example Usage
 
 ### Basic — set device name
@@ -62,7 +64,7 @@ resource "terrifi_device" "office_ap" {
 }
 ```
 
-Each radio block is independent — omit a block to leave that radio's settings unchanged. Omit all blocks to leave the controller's current radio configuration untouched.
+See [radio configuration notes](#radio-settings) for how omitted settings are handled.
 
 ### Multiple settings
 
@@ -94,7 +96,7 @@ resource "terrifi_device" "core_switch" {
 }
 ```
 
-To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields:
+### DHCP management IP
 
 ```terraform
 resource "terrifi_device" "core_switch" {
@@ -156,7 +158,7 @@ resource "terrifi_device" "ap" {
 
 ### Nested schema for radio blocks
 
-All fields are optional. Omitting the block entirely leaves the radio's current settings unchanged. Within a configured block, omitted fields are also left unchanged on the controller.
+All fields are optional. See [radio configuration notes](#radio-settings) for how omitted settings are handled.
 
 - `channel` (String) — Channel number or `auto`. Valid channels depend on the radio band and country code.
 - `channel_width` (Number) — Channel width in MHz. Accepted values: `20`, `40`, `80`, `160`, `240`, `320`.
@@ -173,6 +175,62 @@ All fields are optional. Omitting the block entirely leaves the radio's current 
 - `ip` (String) — The current IP address.
 - `adopted` (Boolean) — Whether the device is adopted.
 - `state` (Number) — The device state (0 = unknown, 1 = connected, 2 = pending, 4 = upgrading, 5 = provisioning, 6 = heartbeat missed).
+
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+The current Simulated target exposes no adopted devices or usable switch ports, so device configuration, lookup, radio, and profile-assignment tests skip. ◻️ describes this target limitation; it does not mean these operations are unsupported on real hardware.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Rename an adopted device | ◻️ | ✅ |
+| `name` | Remove the configured name | ◻️ | ✅ |
+| `led_enabled` | Set to `false` | ◻️ | ✅ |
+| `led_enabled` | Set to `true` | ◻️ | ✅ |
+| `led_enabled` | Omit to follow the site default | ◻️ | ✅ |
+| `led_color` | Set an explicit color | ◻️ | ❌ |
+| `led_brightness` | Set an explicit brightness | ◻️ | ❌ |
+| `outdoor_mode_override` | Set to `on` | ◻️ | ❌ |
+| `locked` | Set to `true` | ◻️ | ✅ |
+| `locked` | Set to `false` | ◻️ | ✅ |
+| `disabled` | Set to `true` | ◻️ | ✅ |
+| `disabled` | Set to `false` | ◻️ | ✅ |
+| `snmp_contact` | Set a contact string | ◻️ | ✅ |
+| `snmp_contact` | Remove the contact string | ◻️ | ✅ |
+| `snmp_location` | Set a location string | ◻️ | ✅ |
+| `snmp_location` | Remove the location string | ◻️ | ✅ |
+| `volume` | Set an explicit volume | ◻️ | ❌ |
+| `config_network.type` | Set to `dhcp` | ◻️ | ✅ |
+| `config_network.type` | Set to `static` (opt-in test) | ◻️ | ⚠️ |
+| `config_network.ip` | Assign a static address (opt-in test) | ◻️ | ⚠️ |
+| `config_network.netmask` | Set a static netmask (opt-in test) | ◻️ | ⚠️ |
+| `config_network.gateway` | Set a static gateway (opt-in test) | ◻️ | ⚠️ |
+| `config_network.dns1` | Set a primary DNS server | ◻️ | ❌ |
+| `config_network.dns2` | Set a secondary DNS server | ◻️ | ❌ |
+| `radio_24.channel` | Set to `auto` | ◻️ | ✅ |
+| `radio_24.channel_width` | Set to `40` | ◻️ | ✅ |
+| `radio_24.transmit_power_mode` | Set to `medium` | ◻️ | ✅ |
+| `radio_24.transmit_power_mode` | Set to `auto` | ◻️ | ✅ |
+| `radio_5.channel` | Set to `auto` | ◻️ | ✅ |
+| `radio_5.channel_width` | Set to `80` | ◻️ | ✅ |
+| `radio_5.transmit_power_mode` | Set to `auto` | ◻️ | ✅ |
+| `radio_24.transmit_power` | Set custom transmit power | ◻️ | ❌ |
+| `radio_24.min_rssi_enabled` | Enable the minimum RSSI threshold | ◻️ | ❌ |
+| `radio_24.min_rssi` | Set the minimum RSSI threshold | ◻️ | ❌ |
+| `radio_5.transmit_power` | Set custom transmit power | ◻️ | ❌ |
+| `radio_5.min_rssi_enabled` | Enable the minimum RSSI threshold | ◻️ | ❌ |
+| `radio_5.min_rssi` | Set the minimum RSSI threshold | ◻️ | ❌ |
+| `radio_6.channel` | Set a channel | ◻️ | ❌ |
+| `radio_6.channel_width` | Set a channel width | ◻️ | ❌ |
+| `radio_6.transmit_power_mode` | Set a transmit-power mode | ◻️ | ❌ |
+| `radio_6.transmit_power` | Set custom transmit power | ◻️ | ❌ |
+| `radio_6.min_rssi_enabled` | Enable the minimum RSSI threshold | ◻️ | ❌ |
+| `radio_6.min_rssi` | Set the minimum RSSI threshold | ◻️ | ❌ |
+
+The suite uses adopted hardware on the Hardware-in-the-loop target. Radio tests require an adopted AP, and multi-radio tests skip if it has fewer than two radios. ⚠️ Static management tests are opt-in: they require `TERRIFI_ACC_DEVICE_STATIC_IP`, `TERRIFI_ACC_DEVICE_STATIC_NETMASK`, and `TERRIFI_ACC_DEVICE_STATIC_GATEWAY`; the standard HIL workflow does not configure these variables.
+
+Evidence: [device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/device_resource_test.go).
 
 ## Import
 
@@ -193,3 +251,15 @@ You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks fo
 ```shell
 terrifi generate-imports terrifi_device
 ```
+
+## Additional Notes
+
+### Radio settings
+
+Each radio block is independent — omit a block to leave that radio's settings unchanged. Omit all blocks to leave the controller's current radio configuration untouched.
+
+Within a configured radio block, omitted fields are also left unchanged on the controller.
+
+### Management address changes
+
+Omitting `config_network` leaves the device's current management configuration unchanged. To revert to DHCP, change `type` to `"dhcp"` and remove the addressing fields, as shown in the [DHCP management IP example](#dhcp-management-ip).

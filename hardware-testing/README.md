@@ -4,7 +4,7 @@
 
 ## Overview
 
-Terrifi uses hardware testing (aka hardware-in-the-loop testing or HIL testing) to ensure all features work with real UniFi hardware.
+Terrifi uses hardware-in-the-loop (HIL) testing to exercise the provider against a real controller connected to UniFi hardware. Resource and data-source pages list their [validation coverage](../docs/guides/validation-coverage.md) separately for Simulated and Hardware-in-the-loop targets: ✅ covered, ❌ not covered, ◻️ unavailable on this target, and ⚠️ conditional. Applying settings and checking controller readback is sufficient for coverage on either target.
 
 The continuous integration suite has a series of acceptance tests (aka integration tests) which run against two targets:
 
@@ -15,8 +15,7 @@ The simulation target exposes some but not all functionality of a real UniFi net
 For example, firewall zones, firewall policies, and WLANs all require real hardware to test.
 
 The HIL mode is a real UniFi OS Server with real UniFi hardware.
-This lets me test almost all the functionality of the connected hardware.
-The only functionality I can't test is some aspects of the initial setup, e.g., resetting and adopting devices.
+It makes hardware-dependent APIs available and supplies adopted devices for configuration tests. Coverage depends on the assertions and skip conditions in each test. Initial setup, including factory reset and device adoption, is not covered.
 
 ## Background
 
@@ -52,6 +51,7 @@ Here's the hardware I'm using:
 3. A generic gigabit 5-port switch. This is analogous to an unmanaged switch in a typical network.
 4. [A UniFi AC Pro access point](https://store.ui.com/us/en/products/uap-ac-pro). I purchased it used on eBay specifically for this project. I use some newer access points in my actual network, but this is good enough for testing.
 5. A Beelink Mini PC running Proxmox. I run two VMs here: one for the self-hosted UniFi OS Server and one for the GitHub Actions runner that runs the HIL test suite.
+6. A UniFi USW Flex Mini switch. Ports 4 and 5 are reserved for inline port-configuration lifecycle tests. This model does not support custom port profiles, so profile-assignment tests skip on it.
 
 And here's a photo:
 
@@ -63,14 +63,46 @@ The Beelink Mini PC runs [Proxmox](https://www.proxmox.com/) as the hypervisor, 
 
 1. UniFi OS Server VM: runs [UniFi OS Server](https://ui.com/download/releases/unifi-os-server), installed via [`unifi-os-server/install.sh`](./unifi-os-server/install.sh). UniFi OS Server is a single binary that downloads an embedded Podman container and registers it as a `systemd` service. It exposes the full UniFi API (including zone-based firewall) at `https://<host>:11443`.
 
-2. GitHub Actions Runner VM: runs a self-hosted GitHub Actions runner via Docker Compose ([`github-runner/`](./github-runner/)). The runner uses the [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner) base image and is ephemeral (clean workspace per job). It carries the labels `self-hosted` and `terrifi-hardware-test`, which the HIL CI workflow uses to target it specifically.
+2. GitHub Actions Runner VM: runs a self-hosted GitHub Actions runner via Docker Compose ([`github-runner/`](./github-runner/)). The runner uses the [myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner) base image and runs one fresh container per job. It carries the labels `self-hosted` and `terrifi-hardware-test`, which the HIL CI workflow uses to target it specifically.
 
 When I run the Github Actions CI, the HIL workflow executes in the runner container on the runner VM.
 It's on the same LAN as the UniFi OS Server VM, so it can communcate with it through the UniFi Gateway Lite.
 
-I also run [Tailscale](https://tailscale.com/) in each of the VMs.
+I also run [Tailscale](https://tailscale.com/) on the Proxmox host and the UniFi OS Server VM.
 This lets me communicate with them from my laptop, which is on my primary UniFi network.
+The runner VM is not on the tailnet, so I reach it over SSH through the Proxmox host.
 
 See the subdirectory READMEs for setup instructions:
+- [`terraform/`](./terraform/) — persistent UniFi baseline and private R2 state
 - [`unifi-os-server/`](./unifi-os-server/) — install and manage UOS Server
 - [`github-runner/`](./github-runner/) — set up the self-hosted Actions runner
+
+## Running HIL tests on pull requests
+
+The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests
+that target `main` and change at least one `.go` file anywhere in the repository,
+the root `go.mod` or `go.sum`, or any file under `.github/workflows/`. This
+includes Go test files, deleted Go files, dependency-only changes, and workflow
+changes. Documentation-only PRs skip HIL, including the approval gate. Use
+manual dispatch when those changes need hardware validation; nightly runs remain
+unconditional.
+
+The path filter uses the whole PR diff, not just the latest commit. A docs-only
+push to a PR that already changes Go source, dependencies, or workflows can
+therefore start another HIL run.
+
+PRs from branches in this repository, other than Dependabot's, run the HIL tests automatically.
+PRs from forks and PRs opened by Dependabot wait for a maintainer to review the code and approve the run.
+The result then appears as a check on the PR.
+
+Each run is three jobs on the hardware runner:
+
+1. Reset the controller to the [Terraform baseline](./terraform/).
+2. Run the tests.
+3. Reset the controller again.
+
+A concurrency group serializes whole runs, so only one touches the controller at
+a time. For fork and Dependabot PRs, both resets use code from `main`, and the R2 state
+credentials go only to the reset steps.
+
+See [SECURITY.md](./SECURITY.md) for the full security model, the review checklist for approving gated runs, and the GitHub settings this depends on.

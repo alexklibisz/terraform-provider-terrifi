@@ -95,14 +95,47 @@ resource "terrifi_wlan" "maintenance" {
 - `wpa3_support` (Boolean) — Whether to enable WPA3 support. Defaults to `false`.
 - `wpa3_transition` (Boolean) — Whether to enable WPA3 transition mode (WPA2/WPA3 mixed). Defaults to `false`.
 - `application` (String) — The application type. Must be `standard`, `hotspot`, or `iot`. `hotspot` enables guest behavior (captive portal); `iot` enables IoT-optimized behavior. Defaults to `standard`.
-- `optimize_iot_connectivity` (Boolean) — Enable IoT-specific radio optimizations that improve connection reliability for IoT devices. Only meaningful when `application = "iot"`. Defaults to `false`.
-
-~> **Note:** The UniFi controller coerces iot WLANs (especially with `optimize_iot_connectivity = true`) to the 2.4 GHz band. Set `wifi_band = "2g"` explicitly when using `application = "iot"` to avoid inconsistent-plan errors.
+- `optimize_iot_connectivity` (Boolean) — Enable IoT-specific radio optimizations that improve connection reliability for IoT devices. Only meaningful when `application = "iot"`. Defaults to `false`. See [IoT band selection](#iot-band-selection).
 - `site` (String) — The site to associate the WLAN with. Defaults to the provider site. Changing this forces a new resource.
 
 ### Read-Only
 
 - `id` (String) — The ID of the WLAN.
+
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Create an SSID | ✅ | ✅ |
+| `name` | Rename the SSID | ✅ | ✅ |
+| `network_id` | Assign the WLAN network | ✅ | ✅ |
+| `network_id` | Change the WLAN network | ✅ | ✅ |
+| `enabled` | Set to `false` | ✅ | ✅ |
+| `enabled` | Re-enable with `true` | ✅ | ✅ |
+| `passphrase` | Set a WPA passphrase | ✅ | ✅ |
+| `passphrase` | Change the passphrase | ✅ | ✅ |
+| `wifi_band` | Set to `2g` | ✅ | ✅ |
+| `wifi_band` | Set to `5g` | ✅ | ✅ |
+| `wifi_band` | Set to `both` | ✅ | ✅ |
+| `security` | Set to `open` | ✅ | ✅ |
+| `security` | Change from `open` to `wpapsk` | ✅ | ✅ |
+| `security` | Change from `wpapsk` to `open` | ✅ | ✅ |
+| `hide_ssid` | Set to `true` | ✅ | ✅ |
+| `wpa_mode` | Set to `auto` | ✅ | ✅ |
+| `wpa_mode` | Set to `wpa2` | ✅ | ✅ |
+| `wpa3_support` | Set to `true` | ✅ | ✅ |
+| `wpa3_transition` | Set to `true` | ✅ | ✅ |
+| `application` | Omit to use `standard` | ✅ | ✅ |
+| `application` | Set to `hotspot` | ✅ | ✅ |
+| `application` | Set to `iot` | ✅ | ✅ |
+| `optimize_iot_connectivity` | Enable for an IoT WLAN | ✅ | ✅ |
+| `optimize_iot_connectivity` | Disable for an IoT WLAN | ✅ | ✅ |
+
+WLAN acceptance tests run on both controller targets. Simulated coverage verifies saved WLAN configuration; it does not validate broadcasting an SSID or connecting wireless clients.
+
+Evidence: [wlan_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/wlan_resource_test.go).
 
 ## Import
 
@@ -125,3 +158,9 @@ terrifi generate-imports terrifi_wlan
 ```
 
 ~> **Note:** The `passphrase` attribute cannot be imported because the UniFi API does not return it. After import, set the passphrase in your configuration and run `terraform apply` to update it.
+
+## Additional Notes
+
+### IoT band selection
+
+The UniFi controller coerces iot WLANs (especially with `optimize_iot_connectivity = true`) to the 2.4 GHz band. Set `wifi_band = "2g"` explicitly when using `application = "iot"` to avoid inconsistent-plan errors.

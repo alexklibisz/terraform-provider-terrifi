@@ -127,7 +127,7 @@ resource "terrifi_client_device" "blocked" {
 ### Optional
 
 - `name` (String) — The alias/display name for the client device.
-- `note` (String) — A free-text note for the client device.
+- `note` (String) — A free-text note for the client device. When the configuration does not set it, Terrifi keeps the note the controller already holds, such as one added in the UniFi UI, instead of reporting drift. Removing `note` from the configuration does not clear the note on the controller; the provider does not support clearing notes. An empty string is rejected.
 - `fixed_ip` (String) — A fixed IP address to assign via DHCP reservation. Requires `network_id` or `network_override_id`.
 - `network_id` (String) — The network ID for fixed IP assignment. Required when `fixed_ip` is set unless `network_override_id` provides the network context.
 - `network_override_id` (String) — The network ID for VLAN/network override.
@@ -142,19 +142,73 @@ resource "terrifi_client_device" "blocked" {
 
 - `id` (String) — The ID of the client device.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `id` | Import by internal ID or `site:ID` | ✅ | ✅ |
+| `id` | Import a DHCP reservation by MAC or `site:MAC`, refresh, and update | ✅ | ✅ |
+| `name` | Set a client alias | ✅ | ✅ |
+| `name` | Rename a client | ✅ | ✅ |
+| `note` | Set a note | ✅ | ✅ |
+| `note` | Import a client with a note | ✅ | ✅ |
+| `note` | Omit to keep a note set outside Terraform | ✅ | ✅ |
+| `note` | Remove from the configuration to keep the existing note | ✅ | ✅ |
+| `fixed_ip` | Assign a DHCP reservation | ✅ | ✅ |
+| `fixed_ip` | Remove the reservation | ✅ | ✅ |
+| `network_id` | Select the reservation network | ✅ | ✅ |
+| `network_override_id` | Assign a network override | ✅ | ✅ |
+| `local_dns_record` | Set a local hostname | ✅ | ✅ |
+| `local_dns_record` | Remove the hostname | ✅ | ✅ |
+| `client_group_ids` | Assign group membership | ✅ | ✅ |
+| `client_group_ids` | Remove a group membership | ✅ | ✅ |
+| `device_type_id` | Set an icon override | ✅ | ✅ |
+| `device_type_id` | Remove the override | ✅ | ✅ |
+| `fixed_ap_mac` | Lock a client to an AP | ✅ | ✅ |
+| `fixed_ap_mac` | Remove the AP lock | ✅ | ✅ |
+| `blocked` | Set to `true` | ✅ | ✅ |
+| `blocked` | Set to `false` | ✅ | ✅ |
+| `blocked` | Omit to use `false` | ✅ | ✅ |
+
+The acceptance suite runs against both controller targets and checks saved client settings. Tests use generated client MAC addresses.
+
+Evidence: [client_device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_device_resource_test.go).
+
 ## Import
 
-Client devices can be imported using the device ID:
+Client devices can be imported using the controller's internal device ID or a colon-separated MAC address.
+Both forms accept an optional site prefix.
+Without a prefix, the import uses the provider's `site` setting, falling back to `UNIFI_SITE`, then `default` if neither is set.
+Terrifi looks up the client only in that site; it does not search other sites or move the client between sites.
+The resolved site is saved in Terraform state during the first read.
+
+Import by internal ID:
 
 ```shell
 terraform import terrifi_client_device.printer <id>
 ```
 
-To import from a non-default site, use the `site:id` format:
+To specify a site, use the `site:ID` format:
 
 ```shell
 terraform import terrifi_client_device.printer <site>:<id>
 ```
+
+Import by MAC address, with or without a site prefix:
+
+```shell
+terraform import terrifi_client_device.printer aa:bb:cc:dd:ee:ff
+terraform import terrifi_client_device.printer default:aa:bb:cc:dd:ee:ff
+```
+
+MAC addresses are matched case-insensitively.
+The client must already exist on the controller in the selected site.
+The first read resolves the MAC to the controller's internal ID, which is stored in Terraform state and used for subsequent operations.
+DHCP reservation network IDs and group memberships are populated from the controller response during import.
+Some controller versions omit group membership from client responses; keep `client_group_ids` in the resource configuration and apply it after import when necessary.
+The CLI generates imports using internal IDs.
 
 You can also use the [Terrifi CLI](../index.md#cli) to generate import blocks for all client devices automatically:
 

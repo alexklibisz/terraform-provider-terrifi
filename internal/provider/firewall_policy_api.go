@@ -71,11 +71,14 @@ type firewallPolicyEndpointRequest struct {
 	IPs                []string `json:"ips,omitempty"`
 	MACs               []string `json:"macs,omitempty"`
 	ClientMACs         []string `json:"client_macs,omitempty"`
+	NetworkIDs         []string `json:"network_ids,omitempty"`
 	PortMatchingType   string   `json:"port_matching_type,omitempty"`
 	Port               *int64   `json:"port,omitempty"`
 	PortGroupID        string   `json:"port_group_id,omitempty"`
 	MatchOppositePorts *bool    `json:"match_opposite_ports,omitempty"`
 	MatchOppositeIPs   *bool    `json:"match_opposite_ips,omitempty"`
+	// NETWORK targets use their own invert flag instead of match_opposite_ips.
+	MatchOppositeNetworks *bool `json:"match_opposite_networks,omitempty"`
 }
 
 // firewallPolicyScheduleRequest is the schedule nested object.
@@ -86,8 +89,8 @@ type firewallPolicyScheduleRequest struct {
 	TimeRangeStart string   `json:"time_range_start,omitempty"`
 	TimeRangeEnd   string   `json:"time_range_end,omitempty"`
 	RepeatOnDays   []string `json:"repeat_on_days,omitempty"`
-	DateStart string `json:"date_start,omitempty"`
-	DateEnd   string `json:"date_end,omitempty"`
+	DateStart      string   `json:"date_start,omitempty"`
+	DateEnd        string   `json:"date_end,omitempty"`
 }
 
 // firewallPolicyFull wraps *unifi.FirewallPolicy with the raw schedule from the
@@ -168,10 +171,15 @@ func (c *Client) ListFirewallPolicies(ctx context.Context, site string) ([]*unif
 // fails to unmarshal this. When the SDK fixes the port field type (or adds a
 // custom unmarshaler), this can be replaced with c.ApiClient.GetFirewallPolicy().
 func (c *Client) GetFirewallPolicy(ctx context.Context, site string, id string) (*firewallPolicyFull, error) {
+	return c.getFirewallPolicy(ctx, site, id, true)
+}
+
+// getFirewallPolicy can bypass cached reads when verifying a controller write.
+func (c *Client) getFirewallPolicy(ctx context.Context, site string, id string, useCached bool) (*firewallPolicyFull, error) {
 	var rawPolicies []firewallPolicyResponse
-	err := c.doV2Request(ctx, http.MethodGet,
+	err := c.doRequest(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall-policies", c.BaseURL, c.APIPath, site),
-		struct{}{}, &rawPolicies)
+		struct{}{}, &rawPolicies, useCached)
 	if err != nil {
 		return nil, err
 	}
@@ -208,16 +216,18 @@ type firewallPolicyResponse struct {
 }
 
 type firewallPolicyEndpointResponse struct {
-	ZoneID             string          `json:"zone_id"`
-	MatchingTarget     string          `json:"matching_target"`
-	IPs                []string        `json:"ips"`
-	MACs               []string        `json:"macs"`
-	ClientMACs         []string        `json:"client_macs"`
-	PortMatchingType   string          `json:"port_matching_type"`
-	Port               json.RawMessage `json:"port"`
-	PortGroupID        string          `json:"port_group_id"`
-	MatchOppositePorts bool            `json:"match_opposite_ports"`
-	MatchOppositeIPs   bool            `json:"match_opposite_ips"`
+	ZoneID                string          `json:"zone_id"`
+	MatchingTarget        string          `json:"matching_target"`
+	IPs                   []string        `json:"ips"`
+	MACs                  []string        `json:"macs"`
+	ClientMACs            []string        `json:"client_macs"`
+	NetworkIDs            []string        `json:"network_ids"`
+	PortMatchingType      string          `json:"port_matching_type"`
+	Port                  json.RawMessage `json:"port"`
+	PortGroupID           string          `json:"port_group_id"`
+	MatchOppositePorts    bool            `json:"match_opposite_ports"`
+	MatchOppositeIPs      bool            `json:"match_opposite_ips"`
+	MatchOppositeNetworks bool            `json:"match_opposite_networks"`
 }
 
 func (r *firewallPolicyResponse) toFull() *firewallPolicyFull {
@@ -294,7 +304,7 @@ func (ep *firewallPolicyEndpointResponse) toSDKSource() *unifi.FirewallPolicySou
 		Port:               ep.parsePort(),
 		PortGroupID:        ep.PortGroupID,
 		MatchOppositePorts: ep.MatchOppositePorts,
-		MatchOppositeIPs:   ep.MatchOppositeIPs,
+		MatchOppositeIPs:   ep.resolveMatchOpposite(),
 	}
 }
 
@@ -307,15 +317,19 @@ func (ep *firewallPolicyEndpointResponse) toSDKDestination() *unifi.FirewallPoli
 		Port:               ep.parsePort(),
 		PortGroupID:        ep.PortGroupID,
 		MatchOppositePorts: ep.MatchOppositePorts,
-		MatchOppositeIPs:   ep.MatchOppositeIPs,
+		MatchOppositeIPs:   ep.resolveMatchOpposite(),
 	}
 }
 
-// resolveIPs returns the endpoint values, merging the "macs" or "client_macs"
-// field back into a single slice so the resource layer can handle all target
-// types uniformly via the IPs field on the SDK struct.
+// resolveIPs returns the endpoint values, merging the "macs", "client_macs" or
+// "network_ids" field back into a single slice so the resource layer can handle
+// all target types uniformly via the IPs field on the SDK struct.
 func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 	switch ep.MatchingTarget {
+	case "NETWORK":
+		if len(ep.NetworkIDs) > 0 {
+			return ep.NetworkIDs
+		}
 	case "IID", "MAC", "CLIENT":
 		if len(ep.MACs) > 0 {
 			return ep.MACs
@@ -325,6 +339,18 @@ func (ep *firewallPolicyEndpointResponse) resolveIPs() []string {
 		return ep.ClientMACs
 	}
 	return ep.IPs
+}
+
+// resolveMatchOpposite returns the invert flag for the endpoint's values. The
+// API stores it as match_opposite_networks for NETWORK targets and as
+// match_opposite_ips otherwise; the SDK struct only has MatchOppositeIPs.
+// The request side only sends the flag that belongs to the target, so a stale
+// match_opposite_ips on a NETWORK endpoint is ignored rather than read back.
+func (ep *firewallPolicyEndpointResponse) resolveMatchOpposite() bool {
+	if ep.MatchingTarget == "NETWORK" {
+		return ep.MatchOppositeNetworks
+	}
+	return ep.MatchOppositeIPs
 }
 
 func buildFirewallPolicyCreateRequest(d *unifi.FirewallPolicy, schedOverride *firewallPolicyScheduleRequest) firewallPolicyCreateRequest {
@@ -398,15 +424,22 @@ func buildEndpointRequest(zoneID, matchingTarget string, ips []string, portMatch
 		ep.MatchOppositePorts = boolPtr(true)
 	}
 	if matchOppositeIPs {
-		ep.MatchOppositeIPs = boolPtr(true)
+		if matchingTarget == "NETWORK" {
+			ep.MatchOppositeNetworks = boolPtr(true)
+		} else {
+			ep.MatchOppositeIPs = boolPtr(true)
+		}
 	}
-	// The API expects MAC values in the "macs" field and device values in
-	// the "client_macs" field, not "ips".
-	if matchingTarget == "MAC" {
+	// The API expects MAC values in the "macs" field, device values in the
+	// "client_macs" field and network IDs in the "network_ids" field, not "ips".
+	switch matchingTarget {
+	case "MAC":
 		ep.MACs = ips
-	} else if matchingTarget == "CLIENT" {
+	case "CLIENT":
 		ep.ClientMACs = ips
-	} else {
+	case "NETWORK":
+		ep.NetworkIDs = ips
+	default:
 		ep.IPs = ips
 	}
 	return ep

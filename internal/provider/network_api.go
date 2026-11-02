@@ -56,13 +56,8 @@ type networkListResponse struct {
 // When suffix is non-empty it is appended as `/<suffix>` (used to fetch a
 // single network by ID).
 func (c *Client) fetchNetworkList(ctx context.Context, site, suffix string) ([]unifi.Network, error) {
-	url := fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site)
-	if suffix != "" {
-		url += "/" + suffix
-	}
-
 	var raw json.RawMessage
-	if err := c.doV2Request(ctx, http.MethodGet, url, nil, &raw); err != nil {
+	if err := c.doV2Request(ctx, http.MethodGet, c.networkURL(site, suffix), nil, &raw); err != nil {
 		return nil, err
 	}
 
@@ -115,11 +110,8 @@ func (c *Client) GetNetwork(ctx context.Context, site, id string) (*unifi.Networ
 // endpoint with the given body and returns the decoded result, applying the
 // same field coercions as the read paths. Shared by CreateNetwork and
 // UpdateNetwork.
-func (c *Client) sendNetwork(ctx context.Context, method, site, suffix string, body *unifi.Network) (*unifi.Network, error) {
-	url := fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site)
-	if suffix != "" {
-		url += "/" + suffix
-	}
+func (c *Client) sendNetwork(ctx context.Context, method, site, suffix string, body any) (*unifi.Network, error) {
+	url := c.networkURL(site, suffix)
 
 	var raw json.RawMessage
 	if err := c.doV2Request(ctx, method, url, body, &raw); err != nil {
@@ -138,7 +130,7 @@ func (c *Client) sendNetwork(ctx context.Context, method, site, suffix string, b
 	// UDM SE returns an empty data array on successful PUT; fall back to GET in
 	// that case to mirror the SDK's updateNetwork behavior.
 	if len(envelope.Data) == 0 && method == http.MethodPut {
-		return c.GetNetwork(ctx, site, body.ID)
+		return c.GetNetwork(ctx, site, suffix)
 	}
 
 	if len(envelope.Data) != 1 {
@@ -159,7 +151,71 @@ func (c *Client) CreateNetwork(ctx context.Context, site string, d *unifi.Networ
 }
 
 // UpdateNetwork updates a network, working around the SDK's unmarshal bugs in
-// the response payload.
+// the response payload. The whole network is marshalled by the SDK, including
+// defaults for fields d leaves unset; the resource uses UpdateNetworkManaged.
 func (c *Client) UpdateNetwork(ctx context.Context, site string, d *unifi.Network) (*unifi.Network, error) {
 	return c.sendNetwork(ctx, http.MethodPut, site, d.ID, d)
+}
+
+// networkURL returns the v1 networkconf URL, for one network if id is set.
+func (c *Client) networkURL(site, id string) string {
+	url := fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site)
+	if id != "" {
+		url += "/" + id
+	}
+	return url
+}
+
+// UpdateNetworkManaged updates only the given fields of a network: it reads the
+// stored network as raw JSON, overlays managed, and PUTs the result, so every
+// other field goes back exactly as the controller returned it.
+//
+// TODO(go-unifi): The SDK can't be used for the body: marshalCorporate() sends every field it
+// knows and defaults unset ones (ipv6_interface_type "none", mdns_enabled and
+// igmp_snooping false, dhcp_relay_servers []), which resets settings made
+// outside Terraform, and it omits empty dhcpd_dns_N, so a slot can't be
+// cleared. managed values are sent as given, including "" to clear a slot.
+// Remove this workaround when the SDK can serialize only managed fields and
+// explicitly clear DNS slots without defaulting unmanaged settings.
+func (c *Client) UpdateNetworkManaged(ctx context.Context, site, id string, managed map[string]any) (*unifi.Network, error) {
+	// The PUT below invalidates the cache anyway; drop it now so the read is
+	// fresh and changes made in the UI since an earlier read are kept.
+	if c.cache != nil {
+		c.cache.invalidateAll()
+	}
+
+	var current struct {
+		Meta struct {
+			RC  string `json:"rc"`
+			Msg string `json:"msg,omitempty"`
+		} `json:"meta"`
+		Data []map[string]json.RawMessage `json:"data"`
+	}
+	if err := c.doV2Request(ctx, http.MethodGet, c.networkURL(site, id), nil, &current); err != nil {
+		return nil, err
+	}
+	if current.Meta.RC != "" && current.Meta.RC != "ok" {
+		return nil, fmt.Errorf("controller returned rc=%s msg=%s", current.Meta.RC, current.Meta.Msg)
+	}
+	if len(current.Data) != 1 {
+		return nil, &unifi.NotFoundError{}
+	}
+
+	payload, err := mergeNetwork(current.Data[0], managed)
+	if err != nil {
+		return nil, err
+	}
+	return c.sendNetwork(ctx, http.MethodPut, site, id, payload)
+}
+
+// mergeNetwork overlays managed onto the raw stored network.
+func mergeNetwork(existing map[string]json.RawMessage, managed map[string]any) (map[string]json.RawMessage, error) {
+	for k, v := range managed {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling network field %s: %w", k, err)
+		}
+		existing[k] = b
+	}
+	return existing, nil
 }

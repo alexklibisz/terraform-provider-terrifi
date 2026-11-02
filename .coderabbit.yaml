@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Review PRs and subsequent pushes automatically, including stacked PRs.
+reviews:
+  review_status: false
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    ignore_usernames:
+      - "dependabot[bot]"
+    base_branches:
+      - ".*"

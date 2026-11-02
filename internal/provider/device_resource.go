@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -318,9 +317,7 @@ func (r *deviceResource) Schema(
 			"ip": schema.StringAttribute{
 				MarkdownDescription: "The current IP address of the device.",
 				Computed:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				// Provisioning can change the reported IP during an update.
 			},
 
 			"adopted": schema.BoolAttribute{
@@ -335,9 +332,7 @@ func (r *deviceResource) Schema(
 				MarkdownDescription: "The device state. 0 = unknown, 1 = connected, 2 = pending, " +
 					"4 = upgrading, 5 = provisioning, 6 = heartbeat missed.",
 				Computed: true,
-				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
-				},
+				// Runtime state can change as the device provisions the update.
 			},
 		},
 	}

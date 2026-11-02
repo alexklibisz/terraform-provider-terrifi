@@ -17,3 +17,4 @@ Compared to existing UniFi providers ([paultyng](https://github.com/paultyng/ter
 - [CLI](./docs/index.md#cli)
 - [Introductory Blog Post](https://alexklibisz.com/2026/03/07/terrifi)
 - [Development](./docs/development.md)
+- [Validation coverage](./docs/guides/validation-coverage.md)

@@ -1,8 +1,6 @@
 ---
 name: unifi-api
 description: Probe and explore the UniFi controller API for reverse-engineering and debugging.
-argument-hint: "<action> [args...] — e.g. list zones, get zone <id>, delete zone <id>, raw GET /v2/api/..."
-allowed-tools: Bash, Read
 ---
 
 # UniFi API Explorer
@@ -19,9 +17,9 @@ source .envrc.local 2>/dev/null
 
 Auth is via `X-API-Key` header. The base URL is `$UNIFI_API`. The API path prefix for UniFi OS is `/proxy/network`.
 
-## Interpreting the user's request: $ARGUMENTS
+## Interpreting the user's request
 
-The user's arguments describe what they want to do. Interpret them flexibly. Examples:
+Interpret the user's request flexibly. Examples:
 
 - `list zones` → GET the firewall zones endpoint
 - `list networks` → GET the networks endpoint

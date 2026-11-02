@@ -53,6 +53,20 @@ resource "terrifi_client_device" "plug_bedroom" {
 
 - `id` (String) — The ID of the client group.
 
+## Validation coverage
+
+✅ Covered · ❌ Not covered · ◻️ Unavailable on this target · ⚠️ Conditional. See [validation coverage](../guides/validation-coverage.md) for definitions and limitations.
+
+| Setting | Usage | Simulated | Hardware-in-the-loop |
+| --- | --- | :---: | :---: |
+| `name` | Create a named group | ✅ | ✅ |
+| `name` | Rename a group | ✅ | ✅ |
+| `name` | Import a named group | ✅ | ✅ |
+
+The group lifecycle and client-device membership acceptance tests run on both targets, including rename, import, membership reassignment, and idempotent reapplication.
+
+Evidence: [client_group_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_group_resource_test.go) and `TestAccClientDevice_clientGroupIDs` / `TestAccClientDevice_clientGroupIDs_idempotent` in [client_device_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/client_device_resource_test.go).
+
 ## Import
 
 Client groups can be imported using the group ID:
