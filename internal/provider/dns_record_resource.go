@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -15,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // Compile-time interface checks.
@@ -46,16 +46,6 @@ type dnsRecordResource struct {
 	client *Client
 }
 
-// dnsRecordResourceModel is the Terraform-side representation of a DNS record.
-// Each field maps to an HCL attribute via the `tfsdk` struct tag.
-//
-// types.String, types.Bool, types.Int64 are Terraform's wrapper types. They're needed
-// (instead of plain Go types) because Terraform distinguishes between:
-//   - null    — attribute not set in config
-//   - unknown — value not yet known (computed during apply)
-//   - set     — attribute has an explicit value
-//
-// Plain Go types can't represent null, so we'd lose information.
 type dnsRecordResourceModel struct {
 	ID         types.String `tfsdk:"id"`
 	Site       types.String `tfsdk:"site"`
@@ -203,13 +193,6 @@ func (r *dnsRecordResource) Configure(
 	r.client = client
 }
 
-// Create is called when Terraform needs to create a new DNS record (terraform apply
-// on a new resource). The flow:
-//  1. Read the planned values from req.Plan (what the user wrote in HCL)
-//  2. Convert the Terraform model to a go-unifi API struct
-//  3. Call the UniFi API to create the record
-//  4. Convert the API response back to a Terraform model
-//  5. Save to resp.State (Terraform's state file)
 func (r *dnsRecordResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
@@ -388,14 +371,6 @@ func (r *dnsRecordResource) applyPlanToState(plan, state *dnsRecordResourceModel
 	}
 }
 
-// modelToAPI converts our Terraform model to the go-unifi DNSRecord struct.
-// The go-unifi SDK uses plain Go types (string, bool, int64) and pointers,
-// so we need to unwrap the Terraform wrapper types.
-//
-// Note: the API struct field names don't always match our model names:
-//   - model.Name  → API Key    (the hostname)
-//   - model.Value → API Value  (the record target)
-//   - model.TTL   → API Ttl    (different casing)
 func (r *dnsRecordResource) modelToAPI(m *dnsRecordResourceModel) *unifi.DNSRecord {
 	rec := &unifi.DNSRecord{
 		Key:   m.Name.ValueString(),
@@ -429,9 +404,6 @@ func (r *dnsRecordResource) modelToAPI(m *dnsRecordResourceModel) *unifi.DNSReco
 	return rec
 }
 
-// apiToModel converts the go-unifi DNSRecord struct back to our Terraform model.
-// For optional fields, we set them to types.XXXNull() when the API returns zero values,
-// so Terraform doesn't show spurious diffs (e.g., "port: 0 → null").
 func (r *dnsRecordResource) apiToModel(rec *unifi.DNSRecord, m *dnsRecordResourceModel, site string) {
 	m.ID = types.StringValue(rec.ID)
 	m.Site = types.StringValue(site)

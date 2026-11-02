@@ -3,7 +3,7 @@ package generate
 import (
 	"fmt"
 
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // ClientDeviceBlocks generates import + resource blocks for client devices.

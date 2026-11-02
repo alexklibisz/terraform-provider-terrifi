@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // randomMAC generates a random locally-administered MAC address (02:xx:xx:xx:xx:xx).
@@ -237,11 +237,11 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.True(t, c.UseFixedIP, "modelToAPI sets UseFixedIP from FixedIP presence")
 		assert.Empty(t, c.NetworkID)
 
-		// buildClientDeviceRequest is the safety net that prevents the invalid
+		// unifi.BuildClientDeviceRequest is the safety net that prevents the invalid
 		// API call: it should NOT set use_fixedip=true without a network.
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 		assert.NotNil(t, req.UseFixedIP)
-		assert.False(t, *req.UseFixedIP, "buildClientDeviceRequest should not enable use_fixedip without any network")
+		assert.False(t, *req.UseFixedIP, "unifi.BuildClientDeviceRequest should not enable use_fixedip without any network")
 		assert.Empty(t, req.FixedIP, "fixed_ip should not be sent without any network")
 		assert.Empty(t, req.NetworkID)
 	})
@@ -262,8 +262,8 @@ func TestClientDeviceModelToAPI(t *testing.T) {
 		assert.NotNil(t, c.VirtualNetworkOverrideEnabled)
 		assert.True(t, *c.VirtualNetworkOverrideEnabled)
 
-		// buildClientDeviceRequest should fall back to override ID as network_id.
-		req := buildClientDeviceRequest(c)
+		// unifi.BuildClientDeviceRequest should fall back to override ID as network_id.
+		req := unifi.BuildClientDeviceRequest(c)
 		assert.NotNil(t, req.UseFixedIP)
 		assert.True(t, *req.UseFixedIP, "use_fixedip should be true when override provides the network")
 		assert.Equal(t, "10.0.0.50", req.FixedIP)
@@ -279,7 +279,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			NetworkID: "net-123",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Equal(t, "10.0.0.50", req.FixedIP)
 		assert.Equal(t, "net-123", req.NetworkID)
@@ -293,7 +293,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			FixedIP: "10.0.0.50",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Empty(t, req.FixedIP, "fixed_ip should not be sent without any network")
 		assert.Empty(t, req.NetworkID)
@@ -308,7 +308,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			VirtualNetworkOverrideID: "override-123",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Equal(t, "10.0.0.50", req.FixedIP)
 		assert.Equal(t, "override-123", req.NetworkID, "should fall back to override ID")
@@ -324,7 +324,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			VirtualNetworkOverrideID: "override-123",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Equal(t, "10.0.0.50", req.FixedIP)
 		assert.Equal(t, "net-explicit", req.NetworkID, "should prefer explicit network_id")
@@ -338,7 +338,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			NetworkID: "net-123",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Empty(t, req.FixedIP)
 		assert.Empty(t, req.NetworkID)
@@ -352,7 +352,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			VirtualNetworkOverrideID: "vlan-456",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Equal(t, "vlan-456", req.VirtualNetworkOverrideID)
 		assert.NotNil(t, req.VirtualNetworkOverrideEnabled)
@@ -366,7 +366,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			FixedApEnabled: true,
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Equal(t, "11:22:33:44:55:66", req.FixedApMAC)
 		assert.NotNil(t, req.FixedApEnabled)
@@ -378,7 +378,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			MAC: "aa:bb:cc:dd:ee:ff",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Empty(t, req.FixedApMAC)
 		assert.NotNil(t, req.FixedApEnabled)
@@ -400,7 +400,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			Blocked:                  &blocked,
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Equal(t, "aa:bb:cc:dd:ee:ff", req.MAC)
 		assert.Equal(t, "Test Device", req.Name)
@@ -430,7 +430,7 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 			MAC: "aa:bb:cc:dd:ee:ff",
 		}
 
-		req := buildClientDeviceRequest(c)
+		req := unifi.BuildClientDeviceRequest(c)
 
 		assert.Equal(t, []string{}, req.NetworkMembersGroupIDs)
 	})
@@ -439,25 +439,25 @@ func TestBuildClientDeviceRequest(t *testing.T) {
 func TestCheckV1Meta(t *testing.T) {
 	t.Run("ok response", func(t *testing.T) {
 		raw := json.RawMessage(`{"rc":"ok"}`)
-		err := checkV1Meta(raw)
+		err := unifi.CheckV1Meta(raw)
 		assert.NoError(t, err)
 	})
 
 	t.Run("error response", func(t *testing.T) {
 		raw := json.RawMessage(`{"rc":"error","msg":"api.err.InvalidObject"}`)
-		err := checkV1Meta(raw)
+		err := unifi.CheckV1Meta(raw)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "api.err.InvalidObject")
 	})
 
 	t.Run("empty meta", func(t *testing.T) {
-		err := checkV1Meta(nil)
+		err := unifi.CheckV1Meta(nil)
 		assert.NoError(t, err)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
 		raw := json.RawMessage(`not json`)
-		err := checkV1Meta(raw)
+		err := unifi.CheckV1Meta(raw)
 		assert.NoError(t, err)
 	})
 }

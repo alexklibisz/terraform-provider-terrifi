@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -21,8 +22,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // Compile-time interface checks.
@@ -256,9 +255,6 @@ func setContains(set types.Set, s string) bool {
 	return false
 }
 
-// validatePortProfileModel holds the cross-attribute checks so they can be
-// unit tested without building a tfsdk.Config. Attributes with defaults are
-// null in config when the user relies on the default.
 func validatePortProfileModel(m *portProfileResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	// Link debounce: 0 (off) or 100–5000 in steps of 100 (custom).
@@ -568,7 +564,7 @@ func (r *portProfileResource) settleFreshTaggedNetworks(ctx context.Context, sit
 	case <-time.After(portProfileSettleDelay):
 	}
 
-	got, err := r.client.getPortProfile(ctx, site, written.ID, false)
+	got, err := r.client.GetPortProfileWithCache(ctx, site, written.ID, false)
 	if err != nil {
 		return nil, err
 	}

@@ -6,12 +6,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // requireHardware skips the test when running against the Docker simulation

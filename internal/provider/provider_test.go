@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // testAccProtoV6ProviderFactories creates a provider factory for acceptance tests.
@@ -129,8 +128,8 @@ func waitForAPI(ctx context.Context, endpoint, user, pass string) error {
 	retryDelay := 3 * time.Second
 
 	for i := range maxRetries {
-		client, err := unifi.New(ctx, &unifi.Config{
-			BaseURL:       endpoint,
+		client, err := NewClient(ctx, ClientConfig{
+			APIURL:        endpoint,
 			Username:      user,
 			Password:      pass,
 			AllowInsecure: true,

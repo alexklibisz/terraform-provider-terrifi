@@ -2,20 +2,6 @@ package unifi
 
 import "fmt"
 
-// PortProfile mirrors the controller's representation of a switch port
-// profile at /api/s/{site}/rest/portconf. Only fields the provider manages are
-// typed; the controller returns more (link speed, port
-// security, 802.1X, voice VLAN, qos_profile, ...), which are ignored on read
-// and preserved on update by a read-modify-write of the raw object (see
-// UpdatePortProfile).
-//
-// Every optional field is a pointer or omitempty so that the provider decides
-// exactly what goes on the wire. The go-unifi SDK's PortProfile serializes
-// bools without omitempty, so a partially populated struct silently sends
-// `false` for settings the controller defaults to `true`.
-//
-// Field-to-UI mapping was established against UniFi OS 5.1 / Network 10.x by
-// changing one UI control at a time and diffing the stored object.
 type PortProfile struct {
 	ID     string `json:"_id,omitempty"`
 	SiteID string `json:"site_id,omitempty"`

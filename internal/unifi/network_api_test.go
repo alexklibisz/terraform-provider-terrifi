@@ -1,4 +1,4 @@
-package provider
+package unifi
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // Verifies the workaround that strips quotes from string-encoded
@@ -81,16 +80,16 @@ func TestFixNetworkBytes_decodesIntoUnifiNetwork(t *testing.T) {
 		}]
 	}`
 
-	// Sanity: raw payload fails to decode without the workaround.
+	// The local contract decodes the controller response directly.
 	var rawEnvelope struct {
-		Data []unifi.Network `json:"data"`
+		Data []Network `json:"data"`
 	}
 	rawErr := json.Unmarshal([]byte(payload), &rawEnvelope)
-	require.Error(t, rawErr, "expected SDK to reject string ipv6_ra_preferred_lifetime without workaround")
+	require.NoError(t, rawErr, "local contract accepts string-encoded IPv6 lifetimes")
 
 	patched := fixNetworkBytes([]byte(payload))
 	var envelope struct {
-		Data []unifi.Network `json:"data"`
+		Data []Network `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(patched, &envelope))
 	require.Len(t, envelope.Data, 1)
@@ -146,8 +145,8 @@ func TestUpdateNetworkManagedFreshRead(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(map[string]any{"meta": map[string]string{"rc": "ok"}, "data": []any{stored}})
 			}))
 			defer server.Close()
-			client := &Client{BaseURL: server.URL, APIPath: "/proxy/network", HTTP: newRetryableHTTPClient(false), cache: newResponseCache()}
-			url := client.networkURL("default", "net-1")
+			client := &APIClient{BaseURL: server.URL, APIPath: "/proxy/network", HTTP: newRetryableHTTPClient(false), cache: newResponseCache()}
+			url := client.NetworkURL("default", "net-1")
 			// A stale refresh result must not overwrite the latest controller settings.
 			client.cache.set(url, []byte(`{"meta":{"rc":"ok"},"data":[{"_id":"net-1","purpose":"corporate","enabled":true,"domain_name":"stale.example"}]}`))
 			for _, name := range []string{"renamed", "renamed-again"} {

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -17,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // ---------------------------------------------------------------------------
@@ -779,7 +779,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "pol-001", model.ID.ValueString())
 		assert.Equal(t, "default", model.Site.ValueString())
@@ -819,7 +819,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "mysite")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "mysite")
 
 		assert.Equal(t, "pol-002", model.ID.ValueString())
 		assert.Equal(t, "mysite", model.Site.ValueString())
@@ -858,7 +858,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.False(t, model.Enabled.ValueBool())
 		assert.True(t, model.Logging.IsNull())
@@ -880,7 +880,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.True(t, model.Index.IsNull())
 	})
@@ -900,7 +900,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.True(t, model.Description.IsNull())
 	})
@@ -919,7 +919,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "BOTH", model.IPVersion.ValueString())
 		assert.Equal(t, "all", model.Protocol.ValueString())
@@ -947,7 +947,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "ALL", model.ConnectionStateType.ValueString())
 		assert.True(t, model.ConnectionStates.IsNull())
@@ -972,7 +972,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "CUSTOM", model.ConnectionStateType.ValueString())
 		assert.False(t, model.ConnectionStates.IsNull())
@@ -1000,7 +1000,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "icmpv6", model.Protocol.ValueString())
 		assert.Equal(t, "IPV6", model.IPVersion.ValueString())
@@ -1024,7 +1024,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		assert.Equal(t, "icmp", model.Protocol.ValueString())
 	})
@@ -1049,9 +1049,9 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{
+		r.apiToModel(&unifi.FirewallPolicyFull{
 			FirewallPolicy: policy,
-			RawSchedule: &firewallPolicyScheduleRequest{
+			RawSchedule: &unifi.FirewallPolicyScheduleRequest{
 				Mode:           "EVERY_WEEK",
 				TimeRangeStart: "08:00",
 				TimeRangeEnd:   "17:00",
@@ -1082,9 +1082,9 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{
+		r.apiToModel(&unifi.FirewallPolicyFull{
 			FirewallPolicy: policy,
-			RawSchedule: &firewallPolicyScheduleRequest{
+			RawSchedule: &unifi.FirewallPolicyScheduleRequest{
 				Mode:           "ONE_TIME_ONLY",
 				Date:           "2030-01-01",
 				TimeRangeStart: "09:00",
@@ -1121,15 +1121,15 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{
+		r.apiToModel(&unifi.FirewallPolicyFull{
 			FirewallPolicy: policy,
-			RawSchedule: &firewallPolicyScheduleRequest{
+			RawSchedule: &unifi.FirewallPolicyScheduleRequest{
 				Mode:           "CUSTOM",
 				TimeRangeStart: "09:00",
 				TimeRangeEnd:   "12:00",
 				RepeatOnDays:   []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"},
-				DateStart: "2030-01-01",
-				DateEnd:   "2030-12-31",
+				DateStart:      "2030-01-01",
+				DateEnd:        "2030-12-31",
 			},
 		}, &model, "default")
 
@@ -1161,7 +1161,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1192,7 +1192,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1221,7 +1221,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1252,7 +1252,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1284,7 +1284,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1313,7 +1313,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var srcModel firewallPolicyEndpointModel
 		model.Source.As(context.Background(), &srcModel, basetypes.ObjectAsOptions{})
@@ -1345,7 +1345,7 @@ func TestFirewallPolicyAPIToModel(t *testing.T) {
 		}
 
 		var model firewallPolicyResourceModel
-		r.apiToModel(&firewallPolicyFull{FirewallPolicy: policy}, &model, "default")
+		r.apiToModel(&unifi.FirewallPolicyFull{FirewallPolicy: policy}, &model, "default")
 
 		var dstModel firewallPolicyEndpointModel
 		model.Destination.As(context.Background(), &dstModel, basetypes.ObjectAsOptions{})
@@ -1401,8 +1401,8 @@ func TestFirewallPolicyApplyPlanToState(t *testing.T) {
 			"time_range_start": types.StringValue("09:00"),
 			"time_range_end":   types.StringValue("12:00"),
 			"repeat_on_days":   types.SetNull(types.StringType),
-			"date_start": types.StringNull(),
-			"date_end":   types.StringNull(),
+			"date_start":       types.StringNull(),
+			"date_end":         types.StringNull(),
 		})
 		state := &firewallPolicyResourceModel{
 			Name:     types.StringValue("Scheduled Policy"),
@@ -1514,14 +1514,14 @@ func TestScheduleCustomRequiresDatesValidator(t *testing.T) {
 
 func TestBuildEndpointRequest(t *testing.T) {
 	t.Run("MAC matching sends values in macs field", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "MAC", []string{"aa:bb:cc:dd:ee:ff"}, "ANY", nil, "", false, false)
+		ep := unifi.BuildEndpointRequest("zone1", "MAC", []string{"aa:bb:cc:dd:ee:ff"}, "ANY", nil, "", false, false)
 		assert.Equal(t, "MAC", ep.MatchingTarget)
 		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.MACs)
 		assert.Nil(t, ep.IPs)
 	})
 
 	t.Run("CLIENT matching sends values in client_macs field", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "CLIENT", []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, "ANY", nil, "", false, false)
+		ep := unifi.BuildEndpointRequest("zone1", "CLIENT", []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, "ANY", nil, "", false, false)
 		assert.Equal(t, "CLIENT", ep.MatchingTarget)
 		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.ClientMACs)
 		assert.Nil(t, ep.IPs)
@@ -1529,14 +1529,14 @@ func TestBuildEndpointRequest(t *testing.T) {
 	})
 
 	t.Run("IP matching sends values in ips field", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "IP", []string{"10.0.0.1"}, "ANY", nil, "", false, false)
+		ep := unifi.BuildEndpointRequest("zone1", "IP", []string{"10.0.0.1"}, "ANY", nil, "", false, false)
 		assert.Equal(t, "IP", ep.MatchingTarget)
 		assert.Equal(t, []string{"10.0.0.1"}, ep.IPs)
 		assert.Nil(t, ep.MACs)
 	})
 
 	t.Run("NETWORK matching sends values in network_ids field", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "NETWORK", []string{"net-001", "net-002"}, "ANY", nil, "", false, false)
+		ep := unifi.BuildEndpointRequest("zone1", "NETWORK", []string{"net-001", "net-002"}, "ANY", nil, "", false, false)
 		assert.Equal(t, "NETWORK", ep.MatchingTarget)
 		assert.Equal(t, []string{"net-001", "net-002"}, ep.NetworkIDs)
 		assert.Nil(t, ep.IPs)
@@ -1545,14 +1545,14 @@ func TestBuildEndpointRequest(t *testing.T) {
 	})
 
 	t.Run("NETWORK match_opposite uses match_opposite_networks", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "NETWORK", []string{"net-001"}, "ANY", nil, "", false, true)
+		ep := unifi.BuildEndpointRequest("zone1", "NETWORK", []string{"net-001"}, "ANY", nil, "", false, true)
 		assert.Nil(t, ep.MatchOppositeIPs)
 		require.NotNil(t, ep.MatchOppositeNetworks)
 		assert.True(t, *ep.MatchOppositeNetworks)
 	})
 
 	t.Run("NETWORK request JSON uses network_ids, not ips", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "NETWORK", []string{"net-001"}, "ANY", nil, "", false, true)
+		ep := unifi.BuildEndpointRequest("zone1", "NETWORK", []string{"net-001"}, "ANY", nil, "", false, true)
 		b, err := json.Marshal(ep)
 		require.NoError(t, err)
 		var m map[string]any
@@ -1564,27 +1564,27 @@ func TestBuildEndpointRequest(t *testing.T) {
 	})
 
 	t.Run("match_opposite_ports set when true", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "ANY", nil, "SPECIFIC", nil, "", true, false)
+		ep := unifi.BuildEndpointRequest("zone1", "ANY", nil, "SPECIFIC", nil, "", true, false)
 		assert.NotNil(t, ep.MatchOppositePorts)
 		assert.True(t, *ep.MatchOppositePorts)
 		assert.Nil(t, ep.MatchOppositeIPs)
 	})
 
 	t.Run("match_opposite_ips set when true", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "IP", []string{"10.0.0.1"}, "ANY", nil, "", false, true)
+		ep := unifi.BuildEndpointRequest("zone1", "IP", []string{"10.0.0.1"}, "ANY", nil, "", false, true)
 		assert.Nil(t, ep.MatchOppositePorts)
 		assert.NotNil(t, ep.MatchOppositeIPs)
 		assert.True(t, *ep.MatchOppositeIPs)
 	})
 
 	t.Run("match_opposite fields nil when false", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "", false, false)
+		ep := unifi.BuildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "", false, false)
 		assert.Nil(t, ep.MatchOppositePorts)
 		assert.Nil(t, ep.MatchOppositeIPs)
 	})
 
 	t.Run("port_group_id sets port_matching_type to OBJECT", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "pg-001", true, false)
+		ep := unifi.BuildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "pg-001", true, false)
 		assert.Equal(t, "OBJECT", ep.PortMatchingType)
 		assert.Equal(t, "pg-001", ep.PortGroupID)
 		assert.NotNil(t, ep.MatchOppositePorts)
@@ -1593,13 +1593,13 @@ func TestBuildEndpointRequest(t *testing.T) {
 
 	t.Run("port sets port_matching_type to SPECIFIC", func(t *testing.T) {
 		port := int64(443)
-		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", &port, "", false, false)
+		ep := unifi.BuildEndpointRequest("zone1", "ANY", nil, "ANY", &port, "", false, false)
 		assert.Equal(t, "SPECIFIC", ep.PortMatchingType)
 		assert.Equal(t, int64(443), *ep.Port)
 	})
 
 	t.Run("port_matching_type preserved when no port or port_group_id", func(t *testing.T) {
-		ep := buildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "", false, false)
+		ep := unifi.BuildEndpointRequest("zone1", "ANY", nil, "ANY", nil, "", false, false)
 		assert.Equal(t, "ANY", ep.PortMatchingType)
 	})
 }
@@ -1607,89 +1607,89 @@ func TestBuildEndpointRequest(t *testing.T) {
 func TestResolvePortMatchingType(t *testing.T) {
 	t.Run("port_group_id takes precedence", func(t *testing.T) {
 		port := int64(443)
-		result := resolvePortMatchingType("ANY", &port, "pg-001")
+		result := unifi.ResolvePortMatchingType("ANY", &port, "pg-001")
 		assert.Equal(t, "OBJECT", result)
 	})
 
 	t.Run("port sets SPECIFIC", func(t *testing.T) {
 		port := int64(80)
-		result := resolvePortMatchingType("ANY", &port, "")
+		result := unifi.ResolvePortMatchingType("ANY", &port, "")
 		assert.Equal(t, "SPECIFIC", result)
 	})
 
 	t.Run("neither falls through", func(t *testing.T) {
-		result := resolvePortMatchingType("ANY", nil, "")
+		result := unifi.ResolvePortMatchingType("ANY", nil, "")
 		assert.Equal(t, "ANY", result)
 	})
 
 	t.Run("explicit OBJECT preserved", func(t *testing.T) {
-		result := resolvePortMatchingType("OBJECT", nil, "pg-001")
+		result := unifi.ResolvePortMatchingType("OBJECT", nil, "pg-001")
 		assert.Equal(t, "OBJECT", result)
 	})
 }
 
 func TestResolveIPs(t *testing.T) {
 	t.Run("MAC matching returns macs", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "MAC",
 			MACs:           []string{"aa:bb:cc:dd:ee:ff"},
 		}
-		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
+		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.ResolveIPs())
 	})
 
 	t.Run("IID matching also returns macs", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "MAC",
 			MACs:           []string{"aa:bb:cc:dd:ee:ff"},
 		}
-		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.resolveIPs())
+		assert.Equal(t, []string{"aa:bb:cc:dd:ee:ff"}, ep.ResolveIPs())
 	})
 
 	t.Run("CLIENT matching returns client_macs", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "CLIENT",
 			ClientMACs:     []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"},
 		}
-		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.resolveIPs())
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01", "02:aa:bb:cc:dd:02"}, ep.ResolveIPs())
 	})
 
 	t.Run("IP matching returns ips", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "IP",
 			IPs:            []string{"10.0.0.1"},
 		}
-		assert.Equal(t, []string{"10.0.0.1"}, ep.resolveIPs())
+		assert.Equal(t, []string{"10.0.0.1"}, ep.ResolveIPs())
 	})
 
 	t.Run("NETWORK matching returns network_ids", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "NETWORK",
 			NetworkIDs:     []string{"net-001"},
 		}
-		assert.Equal(t, []string{"net-001"}, ep.resolveIPs())
+		assert.Equal(t, []string{"net-001"}, ep.ResolveIPs())
 	})
 
 	t.Run("NETWORK matching falls back to ips when network_ids is empty", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "NETWORK",
 			IPs:            []string{"net-001"},
 		}
-		assert.Equal(t, []string{"net-001"}, ep.resolveIPs())
+		assert.Equal(t, []string{"net-001"}, ep.ResolveIPs())
 	})
 
 	t.Run("ANY matching returns ips", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "ANY",
 		}
-		assert.Nil(t, ep.resolveIPs())
+		assert.Nil(t, ep.ResolveIPs())
 	})
 
 	t.Run("CLIENT matching falls back to ips when client_macs empty", func(t *testing.T) {
-		ep := &firewallPolicyEndpointResponse{
+		ep := &unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget: "CLIENT",
 			IPs:            []string{"02:aa:bb:cc:dd:01"},
 		}
-		assert.Equal(t, []string{"02:aa:bb:cc:dd:01"}, ep.resolveIPs())
+		assert.Equal(t, []string{"02:aa:bb:cc:dd:01"}, ep.ResolveIPs())
 	})
 }
 
@@ -3474,7 +3474,7 @@ func getExternalZoneID(t *testing.T) string {
 	}
 
 	var zones []unifi.FirewallZone
-	if err := client.doV2Request(ctx, http.MethodGet,
+	if err := client.Do(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall/zone", client.BaseURL, client.APIPath, client.Site),
 		struct{}{}, &zones,
 	); err != nil {
@@ -3518,41 +3518,40 @@ func TestFirewallPolicyEndpointResponseNetwork(t *testing.T) {
 	}`
 
 	t.Run("network_ids are read back", func(t *testing.T) {
-		var ep firewallPolicyEndpointResponse
+		var ep unifi.FirewallPolicyEndpointResponse
 		require.NoError(t, json.Unmarshal([]byte(raw), &ep))
-		src := ep.toSDKSource()
+		src := ep.ToSource()
 		assert.Equal(t, "NETWORK", src.MatchingTarget)
 		assert.Equal(t, []string{"6668efccfacfe044d39f0001"}, src.IPs)
 		assert.False(t, src.MatchOppositeIPs)
 
-		dst := ep.toSDKDestination()
+		dst := ep.ToDestination()
 		assert.Equal(t, []string{"6668efccfacfe044d39f0001"}, dst.IPs)
 	})
 
 	t.Run("match_opposite_networks maps to match_opposite_ips", func(t *testing.T) {
-		var ep firewallPolicyEndpointResponse
+		var ep unifi.FirewallPolicyEndpointResponse
 		require.NoError(t, json.Unmarshal([]byte(raw), &ep))
 		ep.MatchOppositeNetworks = true
-		assert.True(t, ep.toSDKSource().MatchOppositeIPs)
-		assert.True(t, ep.toSDKDestination().MatchOppositeIPs)
+		assert.True(t, ep.ToSource().MatchOppositeIPs)
+		assert.True(t, ep.ToDestination().MatchOppositeIPs)
 	})
 
-
 	t.Run("stale match_opposite_ips is ignored for NETWORK", func(t *testing.T) {
-		var ep firewallPolicyEndpointResponse
+		var ep unifi.FirewallPolicyEndpointResponse
 		require.NoError(t, json.Unmarshal([]byte(raw), &ep))
 		ep.MatchOppositeIPs = true
-		assert.False(t, ep.toSDKSource().MatchOppositeIPs)
+		assert.False(t, ep.ToSource().MatchOppositeIPs)
 	})
 
 	t.Run("IP target ignores network fields", func(t *testing.T) {
-		ep := firewallPolicyEndpointResponse{
+		ep := unifi.FirewallPolicyEndpointResponse{
 			MatchingTarget:        "IP",
 			IPs:                   []string{"192.168.1.10"},
 			MatchOppositeIPs:      true,
 			MatchOppositeNetworks: false,
 		}
-		src := ep.toSDKSource()
+		src := ep.ToSource()
 		assert.Equal(t, []string{"192.168.1.10"}, src.IPs)
 		assert.True(t, src.MatchOppositeIPs)
 	})

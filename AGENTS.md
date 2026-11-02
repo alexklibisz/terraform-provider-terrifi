@@ -10,7 +10,7 @@ references, credential setup, and controller log commands.
 
 ## Project Overview
 
-Terrifi is a Terraform provider for managing Ubiquiti UniFi network infrastructure, built from scratch using the HashiCorp Terraform Plugin Framework (not the legacy SDK). It uses the [go-unifi](https://github.com/ubiquiti-community/go-unifi) SDK under the hood.
+Terrifi is a Terraform provider for managing Ubiquiti UniFi network infrastructure, built from scratch using the HashiCorp Terraform Plugin Framework (not the legacy SDK). It uses local API contracts and an independent HTTP client in `internal/unifi/`.
 
 ## Commands
 
@@ -32,12 +32,12 @@ All provider code lives in `internal/provider/`. Each resource follows the Terra
 
 1. **Model struct** (e.g., `dnsRecordModel`) — Go struct with `tfsdk:` tags mapping HCL attributes
 2. **CRUD methods** — `Create`, `Read`, `Update`, `Delete`, `ImportState`
-3. **Model-to-API conversion** — Functions converting between Terraform model types (`types.String`, `types.Bool`) and go-unifi API structs
+3. **Model-to-API conversion** — Functions converting between Terraform model types (`types.String`, `types.Bool`) and local UniFi API structs
 4. **Schema** — Declares HCL attributes with validators, defaults, and plan modifiers
 
 ### Key Patterns
 
-- **Null-aware field handling**: Terraform wrapper types (`types.String`, `types.Bool`, `types.Int64`) distinguish null/unknown/set. Optional fields use pointer types in go-unifi structs. Zero values are treated as null to avoid spurious diffs.
+- **Null-aware field handling**: Terraform wrapper types (`types.String`, `types.Bool`, `types.Int64`) distinguish null/unknown/set. Optional fields use pointer types in local UniFi contracts. Zero values are treated as null to avoid spurious diffs.
 - **Full object updates via `applyPlanToState()`**: The UniFi API requires sending complete objects on PUT. Each resource has an `applyPlanToState()` method that merges the user's planned changes into the current state before sending, preventing accidental clearing of API-set fields.
 - **Site fallback**: Resources have an optional `site` attribute that falls back to the provider's default site via `Client.SiteOrDefault()`.
 - **Configuration cascading**: HCL attributes → environment variables (`UNIFI_API`, `UNIFI_USERNAME`, `UNIFI_PASSWORD`, `UNIFI_API_KEY`, `UNIFI_INSECURE`, `UNIFI_SITE`) → defaults.
@@ -51,7 +51,7 @@ Implementations, tests, and code reviews should not assume someone concurrently 
 Preserving such concurrent edits is not a requirement and does not by itself justify a fix or additional update logic.
 
 Controller settings the provider does not expose may be managed outside Terraform and must be preserved during resource updates.
-Full-object API writes and SDK serialization defaults must not reset these settings.
+Full-object API writes and serialization defaults must not reset these settings.
 
 Interpret omitted, null, and unknown values according to the attribute's schema and Terraform Plugin Framework semantics.
 Omitting an optional/computed attribute does not by itself relinquish ownership or request a reset; it may retain its prior state or use a controller-computed value.
@@ -70,35 +70,31 @@ Each new feature should include extensive acceptance testing.
 Think of interesting permutations of settings and sequences of changes.
 Too much testing is better than too little - don't hold back.
 
-### go-unifi SDK Workarounds
+### UniFi API Contracts
 
-The go-unifi SDK has several bugs that require workarounds in this provider. All workarounds are tagged with `TODO(go-unifi)` comments so they can be found and removed when the SDK is fixed.
+All controller contracts, authentication, transport, response caching, and endpoint methods live in `internal/unifi/`.
+This package must remain independent of Terraform and other Terrifi packages so it can be extracted into a separate module.
+See [the client package documentation](internal/unifi/README.md) for endpoints, serialization rules, and validation.
 
-**Conventions for SDK workarounds:**
-- Tag every workaround site with a `// TODO(go-unifi):` comment explaining the upstream bug, the symptom, and what SDK fix would allow removing the workaround.
-- When possible, isolate workarounds into named helper functions (e.g., `applySDKSettingPreferenceWorkaround`) so they can be deleted as a unit.
-- When the SDK lacks working methods for an API (e.g., v2 firewall zones), put all custom HTTP logic in a dedicated `*_api.go` file (e.g., `firewall_zone_api.go`) with a file-level TODO explaining which SDK methods it replaces.
-- Never patch the SDK in the module cache. All workarounds live in this repo.
-
-**Current workarounds (search `TODO(go-unifi)` for details):**
-- `firewall_zone_api.go` — Bypasses SDK's firewall zone CRUD entirely due to three bugs: `default_zone` serialization (400), missing `_id` in PUT body (500), and DELETE returning 204 treated as error.
-- `firewall_policy_api.go` — Custom HTTP methods for v2 firewall policy endpoints not supported by the SDK.
-- `client_device_api.go` — Custom HTTP methods for v2 client device endpoints not supported by the SDK.
-- `network_resource.go` — `applySDKSettingPreferenceWorkaround()` forces `setting_preference=manual` because the SDK defaults to `auto`, which causes the controller to auto-override settings like DHCP enable.
-- `network_resource.go` — `IsUnknown()` guards on DHCP fields in `modelToAPI` prevent passing empty strings to the SDK, which would crash the controller via `marshalCorporate()`'s `valueOrDefault()` defaults.
+Keep controller quirks in endpoint implementations and local JSON decoders rather than provider resource methods.
+Use narrow write payloads or merge managed fields into raw controller JSON so settings outside Terraform's exposed attributes survive updates.
+Provider code owns Terraform types, schemas, plan-to-request conversion, diagnostics, and settling of asynchronous controller changes.
 
 ### CLI and Import Generation
 
 The `cmd/terrifi/` directory contains a Cobra-based CLI. Its main command is `generate-imports`, which connects to a live UniFi controller and outputs Terraform `import {}` + `resource {}` blocks to stdout.
 
-The `internal/generate/` package provides the conversion logic: each resource type has a `<Name>Blocks()` function (e.g., `DNSRecordBlocks()`) that converts go-unifi API structs into `ResourceBlock` objects, which are then rendered as HCL. Shared helpers like `ToTerraformName()`, `DeduplicateNames()`, and HCL formatting functions (`HCLString`, `HCLBool`, etc.) live in `generate.go`.
+The `internal/generate/` package provides the conversion logic: each resource type has a `<Name>Blocks()` function (e.g., `DNSRecordBlocks()`) that converts local UniFi API structs into `ResourceBlock` objects, which are then rendered as HCL. Shared helpers like `ToTerraformName()`, `DeduplicateNames()`, and HCL formatting functions (`HCLString`, `HCLBool`, etc.) live in `generate.go`.
 
 ### Client Architecture
 
-`internal/provider/client.go` defines the `Client` struct wrapping `go-unifi`'s `ApiClient`. Key details:
-- Uses `go-retryablehttp` for automatic retries with TLS configuration.
+`internal/unifi/api_client.go` defines the independent controller `APIClient` and connection `Config`.
+Key details:
+- Uses `go-retryablehttp` with TLS configuration, cookies, and one authentication session for all endpoints.
 - On initialization, probes the controller to discover the API path (`/proxy/network` for UniFi OS vs. empty for legacy controllers).
-- `ClientConfigFromEnv()` reads `UNIFI_*` env vars, shared between the provider and CLI.
+- `unifi.ConfigFromEnv()` reads `UNIFI_*` environment variables for both the provider and CLI.
+- `internal/provider/client.go` embeds the independent client and adds Terraform-specific default-site resolution.
+- HTTP endpoint methods belong in `internal/unifi/*_api.go`, never in the provider package.
 
 ### Adding a New Resource
 

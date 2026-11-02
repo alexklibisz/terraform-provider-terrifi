@@ -30,11 +30,11 @@ type firewallPolicyOrderResource struct {
 }
 
 type firewallPolicyOrderResourceModel struct {
-	ID                 types.String `tfsdk:"id"`
-	Site               types.String `tfsdk:"site"`
-	SourceZoneID       types.String `tfsdk:"source_zone_id"`
-	DestinationZoneID  types.String `tfsdk:"destination_zone_id"`
-	PolicyIDs          types.List   `tfsdk:"policy_ids"`
+	ID                types.String `tfsdk:"id"`
+	Site              types.String `tfsdk:"site"`
+	SourceZoneID      types.String `tfsdk:"source_zone_id"`
+	DestinationZoneID types.String `tfsdk:"destination_zone_id"`
+	PolicyIDs         types.List   `tfsdk:"policy_ids"`
 }
 
 func (r *firewallPolicyOrderResource) Metadata(

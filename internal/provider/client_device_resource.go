@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -16,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 var macRegexp = regexp.MustCompile(`^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$`)
@@ -119,7 +119,7 @@ func (r *clientDeviceResource) Schema(
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
-					// buildClientDeviceRequest omits an empty note from the request
+					// unifi.BuildClientDeviceRequest omits an empty note from the request
 					// body, so it would read back as null and contradict a planned "".
 					// Reject it at validate time rather than failing after apply.
 					stringvalidator.LengthAtLeast(1),
@@ -641,7 +641,7 @@ func (r *clientDeviceResource) modelToAPI(ctx context.Context, m *clientDeviceRe
 
 	if !m.NetworkOverrideID.IsNull() && !m.NetworkOverrideID.IsUnknown() {
 		c.VirtualNetworkOverrideID = m.NetworkOverrideID.ValueString()
-		c.VirtualNetworkOverrideEnabled = boolPtr(true)
+		c.VirtualNetworkOverrideEnabled = unifi.BoolPtr(true)
 	}
 
 	if !m.LocalDNSRecord.IsNull() && !m.LocalDNSRecord.IsUnknown() {

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -22,8 +23,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // Compile-time interface checks.
@@ -309,7 +308,7 @@ func (r *devicePortsResource) write(ctx context.Context, site, mac string, want 
 		return "", err
 	}
 	if slices.ContainsFunc(slices.Collect(maps.Values(want)), func(w *portWant) bool { return w != nil && w.NativeNetworkID != nil }) {
-		networks, err := r.client.listPortNetworks(ctx, site)
+		networks, err := r.client.ListPortNetworks(ctx, site)
 		if err != nil {
 			return "", fmt.Errorf("reading port networks: %w", err)
 		}

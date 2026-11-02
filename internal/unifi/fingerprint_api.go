@@ -1,4 +1,4 @@
-package provider
+package unifi
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 // GetControllerVersion returns the UniFi Network Application version string
 // (e.g. "9.0.114") by querying the sysinfo endpoint.
-func (c *Client) GetControllerVersion(ctx context.Context, site string) (string, error) {
+func (c *APIClient) GetControllerVersion(ctx context.Context, site string) (string, error) {
 	var resp struct {
 		Data []struct {
 			Version string `json:"version"`
@@ -32,19 +32,19 @@ func (c *Client) GetControllerVersion(ctx context.Context, site string) (string,
 // fingerprint database. The ID is used with dev_id_override to set custom
 // icons on client devices.
 type FingerprintDevice struct {
-	ID       int64
-	Name     string
-	DevType  string
-	Family   string
-	Vendor   string
+	ID      int64
+	Name    string
+	DevType string
+	Family  string
+	Vendor  string
 }
 
 // fingerprintAPIResponse is the response from GET v2/api/fingerprint_devices/{version}.
 type fingerprintAPIResponse struct {
 	DevIDs     map[string]fingerprintDevEntry `json:"dev_ids"`
-	DevTypeIDs map[string]string             `json:"dev_type_ids"`
-	FamilyIDs  map[string]string             `json:"family_ids"`
-	VendorIDs  map[string]string             `json:"vendor_ids"`
+	DevTypeIDs map[string]string              `json:"dev_type_ids"`
+	FamilyIDs  map[string]string              `json:"family_ids"`
+	VendorIDs  map[string]string              `json:"vendor_ids"`
 }
 
 type fingerprintDevEntry struct {
@@ -65,9 +65,9 @@ type fingerprintDevEntry struct {
 // Icon URLs follow the pattern:
 //
 //	https://static.ui.com/fingerprint/0/{id}_128x128.png
-func (c *Client) ListFingerprintDevices(ctx context.Context, version int) ([]FingerprintDevice, error) {
+func (c *APIClient) ListFingerprintDevices(ctx context.Context, version int) ([]FingerprintDevice, error) {
 	var resp fingerprintAPIResponse
-	err := c.doV2Request(ctx, http.MethodGet,
+	err := c.Do(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/fingerprint_devices/%d", c.BaseURL, c.APIPath, version),
 		nil, &resp)
 	if err != nil {
@@ -95,4 +95,3 @@ func (c *Client) ListFingerprintDevices(ctx context.Context, version int) ([]Fin
 
 	return devices, nil
 }
-

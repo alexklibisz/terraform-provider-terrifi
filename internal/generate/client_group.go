@@ -1,7 +1,7 @@
 package generate
 
 import (
-	"github.com/ubiquiti-community/go-unifi/unifi"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // ClientGroupBlocks generates import + resource blocks for client groups.

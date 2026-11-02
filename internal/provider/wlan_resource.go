@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -15,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 var (
@@ -32,16 +32,16 @@ type wlanResource struct {
 }
 
 type wlanResourceModel struct {
-	ID             types.String `tfsdk:"id"`
-	Site           types.String `tfsdk:"site"`
-	Name           types.String `tfsdk:"name"`
-	Enabled        types.Bool   `tfsdk:"enabled"`
-	Passphrase     types.String `tfsdk:"passphrase"`
-	NetworkID      types.String `tfsdk:"network_id"`
-	WifiBand       types.String `tfsdk:"wifi_band"`
-	Security       types.String `tfsdk:"security"`
-	HideSSID       types.Bool   `tfsdk:"hide_ssid"`
-	WPAMode        types.String `tfsdk:"wpa_mode"`
+	ID                      types.String `tfsdk:"id"`
+	Site                    types.String `tfsdk:"site"`
+	Name                    types.String `tfsdk:"name"`
+	Enabled                 types.Bool   `tfsdk:"enabled"`
+	Passphrase              types.String `tfsdk:"passphrase"`
+	NetworkID               types.String `tfsdk:"network_id"`
+	WifiBand                types.String `tfsdk:"wifi_band"`
+	Security                types.String `tfsdk:"security"`
+	HideSSID                types.Bool   `tfsdk:"hide_ssid"`
+	WPAMode                 types.String `tfsdk:"wpa_mode"`
 	WPA3Support             types.Bool   `tfsdk:"wpa3_support"`
 	WPA3Transition          types.Bool   `tfsdk:"wpa3_transition"`
 	Application             types.String `tfsdk:"application"`

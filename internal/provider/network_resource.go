@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -20,7 +21,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 var (
@@ -427,10 +427,6 @@ func (r *networkResource) managedFields(ctx context.Context, m *networkResourceM
 	if m.Purpose.ValueString() != "corporate" {
 		return f
 	}
-	// In "auto" mode the controller recomputes settings such as the DHCP range
-	// and would override the ones written here, so managed corporate networks
-	// stay in "manual" mode (as Create does, see
-	// applySDKSettingPreferenceWorkaround).
 	f["setting_preference"] = "manual"
 	if set(m.Subnet) {
 		f["ip_subnet"] = m.Subnet.ValueString()
@@ -491,7 +487,8 @@ func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceMode
 	// Subnet, DHCP, and the setting_preference workaround only apply to
 	// corporate networks. vlan-only networks carry no IP configuration.
 	if m.Purpose.ValueString() == "corporate" {
-		applySDKSettingPreferenceWorkaround(net)
+		manual := "manual"
+		net.SettingPreference = &manual
 
 		if !m.Subnet.IsNull() {
 			subnet := m.Subnet.ValueString()
@@ -502,16 +499,6 @@ func (r *networkResource) modelToAPI(ctx context.Context, m *networkResourceMode
 			net.DHCPDEnabled = m.DHCPEnabled.ValueBool()
 		}
 
-		// TODO(go-unifi): The IsUnknown() guards on DHCP fields below work around a
-		// bug in the SDK's marshalCorporate() (network_encode.go). That function uses
-		// valueOrDefault(n.DHCPDStart, defaultStart) which unconditionally sends DHCP
-		// range values even when the caller leaves them nil. During a Terraform create,
-		// computed+optional fields like dhcp_start/dhcp_stop are "unknown" (not null),
-		// so ValueString() returns "". Passing &"" to the SDK causes marshalCorporate()
-		// to serialize empty strings, which crashes the controller with:
-		//   java.lang.IllegalArgumentException: Could not parse []
-		// When the SDK is fixed (e.g., by not defaulting nil pointer fields), the
-		// IsUnknown() checks here can be collapsed back to just IsNull().
 		if !m.DHCPStart.IsNull() && !m.DHCPStart.IsUnknown() {
 			start := m.DHCPStart.ValueString()
 			net.DHCPDStart = &start
@@ -663,18 +650,4 @@ func toAttrValues(vals []types.String) []attr.Value {
 		result[i] = v
 	}
 	return result
-}
-
-// applySDKSettingPreferenceWorkaround forces setting_preference to "manual" on
-// a Network before it is passed to the go-unifi SDK.
-//
-// TODO(go-unifi): Remove this function and its call in modelToAPI when the SDK's
-// marshalCorporate() (network_encode.go) is fixed. That function defaults
-// setting_preference to "auto" via valueOrDefault(n.SettingPreference, "auto"),
-// which causes the UniFi controller to auto-override caller-supplied settings.
-// For example, with setting_preference=auto the controller force-enables DHCP
-// on any corporate network that has a subnet, regardless of dhcpd_enabled.
-func applySDKSettingPreferenceWorkaround(net *unifi.Network) {
-	manual := "manual"
-	net.SettingPreference = &manual
 }

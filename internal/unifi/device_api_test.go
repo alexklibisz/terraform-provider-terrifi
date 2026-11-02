@@ -1,4 +1,4 @@
-package provider
+package unifi
 
 import (
 	"encoding/json"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // Verifies the workaround that wraps numeric tx_power and channel values in
@@ -102,16 +101,16 @@ func TestFixRadioTableBytes_decodesIntoUnifiDevice(t *testing.T) {
 		}]
 	}`
 
-	// Sanity: raw payload fails to decode without the workaround.
+	// The local contract decodes the controller response directly.
 	var rawEnvelope struct {
-		Data []unifi.Device `json:"data"`
+		Data []Device `json:"data"`
 	}
 	rawErr := json.Unmarshal([]byte(payload), &rawEnvelope)
-	require.Error(t, rawErr, "expected SDK to reject numeric tx_power/channel without workaround")
+	require.NoError(t, rawErr, "local contract accepts numeric radio settings")
 
 	patched := fixRadioTableBytes([]byte(payload))
 	var envelope struct {
-		Data []unifi.Device `json:"data"`
+		Data []Device `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(patched, &envelope))
 	require.Len(t, envelope.Data, 1)

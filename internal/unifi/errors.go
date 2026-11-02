@@ -1,7 +1,6 @@
-// Package unifi defines the local API contracts and error types used by the
-// Terrifi provider to talk to the UniFi controller. It replaces the upstream
-// github.com/ubiquiti-community/go-unifi SDK incrementally — see issue #157.
 package unifi
+
+import "fmt"
 
 // NotFoundError is returned by Client read methods when the requested resource
 // does not exist on the controller. Callers compare with errors.As / type
@@ -9,3 +8,16 @@ package unifi
 type NotFoundError struct{}
 
 func (e *NotFoundError) Error() string { return "not found" }
+
+// HTTPError describes a failed controller request. Request payloads are omitted
+// because they may contain credentials or wireless passphrases.
+type HTTPError struct {
+	StatusCode int
+	Method     string
+	URL        string
+	Response   string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("(%d) for %s %s\nresponse: %s", e.StatusCode, e.Method, e.URL, e.Response)
+}

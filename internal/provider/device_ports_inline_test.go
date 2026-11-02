@@ -204,7 +204,7 @@ func TestAccDevicePorts_inlineLifecycle(t *testing.T) {
 
 func TestAccDevicePorts_inlineDefaultTrunk(t *testing.T) {
 	tg := testAccDevicePortsTarget(t)
-	networks, err := testAccGetClient(t).listPortNetworks(t.Context(), "default")
+	networks, err := testAccGetClient(t).ListPortNetworks(t.Context(), "default")
 	require.NoError(t, err)
 	var native string
 	for _, n := range networks {

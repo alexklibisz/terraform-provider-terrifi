@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alexklibisz/terrifi/internal/provider"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/spf13/cobra"
 )
 
@@ -20,8 +20,8 @@ func checkConnectionCmd() *cobra.Command {
 func runCheckConnection(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	cfg := provider.ClientConfigFromEnv()
-	client, err := provider.NewClient(ctx, cfg)
+	cfg := unifi.ConfigFromEnv()
+	client, err := unifi.New(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("connection failed: %w", err)
 	}

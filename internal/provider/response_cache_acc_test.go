@@ -122,7 +122,7 @@ resource "terrifi_firewall_policy" "test" {
 
 // TestAccResponseCaching_ClientDevice exercises the full CRUD lifecycle of a
 // client device with response caching enabled. Client device reads go through
-// doV1Request → doV2Request, so the cache is exercised on this code path too.
+// doV1Request → Do, so the cache is exercised on this code path too.
 func TestAccResponseCaching_ClientDevice(t *testing.T) {
 	mac := randomMAC()
 	resource.Test(t, resource.TestCase{

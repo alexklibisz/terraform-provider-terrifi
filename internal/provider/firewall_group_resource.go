@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -15,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/ubiquiti-community/go-unifi/unifi"
 )
 
 // Compile-time interface checks.
@@ -278,7 +278,6 @@ func (r *firewallGroupResource) applyPlanToState(plan, state *firewallGroupResou
 	}
 }
 
-// modelToAPI converts our Terraform model to the go-unifi FirewallGroup struct.
 func (r *firewallGroupResource) modelToAPI(ctx context.Context, m *firewallGroupResourceModel) (*unifi.FirewallGroup, diag.Diagnostics) {
 	group := &unifi.FirewallGroup{
 		Name:      m.Name.ValueString(),
@@ -295,7 +294,6 @@ func (r *firewallGroupResource) modelToAPI(ctx context.Context, m *firewallGroup
 	return group, diags
 }
 
-// apiToModel converts the go-unifi FirewallGroup struct back to our Terraform model.
 func (r *firewallGroupResource) apiToModel(group *unifi.FirewallGroup, m *firewallGroupResourceModel, site string) {
 	m.ID = types.StringValue(group.ID)
 	m.Site = types.StringValue(site)

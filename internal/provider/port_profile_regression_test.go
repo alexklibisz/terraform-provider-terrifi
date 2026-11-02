@@ -16,7 +16,7 @@ import (
 func TestSettleFreshTaggedNetworks_BypassesCachedList(t *testing.T) {
 	fresh := freshNetworkID(time.Now())
 	fake, r, m, lan := setupSettleTest(t, fresh)
-	r.client.cache = newResponseCache()
+	r.client.EnableResponseCaching()
 	sent := mustModelToAPI(t, &m, lan)
 	written, err := r.client.CreatePortProfile(t.Context(), "default", sent)
 	require.NoError(t, err)
@@ -30,7 +30,7 @@ func TestSettleFreshTaggedNetworks_BypassesCachedList(t *testing.T) {
 	fake.mu.Unlock()
 	_, err = r.settleFreshTaggedNetworks(t.Context(), "default", &m, sent, written)
 	require.NoError(t, err)
-	r.client.cache.invalidateAll()
+	r.client.InvalidateCache()
 	actual, err := r.client.GetPortProfile(t.Context(), "default", sent.ID)
 	require.NoError(t, err)
 	require.NotContains(t, actual.ExcludedNetworkIDs, fresh, "settle must repair the controller state even when another read primed the cache")
