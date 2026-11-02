@@ -6,6 +6,7 @@ import {
 resource "terrifi_client_device" "proxmox" {
   mac  = "7c:83:34:b8:ae:be"
   name = "terrifi-proxmox"
+  note = "Proxmox host for the HIL virtual machines"
 }
 
 import {
@@ -16,6 +17,7 @@ import {
 resource "terrifi_client_device" "unifi_os_server" {
   mac        = "bc:24:11:e5:77:9f"
   name       = "unifi-os-server"
+  note       = "UniFi OS Server VM that runs the HIL controller"
   fixed_ip   = "192.168.1.3"
   network_id = terrifi_network.default.id
 }
@@ -28,6 +30,7 @@ import {
 resource "terrifi_client_device" "gh_runner" {
   mac        = "bc:24:11:70:ec:fe"
   name       = "terrifi-gh-runner"
+  note       = "Self-hosted GitHub Actions runner VM for HIL CI"
   fixed_ip   = "192.168.1.5"
   network_id = terrifi_network.default.id
 }
