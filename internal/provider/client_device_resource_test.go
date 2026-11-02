@@ -887,7 +887,7 @@ resource "terrifi_client_device" "test" {
 }
 
 // TestAccClientDevice_noteEmptyRejected guards the length validator. The
-// controller drops an empty note from the request body, so it would read back
+// provider omits an empty note from the request body, so it would read back
 // as null and contradict a planned "" — the same inconsistency in a new
 // disguise. Rejecting it at validate time is cheaper than failing after apply.
 func TestAccClientDevice_noteEmptyRejected(t *testing.T) {
