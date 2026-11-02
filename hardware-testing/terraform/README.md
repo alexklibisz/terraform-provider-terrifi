@@ -41,7 +41,20 @@ TF_CLI_CONFIG_FILE="$PWD/terraform.rc" tofu providers lock -fs-mirror=/tmp/terri
 ```
 
 A lock file generated this way contains only `h1:` hashes, which also match the packages the registry serves once it indexes the release.
-Do not use `--configure` locally: it rewrites the tracked `terraform.rc`.
+
+The local `task hil:terraform:*` commands use the tracked, registry-only `terraform.rc`, so they cannot install an unindexed release.
+Do not run `--configure` in your working checkout: it rewrites the tracked `terraform.rc`.
+Either wait for the registry to index the release, or run the reset from a disposable worktree.
+The ignored `.env` file is not copied into the worktree, so load the environment variables above in your shell first.
+
+```sh
+git worktree add /tmp/terrifi-hil-reset HEAD
+cd /tmp/terrifi-hil-reset
+hardware-testing/terraform/provider-mirror.sh --configure /tmp/terrifi-mirror
+task build:cli
+task hil:terraform:reset
+cd - && git worktree remove --force /tmp/terrifi-hil-reset
+```
 
 ## Reset before HIL tests
 

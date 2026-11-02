@@ -84,9 +84,9 @@ that target `main` and change at least one `.go` file anywhere in the repository
 the root `go.mod` or `go.sum`, any file under `.github/workflows/`, or any file
 under `hardware-testing/terraform/`. This includes Go test files, deleted Go
 files, dependency-only changes, workflow changes, and HIL baseline changes.
-Documentation-only PRs skip HIL, including the approval gate. Use
-manual dispatch when those changes need hardware validation; nightly runs remain
-unconditional.
+Documentation-only PRs skip HIL, including the approval gate, unless they change
+documentation under `hardware-testing/terraform/`. Use manual dispatch when
+skipped changes need hardware validation; nightly runs remain unconditional.
 
 The path filter uses the whole PR diff, not just the latest commit. A docs-only
 push to a PR that already changes Go source, dependencies, or workflows can
