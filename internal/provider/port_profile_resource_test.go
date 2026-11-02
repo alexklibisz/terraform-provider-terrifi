@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -22,8 +23,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // ---------------------------------------------------------------------------
@@ -120,7 +119,7 @@ func stringSet(vs ...string) types.Set {
 // a generic map so tests can assert on exact keys and values.
 func toWire(t *testing.T, p *unifi.PortProfile) map[string]any {
 	t.Helper()
-	b, err := json.Marshal(normalizePortProfile(p))
+	b, err := json.Marshal(unifi.NormalizePortProfile(p))
 	require.NoError(t, err)
 	var m map[string]any
 	require.NoError(t, json.Unmarshal(b, &m))
@@ -350,7 +349,7 @@ func TestPortProfileRoundTrip(t *testing.T) {
 			p := mustModelToAPI(t, &want, testLANNetworks)
 			p.ID = want.ID.ValueString()
 
-			b, err := json.Marshal(normalizePortProfile(p))
+			b, err := json.Marshal(unifi.NormalizePortProfile(p))
 			require.NoError(t, err)
 			var decoded unifi.PortProfile
 			require.NoError(t, json.Unmarshal(b, &decoded))
@@ -376,7 +375,7 @@ func TestMergePortProfile(t *testing.T) {
 	p := mustModelToAPI(t, &m, nil)
 	p.ID = "000000000000000000000100"
 
-	merged, err := mergePortProfile(existing, p)
+	merged, err := unifi.MergePortProfile(existing, p)
 	require.NoError(t, err)
 	b, err := json.Marshal(merged)
 	require.NoError(t, err)
@@ -411,7 +410,7 @@ func TestMergePortProfile(t *testing.T) {
 func TestPortProfileUnmanagedDefaultsMatchUI(t *testing.T) {
 	var ui map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(uiDefaultPortProfileJSON), &ui))
-	for k, v := range portProfileUnmanagedDefaults() {
+	for k, v := range unifi.PortProfileUnmanagedDefaults() {
 		if k == "full_duplex" {
 			continue // absent from the UI object; false is the controller default
 		}
@@ -420,9 +419,9 @@ func TestPortProfileUnmanagedDefaultsMatchUI(t *testing.T) {
 	}
 
 	m := defaultPortProfileModel("x")
-	payload, err := mergePortProfile(portProfileUnmanagedDefaults(), mustModelToAPI(t, &m, nil))
+	payload, err := unifi.MergePortProfile(unifi.PortProfileUnmanagedDefaults(), mustModelToAPI(t, &m, nil))
 	require.NoError(t, err)
-	for k := range portProfileUnmanagedDefaults() {
+	for k := range unifi.PortProfileUnmanagedDefaults() {
 		assert.Contains(t, payload, k)
 	}
 	assert.JSONEq(t, `"manual"`, string(payload["setting_preference"]), "managed fields overlay the defaults")
@@ -958,7 +957,7 @@ func testAccCheckNoStaleExcludedIDs(s *terraform.State) error {
 			ID string `json:"_id"`
 		} `json:"data"`
 	}
-	if err := client.doPortProfileRequest(ctx, http.MethodGet,
+	if err := client.DoREST(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", client.BaseURL, client.APIPath, site), nil, &nets); err != nil {
 		return err
 	}
@@ -1028,7 +1027,7 @@ func testAccRawPortProfile(site, id string) (map[string]any, error) {
 	var resp struct {
 		Data []map[string]any `json:"data"`
 	}
-	if err := client.doPortProfileRequest(context.Background(), http.MethodGet, client.portProfileURL(site, ""), nil, &resp); err != nil {
+	if err := client.DoREST(context.Background(), http.MethodGet, client.PortProfileURL(site, ""), nil, &resp); err != nil {
 		return nil, err
 	}
 	for _, p := range resp.Data {
@@ -1043,7 +1042,7 @@ func testAccRawPortProfile(site, id string) (map[string]any, error) {
 func testAccPutRawPortProfile(site, id string, fields map[string]any) error {
 	client := testAccGetClientNoT()
 	fields["_id"] = id
-	return client.doPortProfileRequest(context.Background(), http.MethodPut, client.portProfileURL(site, id), fields, nil)
+	return client.DoREST(context.Background(), http.MethodPut, client.PortProfileURL(site, id), fields, nil)
 }
 
 func testAccPortProfileIDs(s *terraform.State) (site, id string, err error) {

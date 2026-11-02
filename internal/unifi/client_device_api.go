@@ -1,14 +1,4 @@
-package provider
-
-// TODO(go-unifi): This file works around a bug in the go-unifi SDK for Client
-// CRUD. The SDK's Client struct serializes boolean fields use_fixedip,
-// local_dns_record_enabled, and fixed_ap_enabled without omitempty, which means
-// they always appear as false in the JSON body. This can clear settings managed
-// outside Terraform (like fixed AP binding). A custom request struct lets us
-// control exactly which fields are serialized.
-//
-// When the upstream SDK adds omitempty to these fields, this file can be deleted
-// and the resource can use the SDK's built-in createClient/updateClient methods.
+package unifi
 
 import (
 	"context"
@@ -16,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // clientDeviceRequest is the payload for POST/PUT to api/s/{site}/rest/user.
@@ -46,14 +34,12 @@ type clientDeviceUpdateRequest struct {
 	clientDeviceRequest
 }
 
-// CreateClientDevice creates a client device entry via the v1 REST API,
-// bypassing the SDK to control boolean serialization.
-func (c *Client) CreateClientDevice(ctx context.Context, site string, d *unifi.Client) (*unifi.Client, error) {
-	payload := buildClientDeviceRequest(d)
+func (c *APIClient) CreateClientDevice(ctx context.Context, site string, d *Client) (*Client, error) {
+	payload := BuildClientDeviceRequest(d)
 
 	var respBody struct {
 		Meta json.RawMessage `json:"meta"`
-		Data []unifi.Client  `json:"data"`
+		Data []Client        `json:"data"`
 	}
 	err := c.doV1Request(ctx, http.MethodPost,
 		fmt.Sprintf("%s%s/api/s/%s/rest/user", c.BaseURL, c.APIPath, site),
@@ -61,19 +47,17 @@ func (c *Client) CreateClientDevice(ctx context.Context, site string, d *unifi.C
 	if err != nil {
 		return nil, err
 	}
-	if err := checkV1Meta(respBody.Meta); err != nil {
+	if err := CheckV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
 	if len(respBody.Data) != 1 {
-		return nil, &unifi.NotFoundError{}
+		return nil, &NotFoundError{}
 	}
 	return &respBody.Data[0], nil
 }
 
-// UpdateClientDevice updates a client device entry via the v1 REST API,
-// bypassing the SDK to control boolean serialization.
-func (c *Client) UpdateClientDevice(ctx context.Context, site string, d *unifi.Client) (*unifi.Client, error) {
-	req := buildClientDeviceRequest(d)
+func (c *APIClient) UpdateClientDevice(ctx context.Context, site string, d *Client) (*Client, error) {
+	req := BuildClientDeviceRequest(d)
 	payload := clientDeviceUpdateRequest{
 		ID:                  d.ID,
 		clientDeviceRequest: req,
@@ -81,7 +65,7 @@ func (c *Client) UpdateClientDevice(ctx context.Context, site string, d *unifi.C
 
 	var respBody struct {
 		Meta json.RawMessage `json:"meta"`
-		Data []unifi.Client  `json:"data"`
+		Data []Client        `json:"data"`
 	}
 	err := c.doV1Request(ctx, http.MethodPut,
 		fmt.Sprintf("%s%s/api/s/%s/rest/user/%s", c.BaseURL, c.APIPath, site, d.ID),
@@ -89,7 +73,7 @@ func (c *Client) UpdateClientDevice(ctx context.Context, site string, d *unifi.C
 	if err != nil {
 		return nil, err
 	}
-	if err := checkV1Meta(respBody.Meta); err != nil {
+	if err := CheckV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
 	if len(respBody.Data) == 1 {
@@ -101,12 +85,10 @@ func (c *Client) UpdateClientDevice(ctx context.Context, site string, d *unifi.C
 	return c.GetClientDevice(ctx, site, d.ID)
 }
 
-// GetClientDevice reads a client device via the SDK's getClient (GET has no body
-// serialization issue).
-func (c *Client) GetClientDevice(ctx context.Context, site string, id string) (*unifi.Client, error) {
+func (c *APIClient) GetClientDevice(ctx context.Context, site string, id string) (*Client, error) {
 	var respBody struct {
 		Meta json.RawMessage `json:"meta"`
-		Data []unifi.Client  `json:"data"`
+		Data []Client        `json:"data"`
 	}
 	err := c.doV1Request(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/api/s/%s/rest/user/%s", c.BaseURL, c.APIPath, site, id),
@@ -114,20 +96,20 @@ func (c *Client) GetClientDevice(ctx context.Context, site string, id string) (*
 	if err != nil {
 		return nil, err
 	}
-	if err := checkV1Meta(respBody.Meta); err != nil {
+	if err := CheckV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
 	if len(respBody.Data) != 1 {
-		return nil, &unifi.NotFoundError{}
+		return nil, &NotFoundError{}
 	}
 	return &respBody.Data[0], nil
 }
 
 // ListClientDevices returns all configured client devices for the given site.
-func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Client, error) {
+func (c *APIClient) ListClientDevices(ctx context.Context, site string) ([]Client, error) {
 	var respBody struct {
 		Meta json.RawMessage `json:"meta"`
-		Data []unifi.Client  `json:"data"`
+		Data []Client        `json:"data"`
 	}
 	err := c.doV1Request(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/api/s/%s/rest/user", c.BaseURL, c.APIPath, site),
@@ -135,7 +117,7 @@ func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Cl
 	if err != nil {
 		return nil, err
 	}
-	if err := checkV1Meta(respBody.Meta); err != nil {
+	if err := CheckV1Meta(respBody.Meta); err != nil {
 		return nil, err
 	}
 	return respBody.Data, nil
@@ -144,7 +126,7 @@ func (c *Client) ListClientDevices(ctx context.Context, site string) ([]unifi.Cl
 // GetClientDeviceByMAC looks up a client device by MAC address. The REST API's
 // ?mac= query parameter is not honored by all controller versions, so this
 // falls back to listing all users and filtering client-side.
-func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac string) (*unifi.Client, error) {
+func (c *APIClient) GetClientDeviceByMAC(ctx context.Context, site string, mac string) (*Client, error) {
 	mac = strings.ToLower(mac)
 	clients, err := c.ListClientDevices(ctx, site)
 	if err != nil {
@@ -155,7 +137,7 @@ func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac stri
 			return &clients[i], nil
 		}
 	}
-	return nil, &unifi.NotFoundError{}
+	return nil, &NotFoundError{}
 }
 
 // ForgetClientDevicesByMAC removes one or more known client devices via the
@@ -163,7 +145,7 @@ func (c *Client) GetClientDeviceByMAC(ctx context.Context, site string, mac stri
 // /rest/user/{id} (they return 404), so we use the documented stamgr endpoint
 // instead. Accepts a batch of MACs to minimize controller round-trips when
 // cleaning up many records at once.
-func (c *Client) ForgetClientDevicesByMAC(ctx context.Context, site string, macs []string) error {
+func (c *APIClient) ForgetClientDevicesByMAC(ctx context.Context, site string, macs []string) error {
 	if len(macs) == 0 {
 		return nil
 	}
@@ -173,7 +155,7 @@ func (c *Client) ForgetClientDevicesByMAC(ctx context.Context, site string, macs
 	}
 	var respBody struct {
 		Meta json.RawMessage `json:"meta"`
-		Data []unifi.Client  `json:"data"`
+		Data []Client        `json:"data"`
 	}
 	err := c.doV1Request(ctx, http.MethodPost,
 		fmt.Sprintf("%s%s/api/s/%s/cmd/stamgr", c.BaseURL, c.APIPath, site),
@@ -181,16 +163,16 @@ func (c *Client) ForgetClientDevicesByMAC(ctx context.Context, site string, macs
 	if err != nil {
 		return err
 	}
-	return checkV1Meta(respBody.Meta)
+	return CheckV1Meta(respBody.Meta)
 }
 
 // doV1Request makes an authenticated HTTP request to the UniFi v1 REST API.
-// It reuses the HTTP mechanics from doV2Request and converts HTTP 404 responses
-// to *unifi.NotFoundError for consistent handling by callers.
-func (c *Client) doV1Request(ctx context.Context, method, url string, body any, result any) error {
-	err := c.doV2Request(ctx, method, url, body, result)
+// It reuses the HTTP mechanics from Do and converts HTTP 404 responses
+// to *NotFoundError for consistent handling by callers.
+func (c *APIClient) doV1Request(ctx context.Context, method, url string, body any, result any) error {
+	err := c.Do(ctx, method, url, body, result)
 	if err != nil && strings.Contains(err.Error(), "(404)") {
-		return &unifi.NotFoundError{}
+		return &NotFoundError{}
 	}
 	return err
 }
@@ -201,14 +183,14 @@ func (c *Client) doV1Request(ctx context.Context, method, url string, body any, 
 // The fingerprint_override endpoint only supports PUT/DELETE, not GET. So we
 // read the override from the v2 client info endpoint which includes the
 // fingerprint data with dev_id_override.
-func (c *Client) GetFingerprintOverride(ctx context.Context, site string, mac string) (int64, error) {
+func (c *APIClient) GetFingerprintOverride(ctx context.Context, site string, mac string) (int64, error) {
 	var respBody struct {
 		Fingerprint struct {
 			DevIdOverride *int64 `json:"dev_id_override,omitempty"`
 			HasOverride   bool   `json:"has_override,omitempty"`
 		} `json:"fingerprint"`
 	}
-	err := c.doV2Request(ctx, http.MethodGet,
+	err := c.Do(ctx, http.MethodGet,
 		fmt.Sprintf("%s%s/v2/api/site/%s/clients/local/%s?includeUnifiDevices=true", c.BaseURL, c.APIPath, site, mac),
 		nil, &respBody)
 	if err != nil {
@@ -227,15 +209,15 @@ func (c *Client) GetFingerprintOverride(ctx context.Context, site string, mac st
 // SetFingerprintOverride sets or clears the fingerprint override for a client
 // device via the v2 API. Pass 0 to clear the override (sends DELETE), or a
 // positive device type ID to set it (sends PUT).
-func (c *Client) SetFingerprintOverride(ctx context.Context, site string, mac string, deviceTypeID int64) error {
+func (c *APIClient) SetFingerprintOverride(ctx context.Context, site string, mac string, deviceTypeID int64) error {
 	url := fmt.Sprintf("%s%s/v2/api/site/%s/station/%s/fingerprint_override", c.BaseURL, c.APIPath, site, mac)
 
 	if deviceTypeID == 0 {
-		return c.doV2Request(ctx, http.MethodDelete, url,
+		return c.Do(ctx, http.MethodDelete, url,
 			map[string]any{"mac": mac, "dev_id_override": 0, "search_query": ""}, nil)
 	}
 
-	return c.doV2Request(ctx, http.MethodPut, url,
+	return c.Do(ctx, http.MethodPut, url,
 		map[string]any{"mac": mac, "dev_id_override": deviceTypeID, "search_query": ""}, nil)
 }
 
@@ -245,11 +227,11 @@ type v1Meta struct {
 	Msg string `json:"msg"`
 }
 
-// checkV1Meta parses a v1 API response meta field and returns an error if the
+// CheckV1Meta parses a v1 API response meta field and returns an error if the
 // controller reported an error (rc != "ok"), even when the HTTP status was 200.
 // This prevents silent error swallowing where the controller returns HTTP 200
 // with an error in the meta field and an empty data array.
-func checkV1Meta(raw json.RawMessage) error {
+func CheckV1Meta(raw json.RawMessage) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -263,9 +245,9 @@ func checkV1Meta(raw json.RawMessage) error {
 	return nil
 }
 
-// buildClientDeviceRequest converts a *unifi.Client to a clientDeviceRequest,
+// BuildClientDeviceRequest converts a *Client to a clientDeviceRequest,
 // deriving boolean enable flags from the presence of their associated values.
-func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
+func BuildClientDeviceRequest(d *Client) clientDeviceRequest {
 	req := clientDeviceRequest{
 		MAC:  d.MAC,
 		Name: d.Name,
@@ -274,7 +256,7 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 	// Note: the "noted" field tells the UI a note exists
 	if d.Note != "" {
 		req.Note = d.Note
-		req.Noted = boolPtr(true)
+		req.Noted = BoolPtr(true)
 	}
 
 	// Fixed IP: the controller requires a valid network_id to resolve the
@@ -290,28 +272,28 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 		if netID != "" {
 			req.FixedIP = d.FixedIP
 			req.NetworkID = netID
-			req.UseFixedIP = boolPtr(true)
+			req.UseFixedIP = BoolPtr(true)
 		} else {
-			req.UseFixedIP = boolPtr(false)
+			req.UseFixedIP = BoolPtr(false)
 		}
 	} else {
-		req.UseFixedIP = boolPtr(false)
+		req.UseFixedIP = BoolPtr(false)
 	}
 
 	// Local DNS record: derive enabled from whether record is set
 	if d.LocalDNSRecord != "" {
 		req.LocalDNSRecord = d.LocalDNSRecord
-		req.LocalDNSRecordEnabled = boolPtr(true)
+		req.LocalDNSRecordEnabled = BoolPtr(true)
 	} else {
-		req.LocalDNSRecordEnabled = boolPtr(false)
+		req.LocalDNSRecordEnabled = BoolPtr(false)
 	}
 
 	// Virtual network override: derive enabled from whether ID is set
 	if d.VirtualNetworkOverrideID != "" {
 		req.VirtualNetworkOverrideID = d.VirtualNetworkOverrideID
-		req.VirtualNetworkOverrideEnabled = boolPtr(true)
+		req.VirtualNetworkOverrideEnabled = BoolPtr(true)
 	} else {
-		req.VirtualNetworkOverrideEnabled = boolPtr(false)
+		req.VirtualNetworkOverrideEnabled = BoolPtr(false)
 	}
 
 	// Client group assignment — always set the slice so that an empty slice
@@ -326,9 +308,9 @@ func buildClientDeviceRequest(d *unifi.Client) clientDeviceRequest {
 	// Fixed AP: derive enabled from whether MAC is set
 	if d.FixedApMAC != "" {
 		req.FixedApMAC = d.FixedApMAC
-		req.FixedApEnabled = boolPtr(true)
+		req.FixedApEnabled = BoolPtr(true)
 	} else {
-		req.FixedApEnabled = boolPtr(false)
+		req.FixedApEnabled = BoolPtr(false)
 	}
 
 	// Blocked: pass through as-is

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alexklibisz/terrifi/internal/provider"
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/spf13/cobra"
 )
 
@@ -34,8 +34,8 @@ func listDeviceTypesCmd() *cobra.Command {
 func runListDeviceTypes(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	cfg := provider.ClientConfigFromEnv()
-	client, err := provider.NewClient(ctx, cfg)
+	cfg := unifi.ConfigFromEnv()
+	client, err := unifi.New(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("connecting to UniFi controller: %w", err)
 	}
@@ -72,7 +72,7 @@ func iconURL(id int64) string {
 	return fmt.Sprintf("https://static.ui.com/fingerprint/0/%d_257x257.png", id)
 }
 
-func writeDeviceTypesCSV(devices []provider.FingerprintDevice) error {
+func writeDeviceTypesCSV(devices []unifi.FingerprintDevice) error {
 	w := csv.NewWriter(os.Stdout)
 	defer w.Flush()
 
@@ -96,7 +96,7 @@ func writeDeviceTypesCSV(devices []provider.FingerprintDevice) error {
 	return nil
 }
 
-func writeDeviceTypesHTML(devices []provider.FingerprintDevice, controllerVersion string) error {
+func writeDeviceTypesHTML(devices []unifi.FingerprintDevice, controllerVersion string) error {
 	const outputDir = "unifi-device-types"
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return fmt.Errorf("creating %s: %w", outputDir, err)
@@ -118,10 +118,10 @@ func writeDeviceTypesHTML(devices []provider.FingerprintDevice, controllerVersio
 
 	// Build JSON data for devices.
 	type deviceJSON struct {
-		ID      int64  `json:"id"`
-		Name    string `json:"name"`
-		Type    string `json:"type"`
-		Vendor  string `json:"vendor"`
+		ID     int64  `json:"id"`
+		Name   string `json:"name"`
+		Type   string `json:"type"`
+		Vendor string `json:"vendor"`
 	}
 	jsonDevices := make([]deviceJSON, len(devices))
 	for i, d := range devices {

@@ -2,6 +2,7 @@ package unifi
 
 // WLAN is the local controller API contract.
 type WLAN struct {
+	ScheduleWithDuration        []WLANScheduleWithDuration `json:"schedule_with_duration,omitempty"`
 	ID                          string                     `json:"_id,omitempty"`
 	SiteID                      string                     `json:"site_id,omitempty"`
 	Hidden                      bool                       `json:"attr_hidden,omitempty"`
@@ -14,14 +15,8 @@ type WLAN struct {
 	Name                        string                     `json:"name,omitempty"`
 	NetworkID                   string                     `json:"networkconf_id,omitempty"`
 	OptimizeIotWifiConnectivity bool                       `json:"optimize_iot_wifi_connectivity"`
-	Priority                    string                     `json:"priority,omitempty"`
-	Schedule                    []string                   `json:"schedule,omitempty"`
-	ScheduleWithDuration        []WLANScheduleWithDuration `json:"schedule_with_duration"`
 	Security                    string                     `json:"security,omitempty"`
-	SettingPreference           string                     `json:"setting_preference,omitempty"`
 	UserGroupID                 string                     `json:"usergroup_id,omitempty"`
-	VLAN                        *int64                     `json:"vlan,omitempty"`
-	VLANEnabled                 bool                       `json:"vlan_enabled"`
 	WLANBand                    string                     `json:"wlan_band,omitempty"`
 	WLANGroupID                 string                     `json:"wlangroup_id"`
 	WPA3Support                 bool                       `json:"wpa3_support"`

@@ -1,9 +1,4 @@
-package provider
-
-// TODO(go-unifi): This file implements the batch-reorder endpoint for firewall
-// policies, which is not supported by the go-unifi SDK. When the SDK adds
-// support for PUT /v2/api/site/{site}/firewall-policies/batch-reorder, this
-// file can be deleted and the resource can use the SDK's built-in method.
+package unifi
 
 import (
 	"context"
@@ -25,7 +20,7 @@ type firewallPolicyReorderRequest struct {
 // evaluation order of firewall policies for a given zone pair. The policyIDs
 // are placed in before_predefined_ids (custom policies ordered before system
 // defaults).
-func (c *Client) ReorderFirewallPolicies(ctx context.Context, site, sourceZoneID, destZoneID string, policyIDs []string) ([]firewallPolicyResponse, error) {
+func (c *APIClient) ReorderFirewallPolicies(ctx context.Context, site, sourceZoneID, destZoneID string, policyIDs []string) ([]FirewallPolicyResponse, error) {
 	payload := firewallPolicyReorderRequest{
 		SourceZoneID:        sourceZoneID,
 		DestinationZoneID:   destZoneID,
@@ -33,8 +28,8 @@ func (c *Client) ReorderFirewallPolicies(ctx context.Context, site, sourceZoneID
 		AfterPredefinedIDs:  []string{},
 	}
 
-	var result []firewallPolicyResponse
-	err := c.doV2Request(ctx, http.MethodPut,
+	var result []FirewallPolicyResponse
+	err := c.Do(ctx, http.MethodPut,
 		fmt.Sprintf("%s%s/v2/api/site/%s/firewall-policies/batch-reorder", c.BaseURL, c.APIPath, site),
 		payload, &result)
 	if err != nil {
@@ -45,7 +40,7 @@ func (c *Client) ReorderFirewallPolicies(ctx context.Context, site, sourceZoneID
 
 // GetFirewallPolicyOrdering returns the ordered list of non-predefined policy
 // IDs for a given zone pair, sorted by their controller-assigned index.
-func (c *Client) GetFirewallPolicyOrdering(ctx context.Context, site, sourceZoneID, destZoneID string) ([]string, error) {
+func (c *APIClient) GetFirewallPolicyOrdering(ctx context.Context, site, sourceZoneID, destZoneID string) ([]string, error) {
 	policies, err := c.ListFirewallPolicies(ctx, site)
 	if err != nil {
 		return nil, err

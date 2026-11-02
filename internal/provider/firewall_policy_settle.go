@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/alexklibisz/terrifi/internal/unifi"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 // matches and disable it while processing the network changes. As with port
 // profile tags, verify after the background work and repair the accepted write.
 // Policies referencing only established networks do not wait or read again.
-func (r *firewallPolicyResource) settleFreshNetworkPolicy(ctx context.Context, site string, sent *unifi.FirewallPolicy, sched *firewallPolicyScheduleRequest, written *firewallPolicyFull) (*firewallPolicyFull, error) {
+func (r *firewallPolicyResource) settleFreshNetworkPolicy(ctx context.Context, site string, sent *unifi.FirewallPolicy, sched *unifi.FirewallPolicyScheduleRequest, written *unifi.FirewallPolicyFull) (*unifi.FirewallPolicyFull, error) {
 	var networks []string
 	if sent.Source != nil && sent.Source.MatchingTarget == "NETWORK" {
 		networks = append(networks, sent.Source.IPs...)
@@ -40,7 +40,7 @@ func (r *firewallPolicyResource) settleFreshNetworkPolicy(ctx context.Context, s
 	case <-time.After(firewallPolicySettleDelay):
 	}
 
-	got, err := r.client.getFirewallPolicy(ctx, site, written.ID, false)
+	got, err := r.client.GetFirewallPolicyWithCache(ctx, site, written.ID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (r *firewallPolicyResource) settleFreshNetworkPolicy(ctx context.Context, s
 	if _, err := r.client.UpdateFirewallPolicy(ctx, site, &repair, sched); err != nil {
 		return nil, err
 	}
-	got, err = r.client.getFirewallPolicy(ctx, site, written.ID, false)
+	got, err = r.client.GetFirewallPolicyWithCache(ctx, site, written.ID, false)
 	if err != nil {
 		return nil, err
 	}

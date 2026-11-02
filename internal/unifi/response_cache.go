@@ -1,4 +1,4 @@
-package provider
+package unifi
 
 import "sync"
 
@@ -40,4 +40,15 @@ func (rc *responseCache) invalidateAll() {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	clear(rc.entries)
+}
+
+// EnableResponseCaching enables GET response reuse for this client.
+// Configure it before sharing the client between goroutines.
+func (c *APIClient) EnableResponseCaching() { c.cache = newResponseCache() }
+
+// InvalidateCache discards cached reads, for example after an external write.
+func (c *APIClient) InvalidateCache() {
+	if c.cache != nil {
+		c.cache.invalidateAll()
+	}
 }

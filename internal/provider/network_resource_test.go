@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // ---------------------------------------------------------------------------
@@ -684,7 +684,7 @@ func testAccRawNetwork(s *terraform.State, addr string) (*Client, string, string
 	var resp struct {
 		Data []map[string]any `json:"data"`
 	}
-	if err := client.doV2Request(context.Background(), http.MethodGet, client.networkURL(site, rs.Primary.ID), nil, &resp); err != nil {
+	if err := client.Do(context.Background(), http.MethodGet, client.NetworkURL(site, rs.Primary.ID), nil, &resp); err != nil {
 		return nil, "", "", nil, err
 	}
 	if len(resp.Data) != 1 {
@@ -720,7 +720,7 @@ func testAccNetworkSetUnmanaged(addr string) resource.TestCheckFunc {
 				Msg string `json:"msg"`
 			} `json:"meta"`
 		}
-		if err := client.doV2Request(context.Background(), http.MethodPut, client.networkURL(site, id), unmanagedNetworkSettings, &resp); err != nil {
+		if err := client.Do(context.Background(), http.MethodPut, client.NetworkURL(site, id), unmanagedNetworkSettings, &resp); err != nil {
 			return err
 		}
 		if resp.Meta.RC != "ok" {
@@ -835,7 +835,7 @@ func TestMergeNetwork(t *testing.T) {
 	var existing map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(stored), &existing))
 
-	merged, err := mergeNetwork(existing, map[string]any{
+	merged, err := unifi.MergeNetwork(existing, map[string]any{
 		"purpose": "corporate", "name": "servers", "vlan": int64(999), "vlan_enabled": true,
 		"dhcpd_dns_1": "192.168.10.2", "dhcpd_dns_2": "", "dhcpd_dns_3": "", "dhcpd_dns_4": "",
 	})

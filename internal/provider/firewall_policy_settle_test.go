@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/require"
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 type policySettleAPI struct {
 	mu           sync.Mutex
-	stored       firewallPolicyResponse
+	stored       unifi.FirewallPolicyResponse
 	methods      []string
 	ignoreRepair bool
 	failRead     bool
@@ -34,10 +34,10 @@ func (api *policySettleAPI) serveHTTP(w http.ResponseWriter, req *http.Request) 
 			http.Error(w, "verification failed", http.StatusBadRequest)
 			return
 		}
-		_ = json.NewEncoder(w).Encode([]firewallPolicyResponse{api.stored})
+		_ = json.NewEncoder(w).Encode([]unifi.FirewallPolicyResponse{api.stored})
 		return
 	}
-	var body firewallPolicyResponse
+	var body unifi.FirewallPolicyResponse
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -53,7 +53,7 @@ func (api *policySettleAPI) serveHTTP(w http.ResponseWriter, req *http.Request) 
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-func setupPolicySettleTest(t *testing.T) (*policySettleAPI, *firewallPolicyResource, *unifi.FirewallPolicy, *firewallPolicyScheduleRequest, *firewallPolicyFull) {
+func setupPolicySettleTest(t *testing.T) (*policySettleAPI, *firewallPolicyResource, *unifi.FirewallPolicy, *unifi.FirewallPolicyScheduleRequest, *unifi.FirewallPolicyFull) {
 	t.Helper()
 	previousDelay := firewallPolicySettleDelay
 	firewallPolicySettleDelay = 0
@@ -61,7 +61,7 @@ func setupPolicySettleTest(t *testing.T) (*policySettleAPI, *firewallPolicyResou
 	api := &policySettleAPI{}
 	server := httptest.NewServer(http.HandlerFunc(api.serveHTTP))
 	t.Cleanup(server.Close)
-	r := &firewallPolicyResource{client: &Client{BaseURL: server.URL, HTTP: newRetryableHTTPClient(false)}}
+	r := &firewallPolicyResource{client: newTestClient(t, server.URL, false)}
 	sent := &unifi.FirewallPolicy{
 		Name: "Network match", Action: "ALLOW", Enabled: true,
 		Source: &unifi.FirewallPolicySource{
@@ -73,7 +73,7 @@ func setupPolicySettleTest(t *testing.T) (*policySettleAPI, *firewallPolicyResou
 			IPs: []string{freshNetworkID(time.Now().Add(-time.Second))},
 		},
 	}
-	schedule := &firewallPolicyScheduleRequest{Mode: "CUSTOM", DateStart: "2026-01-01", DateEnd: "2026-12-31"}
+	schedule := &unifi.FirewallPolicyScheduleRequest{Mode: "CUSTOM", DateStart: "2026-01-01", DateEnd: "2026-12-31"}
 	written, err := r.client.CreateFirewallPolicy(t.Context(), "default", sent, schedule)
 	require.NoError(t, err)
 	sent.ID = written.ID
@@ -86,7 +86,7 @@ func TestSettleFreshNetworkPolicyRepairsControllerChanges(t *testing.T) {
 			api, r, sent, schedule, written := setupPolicySettleTest(t)
 			// A concurrent read may have cached the successful POST state before
 			// the controller's background job strips the actual stored match.
-			r.client.cache = newResponseCache()
+			r.client.EnableResponseCaching()
 			_, err := r.client.GetFirewallPolicy(t.Context(), "default", written.ID)
 			require.NoError(t, err)
 			api.mu.Lock()
@@ -110,7 +110,7 @@ func TestSettleFreshNetworkPolicyRepairsControllerChanges(t *testing.T) {
 			require.True(t, networkPolicyMatches(sent, got.FirewallPolicy))
 			api.mu.Lock()
 			defer api.mu.Unlock()
-			require.True(t, networkPolicyMatches(sent, api.stored.toSDK()), "verify the persisted controller state, not just the PUT response")
+			require.True(t, networkPolicyMatches(sent, api.stored.ToPolicy()), "verify the persisted controller state, not just the PUT response")
 			require.Equal(t, schedule, api.stored.Schedule, "repair must preserve fields missing from the SDK schedule")
 			require.Equal(t, written.Index, api.stored.Index, "repair must preserve the controller-assigned policy index")
 			require.Equal(t, []string{"POST", "GET", "GET", "PUT", "GET"}, api.methods)

@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/stretchr/testify/assert"
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // ---------------------------------------------------------------------------

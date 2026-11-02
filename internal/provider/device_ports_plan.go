@@ -1,73 +1,13 @@
 package provider
 
-// Local methods for reading a device's ports and writing its port_overrides,
-// using the local internal/unifi types rather than the go-unifi SDK — see
-// issue #157.
-//
-// port_overrides is a whole-array field: a PUT replaces every entry. Writes
-// are therefore a read-modify-write of the raw array that touches only the
-// managed ports (see mergePortOverrides).
-
 import (
 	"cmp"
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"slices"
-	"strings"
 
 	"github.com/alexklibisz/terrifi/internal/unifi"
 )
-
-// ListDevicePorts reads the ports of every device on the site, or of the
-// device with the given MAC.
-func (c *Client) ListDevicePorts(ctx context.Context, site, mac string) ([]unifi.DevicePorts, error) {
-	var resp struct {
-		Meta json.RawMessage     `json:"meta"`
-		Data []unifi.DevicePorts `json:"data"`
-	}
-	url := fmt.Sprintf("%s%s/api/s/%s/stat/device", c.BaseURL, c.APIPath, site)
-	if mac != "" {
-		url += "/" + strings.ToLower(mac)
-	}
-	if err := c.doRequest(ctx, http.MethodGet, url, nil, &resp, false); err != nil {
-		if strings.Contains(err.Error(), "(404)") {
-			return nil, &unifi.NotFoundError{}
-		}
-		return nil, err
-	}
-	if err := checkV1Meta(resp.Meta); err != nil {
-		return nil, err
-	}
-	return resp.Data, nil
-}
-
-// GetDevicePorts reads a device's ports by MAC.
-func (c *Client) GetDevicePorts(ctx context.Context, site, mac string) (*unifi.DevicePorts, error) {
-	devices, err := c.ListDevicePorts(ctx, site, mac)
-	if err != nil {
-		return nil, err
-	}
-	if len(devices) != 1 {
-		return nil, &unifi.NotFoundError{}
-	}
-	return &devices[0], nil
-}
-
-// PutPortOverrides replaces a device's port_overrides array. Only that field
-// is sent; the controller leaves the rest of the device as it is.
-func (c *Client) PutPortOverrides(ctx context.Context, site, deviceID string, overrides []map[string]json.RawMessage) error {
-	var resp struct {
-		Meta json.RawMessage `json:"meta"`
-	}
-	url := fmt.Sprintf("%s%s/api/s/%s/rest/device/%s", c.BaseURL, c.APIPath, site, deviceID)
-	body := map[string]any{"port_overrides": overrides}
-	if err := c.doPortProfileRequest(ctx, http.MethodPut, url, body, &resp); err != nil {
-		return err
-	}
-	return checkV1Meta(resp.Meta)
-}
 
 // portWant is the desired state of one managed port. nil fields are unset.
 type portWant struct {
@@ -245,19 +185,4 @@ func validatePortNetworks(d *unifi.DevicePorts, want map[int64]*portWant, networ
 		}
 	}
 	return nil
-}
-
-func (c *Client) listPortNetworks(ctx context.Context, site string) ([]unifi.PortNetwork, error) {
-	var resp struct {
-		Meta json.RawMessage     `json:"meta"`
-		Data []unifi.PortNetwork `json:"data"`
-	}
-	url := fmt.Sprintf("%s%s/api/s/%s/rest/networkconf", c.BaseURL, c.APIPath, site)
-	if err := c.doRequest(ctx, http.MethodGet, url, nil, &resp, false); err != nil {
-		return nil, err
-	}
-	if err := checkV1Meta(resp.Meta); err != nil {
-		return nil, err
-	}
-	return resp.Data, nil
 }

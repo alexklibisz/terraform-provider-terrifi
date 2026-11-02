@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 var (
@@ -719,17 +719,14 @@ func scheduleModelToAPI(ctx context.Context, m *firewallPolicyScheduleModel) *un
 	return sched
 }
 
-// scheduleModelToRequest builds a firewallPolicyScheduleRequest from the top-level
-// resource model. Returns nil when the model has no schedule block configured.
-// This preserves fields (DateRangeStart, DateRangeEnd) not present in the SDK struct.
-func scheduleModelToRequest(ctx context.Context, m *firewallPolicyResourceModel) *firewallPolicyScheduleRequest {
+func scheduleModelToRequest(ctx context.Context, m *firewallPolicyResourceModel) *unifi.FirewallPolicyScheduleRequest {
 	if m.Schedule.IsNull() || m.Schedule.IsUnknown() {
 		return nil
 	}
 	var sched firewallPolicyScheduleModel
 	m.Schedule.As(ctx, &sched, basetypes.ObjectAsOptions{})
 
-	req := &firewallPolicyScheduleRequest{
+	req := &unifi.FirewallPolicyScheduleRequest{
 		Mode:           sched.Mode.ValueString(),
 		Date:           sched.Date.ValueString(),
 		TimeRangeStart: sched.TimeRangeStart.ValueString(),
@@ -738,7 +735,7 @@ func scheduleModelToRequest(ctx context.Context, m *firewallPolicyResourceModel)
 		DateEnd:        sched.DateEnd.ValueString(),
 	}
 	if sched.TimeAllDay.ValueBool() {
-		req.TimeAllDay = boolPtr(true)
+		req.TimeAllDay = unifi.BoolPtr(true)
 	}
 	if !sched.RepeatOnDays.IsNull() && !sched.RepeatOnDays.IsUnknown() {
 		var days []string
@@ -748,7 +745,7 @@ func scheduleModelToRequest(ctx context.Context, m *firewallPolicyResourceModel)
 	return req
 }
 
-func (r *firewallPolicyResource) apiToModel(full *firewallPolicyFull, m *firewallPolicyResourceModel, site string) {
+func (r *firewallPolicyResource) apiToModel(full *unifi.FirewallPolicyFull, m *firewallPolicyResourceModel, site string) {
 	policy := full.FirewallPolicy
 	m.ID = types.StringValue(policy.ID)
 	m.Site = types.StringValue(site)
@@ -907,7 +904,7 @@ func populateTypedEndpointFields(attrs map[string]attr.Value, matchingTarget str
 	}
 }
 
-func scheduleAPIToModel(sched *firewallPolicyScheduleRequest) types.Object {
+func scheduleAPIToModel(sched *unifi.FirewallPolicyScheduleRequest) types.Object {
 	timeAllDay := false
 	if sched.TimeAllDay != nil {
 		timeAllDay = *sched.TimeAllDay
@@ -918,8 +915,8 @@ func scheduleAPIToModel(sched *firewallPolicyScheduleRequest) types.Object {
 		"time_all_day":     boolValueOrNull(timeAllDay),
 		"time_range_start": stringValueOrNull(sched.TimeRangeStart),
 		"time_range_end":   stringValueOrNull(sched.TimeRangeEnd),
-		"date_start": stringValueOrNull(sched.DateStart),
-		"date_end":   stringValueOrNull(sched.DateEnd),
+		"date_start":       stringValueOrNull(sched.DateStart),
+		"date_end":         stringValueOrNull(sched.DateEnd),
 	}
 
 	if sched.RepeatOnDays != nil {
@@ -985,7 +982,7 @@ func (v scheduleCustomRequiresDatesValidator) ValidateObject(ctx context.Context
 	}
 }
 
-func isDefaultSchedule(s *firewallPolicyScheduleRequest) bool {
+func isDefaultSchedule(s *unifi.FirewallPolicyScheduleRequest) bool {
 	timeAllDay := s.TimeAllDay != nil && *s.TimeAllDay
 	return s.Mode == "ALWAYS" &&
 		s.Date == "" &&

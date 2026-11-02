@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -22,8 +23,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 // Synthetic IDs. The entry shapes copy what a UniFi Network 10.x controller

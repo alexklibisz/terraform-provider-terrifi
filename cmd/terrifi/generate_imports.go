@@ -7,9 +7,8 @@ import (
 	"os"
 
 	"github.com/alexklibisz/terrifi/internal/generate"
-	"github.com/alexklibisz/terrifi/internal/provider"
-	"github.com/spf13/cobra"
 	"github.com/alexklibisz/terrifi/internal/unifi"
+	"github.com/spf13/cobra"
 )
 
 var validResourceTypes = []string{
@@ -63,8 +62,8 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	cfg := provider.ClientConfigFromEnv()
-	client, err := provider.NewClient(ctx, cfg)
+	cfg := unifi.ConfigFromEnv()
+	client, err := unifi.New(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("connecting to UniFi controller: %w", err)
 	}
@@ -100,7 +99,7 @@ func runGenerateImports(cmd *cobra.Command, args []string) error {
 	return generate.WriteBlocks(cmd.OutOrStdout(), blocks)
 }
 
-func generateResourceBlocks(ctx context.Context, client *provider.Client, site, resourceType string, excludeDefaultZones bool) ([]generate.ResourceBlock, error) {
+func generateResourceBlocks(ctx context.Context, client *unifi.APIClient, site, resourceType string, excludeDefaultZones bool) ([]generate.ResourceBlock, error) {
 	var blocks []generate.ResourceBlock
 
 	switch resourceType {

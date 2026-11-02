@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexklibisz/terrifi/internal/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/require"
-	"github.com/alexklibisz/terrifi/internal/unifi"
 )
 
 func clientDeviceImportState(t *testing.T, r *clientDeviceResource, id string) resource.ImportStateResponse {

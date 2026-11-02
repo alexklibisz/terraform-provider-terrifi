@@ -1,17 +1,3 @@
-// Package provider implements the Terrifi Terraform provider for managing
-// Ubiquiti UniFi network infrastructure.
-//
-// Architecture overview:
-//
-// Terraform Plugin Framework is HashiCorp's modern SDK for building providers.
-// A provider has three responsibilities:
-//  1. Schema — declare what configuration the provider block accepts (URL, credentials, etc.)
-//  2. Configure — use that config to create an authenticated API client
-//  3. Resources/DataSources — return the list of resource types this provider manages
-//
-// The framework calls these methods in order: Schema → Configure → then CRUD methods
-// on individual resources as needed. The Configure method stores the authenticated client
-// in resp.ResourceData, and each resource retrieves it in its own Configure method.
 package provider
 
 import (
@@ -37,17 +23,6 @@ var _ provider.Provider = &terrifiProvider{}
 // happens in Configure() which passes a Client to resources via resp.ResourceData.
 type terrifiProvider struct{}
 
-// terrifiProviderModel maps the HCL provider block to Go types. The `tfsdk` struct tags
-// tell the framework which HCL attribute each field corresponds to.
-// For example:
-//
-//	provider "terrifi" {
-//	  api_url  = "https://192.168.1.12:8443"
-//	  username = "admin"
-//	}
-//
-// The framework automatically deserializes this HCL into a terrifiProviderModel struct.
-// types.String/types.Bool are Terraform's wrapper types that track null vs empty vs set.
 type terrifiProviderModel struct {
 	ApiKey          types.String `tfsdk:"api_key"`
 	Username        types.String `tfsdk:"username"`
@@ -105,7 +80,7 @@ func (p *terrifiProvider) Schema(
 			},
 			"api_url": schema.StringAttribute{
 				MarkdownDescription: "URL of the UniFi controller API. Can be specified with the `UNIFI_API` " +
-					"environment variable. Do not include the `/api` path — the SDK discovers API paths automatically " +
+					"environment variable. Do not include the `/api` path — the client discovers API paths automatically " +
 					"to support both UDM-style and classic controller layouts.",
 				Optional: true,
 			},
@@ -130,15 +105,6 @@ func (p *terrifiProvider) Schema(
 	}
 }
 
-// Configure is called by the framework after Schema. It reads the provider config,
-// creates an authenticated UniFi API client, and stores it for resources to use.
-//
-// The flow is:
-//  1. Read HCL config (with env var fallbacks)
-//  2. Validate required fields
-//  3. Create HTTP client with retry support and TLS config
-//  4. Create go-unifi API client and authenticate
-//  5. Store the client in resp.ResourceData so resources can access it
 func (p *terrifiProvider) Configure(
 	ctx context.Context,
 	req provider.ConfigureRequest,
