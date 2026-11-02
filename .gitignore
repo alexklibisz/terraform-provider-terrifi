@@ -51,5 +51,5 @@ examples/**/.terraform/
 examples/**/.terraform.lock.hcl
 examples/**/crash.log
 
-# HIL controller certificate, fetched by hardware-testing/github-runner/rsync.sh
-hardware-testing/github-runner/controller.crt*
+# HIL controller certificate, fetched by testing/hardware/github-runner/rsync.sh
+testing/hardware/github-runner/controller.crt*

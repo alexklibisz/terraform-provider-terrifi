@@ -24,7 +24,7 @@ func TestAccResetHIL(t *testing.T) {
 	defer cancel()
 	root, err := filepath.Abs("../..")
 	require.NoError(t, err)
-	dir := filepath.Join(root, "hardware-testing/terraform")
+	dir := filepath.Join(root, "testing/hardware/terraform")
 	cli := filepath.Join(t.TempDir(), "terrifi")
 	build := exec.CommandContext(ctx, "go", "build", "-o", cli, "./cmd/terrifi")
 	build.Dir = root

@@ -2,8 +2,8 @@ version: '3'
 
 includes:
   hil:terraform:
-    taskfile: ./hardware-testing/terraform/Taskfile.yml
-    dir: ./hardware-testing/terraform
+    taskfile: ./testing/hardware/terraform/Taskfile.yml
+    dir: ./testing/hardware/terraform
 
 vars:
   # GOBIN is where `go install` puts binaries. We need this for dev_overrides
@@ -115,7 +115,7 @@ tasks:
   checkAPIConnection:
     desc: Verify connectivity to the UniFi controller
     cmds:
-      - ./hardware-testing/connection_check.sh
+      - ./testing/hardware/connection_check.sh
 
   lint:
     desc: Run fmt and vet

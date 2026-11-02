@@ -1,6 +1,6 @@
 # Run for Go source, dependency, workflow, and Docker Compose changes.
 # Manual runs remain available regardless of changed paths.
-name: CI - Local
+name: CI - Simulated
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,7 +19,7 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
-      - 'docker-compose.yaml'
+      - 'testing/simulated/docker-compose.yaml'
       - '.github/workflows/**'
   pull_request:
     branches: [main]
@@ -27,7 +27,7 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
-      - 'docker-compose.yaml'
+      - 'testing/simulated/docker-compose.yaml'
       - '.github/workflows/**'
   # Nightly run on main. The acceptance job pulls a published UniFi controller
   # image, so it can start failing without anything in this repo changing --
@@ -83,7 +83,7 @@ jobs:
           task test:reset
       - name: Compute Docker image cache key
         id: docker-image-key
-        run: echo "hash=$(grep 'image:' docker-compose.yaml | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        run: echo "hash=$(grep 'image:' testing/simulated/docker-compose.yaml | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Cache Docker images
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: docker-cache
@@ -101,9 +101,9 @@ jobs:
         if: steps.docker-cache.outputs.cache-hit != 'true'
         timeout-minutes: 10
         run: |
-          docker compose -f docker-compose.yaml pull --quiet
+          docker compose -f testing/simulated/docker-compose.yaml pull --quiet
           mkdir -p /tmp/docker-images
-          docker compose -f docker-compose.yaml config --images | while read -r img; do
+          docker compose -f testing/simulated/docker-compose.yaml config --images | while read -r img; do
             name=$(echo "$img" | tr '/.:' '___')
             docker save "$img" -o "/tmp/docker-images/${name}.tar"
           done

@@ -12,7 +12,7 @@
 # nothing but supervise.sh and exposes no ports. The
 # runner container, where PR code runs, never gets the socket. The hardware
 # acceptance target talks to the real controller and does not need Docker;
-# Docker-based tests run in ci-local on GitHub-hosted runners.
+# Docker-based tests run in ci-simulated on GitHub-hosted runners.
 #
 # The `goproxy` service caches Go modules for the runner containers, so each
 # job does not download every dependency from the internet. Jobs can make it

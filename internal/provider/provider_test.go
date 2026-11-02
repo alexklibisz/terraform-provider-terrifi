@@ -58,8 +58,8 @@ func runDockerTests(m *testing.M) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start the Docker Compose stack (docker-compose.yaml in project root).
-	dc, err := compose.NewDockerCompose("../../docker-compose.yaml")
+	// Start the Docker Compose stack (testing/simulated/docker-compose.yaml).
+	dc, err := compose.NewDockerCompose("../../testing/simulated/docker-compose.yaml")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create docker compose: %s\n", err)
 		return 1

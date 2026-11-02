@@ -29,7 +29,7 @@ Read this before approving a fork or Dependabot PR's HIL run, changing the HIL w
 
 ## How a Run Works
 
-[`ci-hil.yaml`](../.github/workflows/ci-hil.yaml) decides who may run and routes every event to the reusable [`ci-hil-run.yaml`](../.github/workflows/ci-hil-run.yaml), which does the work in three jobs on the hardware runner. Each job gets a fresh runner container (see [Runner Hardening](#runner-hardening)).
+[`ci-hil.yaml`](../../.github/workflows/ci-hil.yaml) decides who may run and routes every event to the reusable [`ci-hil-run.yaml`](../../.github/workflows/ci-hil-run.yaml), which does the work in three jobs on the hardware runner. Each job gets a fresh runner container (see [Runner Hardening](#runner-hardening)).
 
 ```mermaid
 flowchart TD
@@ -70,7 +70,7 @@ Two kinds of PR run code that no maintainer has reviewed:
 Both run HIL through `pull_request_target`, which GitHub always loads from `main`. The PR cannot change the workflow, the approval gate, which secrets are passed, or the reset code.
 
 1. Opening, reopening, or pushing to the PR starts a run.
-2. **Fork PRs only:** a maintainer approves workflows with the banner on the PR. The repository requires this for every external contributor. It also lets `CI - Local` run the fork's code on GitHub-hosted runners, with no secrets and a read-only token.
+2. **Fork PRs only:** a maintainer approves workflows with the banner on the PR. The repository requires this for every external contributor. It also lets `CI - Simulated` run the fork's code on GitHub-hosted runners, with no secrets and a read-only token.
 3. The `Fork or Dependabot PR approval` job runs on a GitHub-hosted runner and waits on the `hil-fork-approval` environment. It holds no secrets.
 4. A maintainer reviews the PR, as described below, and approves the deployment with **Review deployments**. The job logs the PR number, head repository, and head commit SHA.
 5. The run enters the hardware queue. Cleanup resets the controller using `main`, the tests job checks out the approved SHA and runs it with the UniFi key, and cleanup resets the controller again. The result appears as a check on the PR.
@@ -86,7 +86,7 @@ Approving lets the PR's code run on the runner as the `runner` user, with the Un
    - `go.mod` and `go.sum` changes, which can pull in new code.
    - `Taskfile.yml`, shell scripts, and anything under `cmd/terrifi-tests`.
    - For a Dependabot PR, the new code is in the updated modules, not the PR diff. Check their release notes and upstream changes.
-   - Changes under `.github/` and `hardware-testing/terraform/` do not take effect for gated runs, because the workflow and the baseline come from `main`. Still review them in case the PR is merged.
+   - Changes under `.github/` and `testing/hardware/terraform/` do not take effect for gated runs, because the workflow and the baseline come from `main`. Still review them in case the PR is merged.
 3. Approve with **Review deployments**. Do not use **Start all waiting jobs**, which is the administrator bypass rather than a review.
 
 ### Other Controls on These Runs
@@ -197,7 +197,7 @@ Do not approve the run unless you also want to test the hardware run.
 ### Rotating the State Credentials
 
 1. Create a new R2 API token in Cloudflare, scoped to the state bucket.
-2. Update `TERRIFI_HIL_STATE_ACCESS_KEY_ID` and `TERRIFI_HIL_STATE_SECRET_ACCESS_KEY` in the repository secrets, and your local `hardware-testing/terraform/.env`.
+2. Update `TERRIFI_HIL_STATE_ACCESS_KEY_ID` and `TERRIFI_HIL_STATE_SECRET_ACCESS_KEY` in the repository secrets, and your local `testing/hardware/terraform/.env`.
 3. Run a short manual HIL run to confirm the reset still works, then revoke the old token.
 
 ### If a Run Looks Malicious
