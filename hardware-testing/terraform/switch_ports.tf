@@ -1,5 +1,5 @@
-# TODO: Enable this configuration once switch port setup is released.
-# Update the baseline provider pin and lock file, then uncomment and plan/apply.
+# TODO: Enable this configuration on the HIL hardware.
+# The pinned provider supports terrifi_device_ports; uncomment and plan/apply.
 
 # resource "terrifi_network" "switch_lab" {
 #   name          = "Switch lab"

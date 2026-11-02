@@ -4,7 +4,7 @@ terraform {
   required_providers {
     terrifi = {
       source  = "registry.opentofu.org/alexklibisz/terrifi"
-      version = "0.9.3"
+      version = "0.11.0"
     }
   }
 }

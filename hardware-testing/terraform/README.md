@@ -63,7 +63,6 @@ on Default and port 3 as an access port on the Switch lab network (VLAN 20, `192
 `192.168.20.10`–`192.168.20.99`). Both block tagged traffic. Port 1 remains the
 uplink, and ports 4 and 5 remain reserved for acceptance tests.
 
-The configuration is staged because the pinned v0.9.3 provider does not support
-`terrifi_device_ports`. Once a release includes that resource, update the provider
-pin and lock file, uncomment the configuration, and plan/apply the baseline.
-Until then, the configuration leaves the ports unchanged.
+The pinned provider supports `terrifi_device_ports`, but the configuration remains commented out until it is applied to the HIL hardware.
+To enable it, uncomment the configuration and plan/apply the baseline.
+Until then, the baseline leaves the ports unchanged.
