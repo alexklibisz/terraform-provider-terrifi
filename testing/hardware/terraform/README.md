@@ -21,6 +21,41 @@ For a self-signed controller certificate, also set `UNIFI_INSECURE=true`.
 You can copy `.env.example` to the ignored `.env`, fill in the values, and load
 them with `source .env` from this directory. Task does not load `.env` automatically.
 
+## Provider version
+
+`providers.tf` pins an exact released provider version, and `.terraform.lock.hcl` records its package hashes for `linux_amd64`, `linux_arm64`, `darwin_amd64`, and `darwin_arm64`.
+`terraform.rc` installs the pinned release from the OpenTofu registry even when the parent repository enables `dev_overrides`.
+
+The registry can take a while to index a new release, including release candidates pinned for validation.
+Before each reset, HIL CI runs `provider-mirror.sh --configure`, which does nothing if the registry lists the pinned version.
+Otherwise it downloads the release zip from GitHub, verifies it against the release's `SHA256SUMS`, unpacks it into a filesystem mirror, and points the CI checkout's `terraform.rc` at that mirror.
+The lock file still pins the package hashes, so the reset's read-only `tofu init` rejects a package that does not match.
+
+To pin a release the registry has not indexed yet, generate the lock file from a mirror:
+
+```sh
+./provider-mirror.sh /tmp/terrifi-mirror linux_amd64 linux_arm64 darwin_amd64 darwin_arm64
+rm .terraform.lock.hcl
+TF_CLI_CONFIG_FILE="$PWD/terraform.rc" tofu providers lock -fs-mirror=/tmp/terrifi-mirror \
+  -platform=linux_amd64 -platform=linux_arm64 -platform=darwin_amd64 -platform=darwin_arm64
+```
+
+A lock file generated this way contains only `h1:` hashes, which also match the packages the registry serves once it indexes the release.
+
+The local `task hil:terraform:*` commands use the tracked, registry-only `terraform.rc`, so they cannot install an unindexed release.
+Do not run `--configure` in your working checkout: it rewrites the tracked `terraform.rc`.
+Either wait for the registry to index the release, or run the reset from a disposable worktree.
+The ignored `.env` file is not copied into the worktree, so load the environment variables above in your shell first.
+
+```sh
+git worktree add /tmp/terrifi-hil-reset HEAD
+cd /tmp/terrifi-hil-reset
+testing/hardware/terraform/provider-mirror.sh --configure /tmp/terrifi-mirror
+task build:cli
+task hil:terraform:reset
+cd - && git worktree remove --force /tmp/terrifi-hil-reset
+```
+
 ## Reset before HIL tests
 
 From the repository root, build the CLI (`task build:cli`) and run
