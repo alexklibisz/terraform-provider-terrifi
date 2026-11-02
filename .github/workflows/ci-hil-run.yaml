@@ -128,6 +128,14 @@ jobs:
         # them.
         timeout-minutes: 2
         run: '"$RUNNER_TEMP/terrifi-baseline-cli" generate-imports all'
+      - name: Mirror unindexed provider release
+        # The OpenTofu registry can take a while to index a new release, such
+        # as an RC pinned for validation. Until it does, install the pinned
+        # version from its GitHub release. The baseline lock file still pins
+        # the package hashes, so the reset's readonly init rejects any mismatch.
+        timeout-minutes: 2
+        working-directory: hil-baseline/hardware-testing/terraform
+        run: ./provider-mirror.sh --configure "$RUNNER_TEMP/terrifi-provider-mirror"
       - name: Reset HIL baseline
         timeout-minutes: 10
         working-directory: hil-baseline
@@ -139,7 +147,7 @@ jobs:
         run: go run ./cmd/terrifi-tests reset --terrifi "$RUNNER_TEMP/terrifi-baseline-cli"
       - name: Remove baseline workspace
         if: always()
-        run: rm -rf "$GITHUB_WORKSPACE/hil-baseline" "$RUNNER_TEMP/terrifi-baseline-cli"
+        run: rm -rf "$GITHUB_WORKSPACE/hil-baseline" "$RUNNER_TEMP/terrifi-baseline-cli" "$RUNNER_TEMP/terrifi-provider-mirror"
 
   tests:
     name: HIL tests

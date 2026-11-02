@@ -81,9 +81,10 @@ See the subdirectory READMEs for setup instructions:
 
 The `CI - HIL` workflow runs nightly, on manual dispatch, and on pull requests
 that target `main` and change at least one `.go` file anywhere in the repository,
-the root `go.mod` or `go.sum`, or any file under `.github/workflows/`. This
-includes Go test files, deleted Go files, dependency-only changes, and workflow
-changes. Documentation-only PRs skip HIL, including the approval gate. Use
+the root `go.mod` or `go.sum`, any file under `.github/workflows/`, or any file
+under `hardware-testing/terraform/`. This includes Go test files, deleted Go
+files, dependency-only changes, workflow changes, and HIL baseline changes.
+Documentation-only PRs skip HIL, including the approval gate. Use
 manual dispatch when those changes need hardware validation; nightly runs remain
 unconditional.
 
