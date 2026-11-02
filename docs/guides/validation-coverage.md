@@ -30,6 +30,12 @@ For example, setting PoE to Off and removing the setting to restore Auto are sep
 | `poe_mode` | Set to `off` | ✅ | ✅ |
 | `poe_mode` | Remove to restore `auto` | ✅ | ✅ |
 
+## Shared client validation
+
+All resources and data sources use the local `internal/unifi` client, also used directly by the CLI.
+Client unit tests cover shared authentication, response caching, controller decoding, and preservation of unmanaged JSON fields.
+The setting coverage tables continue to refer to provider acceptance scenarios; changing the client implementation does not expand those coverage claims.
+
 ## Scope and limitations
 
 The tables describe the checked-in acceptance suites and their target restrictions. They are not a dashboard of the latest CI results or a guarantee for every UniFi model and firmware version. Follow each page's evidence links to inspect the tests and their skip conditions.

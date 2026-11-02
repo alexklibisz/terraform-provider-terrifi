@@ -41,7 +41,7 @@ provider "terrifi" {
 
 ## Schema
 
-- `api_url` (String) — URL of the UniFi controller API. Do not include the `/api` path — the SDK discovers API paths automatically to support both UDM-style and classic controller layouts. Can also be set with the `UNIFI_API` environment variable.
+- `api_url` (String) — URL of the UniFi controller API. Do not include the `/api` path — the client discovers API paths automatically to support both UDM-style and classic controller layouts. Can also be set with the `UNIFI_API` environment variable.
 - `api_key` (String, Sensitive) — API key for the UniFi controller. If set, `username` and `password` are ignored. Can also be set with the `UNIFI_API_KEY` environment variable.
 - `username` (String, Sensitive) — Local username for the UniFi controller API. Can also be set with the `UNIFI_USERNAME` environment variable.
 - `password` (String, Sensitive) — Password for the UniFi controller API. Can also be set with the `UNIFI_PASSWORD` environment variable.
