@@ -186,13 +186,13 @@ func TestAccFirewallPolicyOrder_import(t *testing.T) {
 				Config: config,
 			},
 			{
-				Config:            config,
-				ResourceName:      "terrifi_firewall_policy_order.test",
-				ImportState:       true,
+				Config:       config,
+				ResourceName: "terrifi_firewall_policy_order.test",
+				ImportState:  true,
+				// Import reports every custom policy of the zone pair in
+				// controller order (#265). This pair holds exactly the two
+				// configured policies, so policy_ids must match state, in order.
 				ImportStateVerify: true,
-				// Import discovers all policies for the zone pair, which may
-				// differ from the user's subset. Skip verifying policy_ids.
-				ImportStateVerifyIgnore: []string{"policy_ids"},
 				ImportStateIdFunc: func(s *terraform.State) (string, error) {
 					rs, ok := s.RootModule().Resources["terrifi_firewall_policy_order.test"]
 					if !ok {

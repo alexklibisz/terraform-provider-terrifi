@@ -89,9 +89,9 @@ resource "terrifi_firewall_policy_order" "iot_to_trusted" {
 | `destination_zone_id` | Select the destination zone | ◻️ | ✅ |
 | `policy_ids` | Set an initial policy order | ◻️ | ✅ |
 | `policy_ids` | Reorder existing policies | ◻️ | ✅ |
-| `policy_ids` | Verify the imported policy order | ◻️ | ❌ |
+| `policy_ids` | Verify the imported policy order | ◻️ | ✅ |
 
-Ordering acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. ◻️ The zone-based firewall v2 API requires a fully adopted gateway, which the current simulator does not provide. `TestAccFirewallPolicyOrder_import` covers resource import, but explicitly excludes `policy_ids` from import-state verification because import discovers all policies for the zone pair. It does not assert the imported policy order.
+Ordering acceptance tests require `TERRIFI_ACC_TARGET=hardware` and skip on the Simulated target. ◻️ The zone-based firewall v2 API requires a fully adopted gateway, which the current simulator does not provide. `TestAccFirewallPolicyOrder_import` verifies the imported `policy_ids`, in order, against the configured order. `TestFirewallPolicyOrderImportReadsFullOrder` is a unit test of the same import path against a fake API.
 
 Evidence: [firewall_policy_order_resource_test.go](https://github.com/alexklibisz/terraform-provider-terrifi/blob/main/internal/provider/firewall_policy_order_resource_test.go).
 
@@ -116,6 +116,13 @@ terrifi generate-imports terrifi_firewall_policy_order
 ```
 
 ## Additional Notes
+
+### Import behavior
+
+Import reads every custom (non-predefined) policy of the zone pair, in the order the controller evaluates them.
+The first plan after import therefore shows a real reorder when the configured `policy_ids` differ from the controller's order, and no change when they match.
+If `policy_ids` lists only some of the zone pair's policies, that first plan also shows the unlisted ones leaving the list.
+After that, refreshes keep only the policies listed in `policy_ids`, so policies managed elsewhere in the same zone pair don't appear in state.
 
 ### Destroy behavior
 

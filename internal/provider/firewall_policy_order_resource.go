@@ -328,6 +328,12 @@ func (r *firewallPolicyOrderResource) validatePolicyZones(
 // model's PolicyIDs. It only updates PolicyIDs to include policies that are
 // already in the user's configured list (to avoid importing unmanaged policies
 // into state). Policies not in the API response are dropped.
+//
+// The exception is the first read after import. The import ID carries only the
+// zone pair, so PolicyIDs is still null; policy_ids is required, so it is never
+// null after Create or Update. In that case every custom policy of the zone pair
+// is reported, in controller order, so that the first plan after import shows a
+// real reorder instead of adding the whole list (#265).
 func (r *firewallPolicyOrderResource) readOrdering(
 	ctx context.Context,
 	m *firewallPolicyOrderResourceModel,
@@ -348,8 +354,9 @@ func (r *firewallPolicyOrderResource) readOrdering(
 	}
 
 	// Build a set of policy IDs the user has in their config.
+	imported := m.PolicyIDs.IsNull()
 	var configuredIDs []string
-	if !m.PolicyIDs.IsNull() && !m.PolicyIDs.IsUnknown() {
+	if !imported && !m.PolicyIDs.IsUnknown() {
 		m.PolicyIDs.ElementsAs(ctx, &configuredIDs, false)
 	}
 	configuredSet := make(map[string]bool, len(configuredIDs))
@@ -361,7 +368,7 @@ func (r *firewallPolicyOrderResource) readOrdering(
 	// This prevents unmanaged policies from appearing in state.
 	var filtered []string
 	for _, id := range apiOrder {
-		if configuredSet[id] {
+		if imported || configuredSet[id] {
 			filtered = append(filtered, id)
 		}
 	}
